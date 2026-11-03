@@ -1,43 +1,60 @@
 # Apex Kennels — Booking & Invoicing Foundation
 
-**Prototype only. Not deployed or connected to the live Google Form.**
+**Prototype only. No live database, form integration, or deployed application.**
 
-The existing Google Form remains the customer-facing intake until Apex approves a custom form. This repo contains reusable pricing, promotions, booking workflow, invoice HTML, a configurable Google Form adapter, tests, and a proposed Postgres schema.
+Apex currently uses a Google Form. Our initial goal is to preserve that intake and automate pricing, discounts, staff-reviewed invoices, and later notifications. The customer-facing form and staff interface can then be replaced without rewriting pricing logic.
 
-## Run
+## Current code
 
-Node.js 22.6+:
+- Configurable boarding-day counting, rate calculations, chargeable extras, manual discounts, promo-code validation
+- Invoice HTML renderer (temporary styling; Fatima's Canva template pending)
+- Booking and invoice workflow state guards
+- Google Form field-mapping adapter (not connected yet)
+- Draft PostgreSQL database schema at `db/schema.sql`, with row-level security enabled and no open read policies
+- Nine local automated tests using only **synthetic examples**
+
+Run on Node.js 22.6+:
 
 ```bash
 npm test
 npm run demo
 ```
 
-`npm run demo` creates synthetic sample invoice HTML and a quote JSON inside `output/` (ignored by Git). The HTML can be printed to PDF. The sample is **not** Apex's Canva design.
+`npm run demo` writes sample invoice HTML and quote JSON into `output/`. Both are fictional.
 
-## Built
+## Selected database: Neon PostgreSQL
 
-- Booking-day rules: inclusive days vs elapsed nights (Fatima must confirm)
-- Configurable boarding rates, extras, manual discounts, promotional codes
-- Invoice HTML with escaped customer input and frozen calculated totals
-- Booking/invoice transition guards
-- Form field-mapping adapter, not yet connected to the real form
-- Database schema with RLS enabled and no public access policies
-- Automated tests
+Neon replaces the earlier Supabase hosting proposal. The SQL schema is standard PostgreSQL and requires no proprietary Supabase services.
 
-## Not built yet
+**Infrastructure status:** Neon account integration was installed, but no Apex database has been provisioned or verified yet.
 
-- Live Supabase deployment, real form sync, bookings API, staff auth/dashboard, notifications, PDF delivery, capacity management, actual coupon redemption transactions, payment collection
-- Verified Apex pricing rules, complete form mapping, Canva design
+Provisioning plan:
 
-**Never put real pet/customer information, credentials, invoices, or bank details in this public repo.** Test fixtures are synthetic only.
+1. Create a **dedicated free** Neon project named `apex-kennels`; choose the region closest to the application hosting.
+2. Store the database credentials as a private `DATABASE_URL` secret in the server runtime; never commit the real URL to GitHub. See `.env.example`.
+3. Review `db/schema.sql` before applying it to the **new Apex database only**. Use a migration process for subsequent changes; do not blindly re-run a `CREATE TABLE` script on a populated database.
+4. Verify the tables and security settings using `db/verify.sql`.
+5. Build private, idempotent ingestion from Google Forms, then a staff approval step, saved invoice totals, and PDF generation.
 
-## Integration sequence
+**Security:** No customer, pet, payment, invoice, or bank data belongs in this public GitHub repo. Only server-side code may access database credentials. No login, role policies, production access or real data import is set up yet.
 
-1. Confirm the exact form fields, boarding-day logic, prices, extras, discount rules and approval policy.
-2. Provision a dedicated database, review and apply the schema, and add private ingestion with idempotency.
-3. Implement persisted quotes, manual review and approval, PDF rendering, and atomic promo redemption.
-4. Connect and validate the live Google Form. Replace only the intake adapter when the custom form arrives.
-5. Build the staff dashboard and public booking website on the same foundation.
+## Not implemented
 
-See `db/schema.sql`. It is a **proposal**, not an applied migration.
+- Live database connection or schema deployment
+- Live Form/Sheet sync, authenticated API, dashboard, or operational notifications
+- Atomic promotion usage tracking and redemption
+- PDF delivery / invoice approval UI / payment confirmation
+- Kennel capacity tracking and availability
+- Final business rules, Canva design, customer-facing custom form, premium website
+
+The nine tests verify the *local computation*, not a deployed booking workflow.
+
+## Waiting for Fatima
+
+- All Form questions and linked Sheet permissions
+- Price/day-count/discount rules, including promo stacking and exceptions
+- 3–5 redacted booking–invoice pairs for validation
+- Canva invoice template, invoice approval and sending process
+- Optional inventory details: kennels, types, sharing constraints, occupancy
+
+Booking requests must remain unconfirmed until staff approval. The final price must be confirmed before generating/sending a real invoice.

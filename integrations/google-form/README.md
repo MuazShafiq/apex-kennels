@@ -6,7 +6,7 @@ This is a **form-bound Apps Script adapter**, not a deployed integration. Do not
 
 1. Open the real Google Form as an editor. Under **Extensions → Apps Script**, add `Code.gs`.
 2. Run `listApexFormItemIds()` and map exact **item IDs** into the secure script property `APEX_FIELD_MAP`. Do not assume customer email, phone, or pet name questions exist until checked.
-3. Set Script Properties `APEX_API_URL`, `APEX_INTAKE_TOKEN`, and optionally `APEX_VERCEL_BYPASS` when protected Vercel-to-Google access is established. Do not put any secret in GitHub, the form, or a Sheet.
+3. Set Script Properties `APEX_API_URL`, `APEX_INTAKE_TOKEN`, for the Cloudflare Worker. Do not put any secret in GitHub, the form, or a Sheet.
 4. Create the installed trigger: function `onApexFormSubmit`, event source **From form**, event type **On form submit**.
 5. Keep `APEX_INTAKE_ENABLED=false` until the approved mapping has been verified with one clearly labelled synthetic form response.
 6. Enable after validating idempotent processing, staff review, failure alerts and privacy handling.

@@ -13,9 +13,11 @@ export type IntakeRequest = {
 };
 
 export class IntakeError extends Error {
-  constructor(message: string, public readonly status: number = 400) {
+  readonly status: number;
+  constructor(message: string, status: number = 400) {
     super(message);
     this.name = 'IntakeError';
+    this.status = status;
   }
 }
 

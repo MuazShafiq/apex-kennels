@@ -16,3 +16,6 @@ output/
 supabase/.branches/
 supabase/.profiles/
 supabase/.temp/
+
+# Compiled API output (generated during Vercel build)
+dist/

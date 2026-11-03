@@ -1,5 +1,6 @@
--- REVIEW-ONLY PostgreSQL schema for a FUTURE, DEDICATED Apex Neon project.
--- NOT applied to any live database. Staff auth policies are intentionally absent.
+-- Baseline PostgreSQL schema: deployed on 2026-11-03 to Apex's dedicated Neon production neondb.
+-- Do NOT re-run against this populated project; use a new migration for later changes.
+-- Staff authorization policies are intentionally not implemented yet.
 -- All money stored in integer PKR. Time-sensitive actions run server side.
 
 create extension if not exists pgcrypto;

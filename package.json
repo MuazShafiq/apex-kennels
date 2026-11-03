@@ -1,14 +1,23 @@
 {
   "name": "apex-booking-foundation",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Apex Kennels booking, pricing and invoicing foundation. No live integration yet.",
+  "description": "Apex Kennels internal booking ingestion and invoicing foundation. No live form sync yet.",
   "engines": {
-    "node": ">=22.6"
+    "node": ">=22.16"
   },
   "scripts": {
     "test": "node --disable-warning=ExperimentalWarning --experimental-strip-types --test src/*.test.ts",
-    "demo": "node --disable-warning=ExperimentalWarning --experimental-strip-types src/demo.ts"
+    "demo": "node --disable-warning=ExperimentalWarning --experimental-strip-types src/demo.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.16.0",
+    "@types/pg": "8.23.1",
+    "typescript": "5.9.3"
   }
 }

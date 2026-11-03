@@ -1,0 +1,14 @@
+{
+  "name": "apex-booking-foundation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Apex Kennels booking, pricing and invoicing foundation. No live integration yet.",
+  "engines": {
+    "node": ">=22.6"
+  },
+  "scripts": {
+    "test": "node --disable-warning=ExperimentalWarning --experimental-strip-types --test src/*.test.ts",
+    "demo": "node --disable-warning=ExperimentalWarning --experimental-strip-types src/demo.ts"
+  }
+}

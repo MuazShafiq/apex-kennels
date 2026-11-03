@@ -1,8 +1,7 @@
-import pg from 'pg';
+import { Pool } from 'pg';
 import type { DbPool } from './booking-store.ts';
 
-const { Pool } = pg;
-let cachedPool: pg.Pool | undefined;
+let cachedPool: Pool | undefined;
 
 /** Runtime-only database access. Call exclusively from server handlers. */
 export function databasePool(): DbPool {

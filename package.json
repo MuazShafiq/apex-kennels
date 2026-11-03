@@ -12,14 +12,18 @@
     "demo": "node --disable-warning=ExperimentalWarning --experimental-strip-types src/demo.ts",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && npm test && npm run compile",
-    "compile": "tsc -p tsconfig.build.json"
+    "compile": "tsc -p tsconfig.build.json",
+    "cf:check": "npm run typecheck && npm test && wrangler deploy --dry-run --outdir .wrangler-dry-run",
+    "cf:deploy": "wrangler deploy"
   },
   "dependencies": {
-    "pg": "8.23.1"
+    "pg": "8.23.1",
+    "@neondatabase/serverless": "1.2.0"
   },
   "devDependencies": {
     "@types/node": "22.16.0",
     "@types/pg": "8.23.1",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "wrangler": "4.156.2"
   }
 }

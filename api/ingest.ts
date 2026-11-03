@@ -15,7 +15,8 @@ function authorized(header: string | undefined, configuredSecret: string): boole
 
 async function readPayload(req: IncomingWithBody): Promise<unknown> {
   if (req.body !== undefined) {
-    if (Buffer.byteLength(JSON.stringify(req.body)) > 16_384) throw new IntakeError('Request too large', 413);
+    const serialized = JSON.stringify(req.body);
+    if (!serialized || Buffer.byteLength(serialized) > 16_384) throw new IntakeError('Invalid JSON');
     return typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
   }
   let raw = '';

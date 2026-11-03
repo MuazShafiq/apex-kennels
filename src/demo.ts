@@ -20,4 +20,4 @@ const path = join(dirname(fileURLToPath(import.meta.url)), '../output');
 mkdirSync(path,{recursive:true});
 writeFileSync(join(path,'sample-invoice.html'),html,'utf8');
 writeFileSync(join(path,'sample-quote.json'),JSON.stringify(quote,null,2),'utf8');
-console.log('Demo only: '+ quote.billedDays +' billed days, subtotal '+quote.subtotalPkr+', total '+quote.totalPkr+' PKR. Files in output/.');
+console.log(`Demo only: ${quote.billedDays} billed days, subtotal ${quote.subtotalPkr}, total ${quote.totalPkr} PKR. Files in output/.`);

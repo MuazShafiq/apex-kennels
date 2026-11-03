@@ -1,6 +1,6 @@
 # Apex Kennels — Booking & Invoicing Foundation
 
-**Prototype only. No live database, form integration, or deployed application.**
+**The Neon PostgreSQL schema is deployed and verified. Application code remains a prototype; live form integration and application hosting are not deployed.**
 
 Apex currently uses a Google Form. Our initial goal is to preserve that intake and automate pricing, discounts, staff-reviewed invoices, and later notifications. The customer-facing form and staff interface can then be replaced without rewriting pricing logic.
 
@@ -26,21 +26,21 @@ npm run demo
 
 Neon replaces the earlier Supabase hosting proposal. The SQL schema is standard PostgreSQL and requires no proprietary Supabase services.
 
-**Infrastructure status:** Neon account integration was installed, but no Apex database has been provisioned or verified yet.
+**Infrastructure status (2026-11-03):** The dedicated Neon project `apex-kennels` (`holy-bar-96685960`), database `neondb`, production branch is provisioned. All 11 tables are verified, with RLS enabled on each and no RLS policies configured. Verified customer, booking, invoice and promotion record counts are 0.
 
-Provisioning plan:
+Next steps:
 
-1. Create a **dedicated free** Neon project named `apex-kennels`; choose the region closest to the application hosting.
-2. Store the database credentials as a private `DATABASE_URL` secret in the server runtime; never commit the real URL to GitHub. See `.env.example`.
-3. Review `db/schema.sql` before applying it to the **new Apex database only**. Use a migration process for subsequent changes; do not blindly re-run a `CREATE TABLE` script on a populated database.
-4. Verify the tables and security settings using `db/verify.sql`.
-5. Build private, idempotent ingestion from Google Forms, then a staff approval step, saved invoice totals, and PDF generation.
+1. Add secure server-only persistence using a private `DATABASE_URL` secret. Never commit credentials. See `.env.example`.
+2. Build an authenticated, idempotent Google Form intake adapter after form/Sheet access is granted.
+3. Add staff invoice review/approval and persist frozen price snapshots, then generate PDFs.
+4. Apply **future** schema updates as numbered, reviewed migrations. **Do not re-run** `db/schema.sql` against production: this is the already-applied baseline.
+5. Keep the current form live until the replacement experience is ready.
 
 **Security:** No customer, pet, payment, invoice, or bank data belongs in this public GitHub repo. Only server-side code may access database credentials. No login, role policies, production access or real data import is set up yet.
 
 ## Not implemented
 
-- Live database connection or schema deployment
+- Live application-to-database connection (Neon schema has been deployed)
 - Live Form/Sheet sync, authenticated API, dashboard, or operational notifications
 - Atomic promotion usage tracking and redemption
 - PDF delivery / invoice approval UI / payment confirmation

@@ -1,4 +1,4 @@
--- REVIEW-ONLY starter schema for a FUTURE, DEDICATED Apex Supabase project.
+-- REVIEW-ONLY PostgreSQL schema for a FUTURE, DEDICATED Apex Neon project.
 -- NOT applied to any live database. Staff auth policies are intentionally absent.
 -- All money stored in integer PKR. Time-sensitive actions run server side.
 

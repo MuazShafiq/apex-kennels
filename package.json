@@ -5,12 +5,13 @@
   "type": "module",
   "description": "Apex Kennels internal booking ingestion and invoicing foundation. No live form sync yet.",
   "engines": {
-    "node": ">=22.16"
+    "node": "22.x"
   },
   "scripts": {
     "test": "node --disable-warning=ExperimentalWarning --experimental-strip-types --test src/*.test.ts",
     "demo": "node --disable-warning=ExperimentalWarning --experimental-strip-types src/demo.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && npm test"
   },
   "dependencies": {
     "pg": "8.23.1"

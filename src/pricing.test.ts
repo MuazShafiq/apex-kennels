@@ -7,7 +7,7 @@ import {renderInvoiceHtml} from './invoice.ts';
 
 const config:PriceConfig = {dayCountingRule:'inclusive_days', accommodation:{camera:{label:'Camera cage',pricePerDayPkr:3000}},allowPromoWithManualDiscount:false};
 const basic={startDate:'2026-10-22',endDate:'2026-11-08',petCount:1,accommodationType:'camera'};
-test('Zeus invoice arithmetic without storing customer details',()=>{
+test('18-day camera boarding sample arithmetic',()=>{
  const q=calculateQuote({...basic,extras:[{label:'Pickup and dropoff',quantity:2,unitPricePkr:4000}],manualDiscount:{kind:'fixed',amountPkr:2000}},config);
  assert.equal(q.billedDays,18);assert.equal(q.subtotalPkr,62000);assert.equal(q.totalPkr,60000);
 });
@@ -54,4 +54,31 @@ test('invoice rendering escapes customer-controlled markup',()=>{
  const html=renderInvoiceHtml({number:'DEMO',issuedOn:'2026-11-03',billedTo:'<script>alert(1)</script>',petName:'Sample',status:'DRAFT'},q);
  assert.ok(html.includes('&lt;script&gt;'));
  assert.ok(!html.includes('<script>alert(1)</script>'));
+});
+
+test('anonymized real invoice arithmetic: 6, 7, and 30 inclusive days at 2500 PKR', () => {
+  // Historical arithmetic benchmarks derived from supplied invoices. No names or bank details.
+  // These do not establish a universally approved current rate policy.
+  const historicalConfig: PriceConfig = {
+    dayCountingRule: 'inclusive_days',
+    accommodation: { standard: { label: 'Boarding', pricePerDayPkr: 2500 } },
+    allowPromoWithManualDiscount: false
+  };
+  const fixtures = [
+    {startDate:'2026-07-03',endDate:'2026-07-08',days:6,total:15000},
+    {startDate:'2026-07-23',endDate:'2026-07-29',days:7,total:17500},
+    {startDate:'2026-11-01',endDate:'2026-11-30',days:30,total:65000,
+      manualDiscount:{kind:'fixed' as const, amountPkr:10000}}
+  ];
+  for (const fixture of fixtures) {
+    const result = calculateQuote({
+      startDate:fixture.startDate,
+      endDate:fixture.endDate,
+      accommodationType:'standard',
+      petCount:1,
+      ...(fixture.manualDiscount ? {manualDiscount:fixture.manualDiscount} : {})
+    },historicalConfig);
+    assert.equal(result.billedDays,fixture.days);
+    assert.equal(result.totalPkr,fixture.total);
+  }
 });

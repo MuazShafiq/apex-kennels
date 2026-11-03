@@ -1,0 +1,17 @@
+# Dependencies and local environment
+node_modules/
+.env
+.env.*
+!.env.example
+
+# Generated demo artifacts, local files and credentials
+output/
+*.log
+.DS_Store
+*.pem
+*.key
+
+# Supabase local data
+supabase/.branches/
+supabase/.profiles/
+supabase/.temp/

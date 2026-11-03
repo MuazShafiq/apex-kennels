@@ -61,3 +61,9 @@ The money calculation, promo validation and invoice HTML are reusable prototypes
 - Invoice review/sending process, kennel inventory if available
 
 Next priority: confirm the actual form fields, then perform a controlled synthetic end-to-end POST (with no real customer information) before enabling the Google trigger. Do not launch external booking automation before owner-verified mapping, access, and pricing rules.
+
+## Cloudflare Workers migration
+
+A Cloudflare Workers TypeScript intake API is being introduced on a dedicated feature branch. The Vercel version remains preserved for rollback. The Cloudflare version uses request-scoped Neon WebSocket clients so the existing Postgres BEGIN/COMMIT/ROLLBACK logic works without a persistent Node server. It is **not yet deployed** to Cloudflare and is **not connected** to Apex's live Google Form.
+
+Read [Cloudflare deployment and security instructions](docs/cloudflare-workers.md). Run `npm run cf:check` to verify the Worker bundle and tests before connecting GitHub in the Cloudflare dashboard. Production secrets must be set in Cloudflare, not committed here.

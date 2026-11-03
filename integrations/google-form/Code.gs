@@ -9,9 +9,6 @@
  *   APEX_INTAKE_TOKEN = <secret copied securely from backend settings>
  *   APEX_FIELD_MAP = JSON object of field names -> Google Form ITEM IDs
  *
- * Optional, if keeping Vercel deployment protection for Google Apps Script:
- *   APEX_VERCEL_BYPASS = <deployment protection automation bypass secret>
- *
  * Create an installable Form submit trigger pointing to onApexFormSubmit.
  */
 function onApexFormSubmit(e) {
@@ -58,8 +55,6 @@ function onApexFormSubmit(e) {
   };
 
   var headers = {Authorization: 'Bearer ' + token};
-  var bypass = props.getProperty('APEX_VERCEL_BYPASS');
-  if (bypass) headers['x-vercel-protection-bypass'] = bypass;
   var response = UrlFetchApp.fetch(url, {
     method: 'post',
     contentType: 'application/json',

@@ -3,6 +3,7 @@ node_modules/
 .env
 .env.*
 !.env.example
+.neon/
 
 # Generated demo artifacts, local files and credentials
 output/
@@ -11,7 +12,7 @@ output/
 *.pem
 *.key
 
-# Supabase local data
+# Legacy Supabase local tooling, if present
 supabase/.branches/
 supabase/.profiles/
 supabase/.temp/

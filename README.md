@@ -1,60 +1,63 @@
 # Apex Kennels — Booking & Invoicing Foundation
 
-**The Neon PostgreSQL schema is deployed and verified. Application code remains a prototype; live form integration and application hosting are not deployed.**
+**Status: deployed API foundation; NOT connected to Apex's live Google Form.**
 
-Apex currently uses a Google Form. Our initial goal is to preserve that intake and automate pricing, discounts, staff-reviewed invoices, and later notifications. The customer-facing form and staff interface can then be replaced without rewriting pricing logic.
+The existing Google Form remains the customer-facing intake until we verify and replace it. The backend is designed to keep the database and pricing logic independent of that temporary input.
 
-## Current code
+## Verified as of 2026-11-03
 
-- Configurable boarding-day counting, rate calculations, chargeable extras, manual discounts, promo-code validation
-- Invoice HTML renderer (temporary styling; Fatima's Canva template pending)
-- Booking and invoice workflow state guards
-- Google Form field-mapping adapter (not connected yet)
-- Draft PostgreSQL database schema at `db/schema.sql`, with row-level security enabled and no open read policies
-- Nine local automated tests using only **synthetic examples**
+- **GitHub:** public repository with source, CI checks and all-synthetic test cases
+- **Neon:** `apex-kennels` project (`holy-bar-96685960`), production `neondb`, 11/11 tables, RLS enabled on all 11 and no RLS policies; record counts were zero at the last independent check
+- **Vercel:** `apex-kennels` project, Node.js 22, Singapore functions, production Git integration, SSO deployment protection
+- **Secrets:** private `DATABASE_URL` and `INTAKE_API_SECRET` saved as encrypted **production-only** environment variables in Vercel. They are not in this repository.
+- **Build:** TypeScript validation and all **14 tests** passed during production deployment
+- **HTTP:** deployed `/api/health` returned 200; `GET /api/ingest` correctly returned 405. An authenticated POST creating a booking has **not** been independently executed end-to-end against production.
+- **Form adapter:** source is in `integrations/google-form/`, intentionally **disabled** and not installed.
 
-Run on Node.js 22.6+:
+## Endpoint behavior
+
+`POST /api/ingest` is internal and must carry `Authorization: Bearer <INTAKE_API_SECRET>` and `Content-Type: application/json`.
+
+Accepted request fields: `source: "google_form"`, `externalResponseId`, `customerName`, `email` or `phone`, `petName`, `startDate` and `endDate`; optional `accommodationType`. No prices, bank details, or arbitrary invoice amounts are accepted from the caller.
+
+- A new request creates a customer record, pet, booking request and ingestion event in one transaction
+- Identical repeated submissions return the original booking instead of creating a duplicate
+- A changed submission under an existing Google response ID returns HTTP 409 for manual review
+- Booking status begins at `requested`; **not** an accepted reservation
+- Database errors roll back the transaction; protected customer data is not included in responses
+
+Access is controlled by both Vercel deployment protection and the private API token. Before connecting Apps Script, arrange an explicit protected API access method rather than disabling protection without review.
+
+## Development
+
+Requires Node.js 22.x.
 
 ```bash
-npm test
-npm run demo
+npm install
+npm run build  # typecheck + 14 tests + compiled server modules
+npm run demo   # local synthetic quote and printable HTML invoice
 ```
 
-`npm run demo` writes sample invoice HTML and quote JSON into `output/`. Both are fictional.
+The `api/ingest.js` Vercel entrypoint loads compiled code from `dist/src/`; `dist/` is generated at build time and is not tracked.
 
-## Selected database: Neon PostgreSQL
+The money calculation, promo validation and invoice HTML are reusable prototypes. **Do not use them for real prices until Fatima confirms the rulebook.** The demonstrated invoice is synthetic and not an approved Canva adaptation.
 
-Neon replaces the earlier Supabase hosting proposal. The SQL schema is standard PostgreSQL and requires no proprietary Supabase services.
+## Database safety
 
-**Infrastructure status (2026-11-03):** The dedicated Neon project `apex-kennels` (`holy-bar-96685960`), database `neondb`, production branch is provisioned. All 11 tables are verified, with RLS enabled on each and no RLS policies configured. Verified customer, booking, invoice and promotion record counts are 0.
+`db/schema.sql` is the **already-applied** production baseline. Do not re-run it. Use reviewed forward-only migrations for new columns/tables. PostgreSQL RLS currently has no staff/customer policies; the API connects from a private server runtime with a privileged database credential. Never expose that credential to any browser or public script.
 
-Next steps:
+## Not connected or implemented
 
-1. Add secure server-only persistence using a private `DATABASE_URL` secret. Never commit credentials. See `.env.example`.
-2. Build an authenticated, idempotent Google Form intake adapter after form/Sheet access is granted.
-3. Add staff invoice review/approval and persist frozen price snapshots, then generate PDFs.
-4. Apply **future** schema updates as numbered, reviewed migrations. **Do not re-run** `db/schema.sql` against production: this is the already-applied baseline.
-5. Keep the current form live until the replacement experience is ready.
+- Real Google Form trigger or response mapping; any live bookings
+- Approved pricing policy, promo usage-limit redemption transaction, final invoice auto-drafting and staff approval
+- Customer/staff login and dashboard; PDF sending; notifications; payments; inventory and capacity
+- Final customer booking flow, bespoke public website, photo/media assets and Canva invoice design
 
-**Security:** No customer, pet, payment, invoice, or bank data belongs in this public GitHub repo. Only server-side code may access database credentials. No login, role policies, production access or real data import is set up yet.
+## Waiting on Fatima
 
-## Not implemented
+- Full Google Form editor access and linked Sheet access
+- Complete pricing and stay-day rules, extras, discounts/promo rules
+- Canva invoice template and 3–5 anonymized booking–invoice examples
+- Invoice review/sending process, kennel inventory if available
 
-- Live application-to-database connection (Neon schema has been deployed)
-- Live Form/Sheet sync, authenticated API, dashboard, or operational notifications
-- Atomic promotion usage tracking and redemption
-- PDF delivery / invoice approval UI / payment confirmation
-- Kennel capacity tracking and availability
-- Final business rules, Canva design, customer-facing custom form, premium website
-
-The nine tests verify the *local computation*, not a deployed booking workflow.
-
-## Waiting for Fatima
-
-- All Form questions and linked Sheet permissions
-- Price/day-count/discount rules, including promo stacking and exceptions
-- 3–5 redacted booking–invoice pairs for validation
-- Canva invoice template, invoice approval and sending process
-- Optional inventory details: kennels, types, sharing constraints, occupancy
-
-Booking requests must remain unconfirmed until staff approval. The final price must be confirmed before generating/sending a real invoice.
+Next priority: confirm the actual form fields, then perform a controlled synthetic end-to-end POST (with no real customer information) before enabling the Google trigger. Do not launch external booking automation before owner-verified mapping, access, and pricing rules.

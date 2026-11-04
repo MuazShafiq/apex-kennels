@@ -68,3 +68,11 @@ Next priority: obtain and verify the actual Form/Sheet fields, configure the pro
 The Cloudflare Workers TypeScript intake API was merged in PR #1 and deployed at `https://apex-kennels-api.muaz-shafiq18.workers.dev`. Its authenticated synthetic booking and duplicate retry were verified against production Neon. The legacy Vercel version remains preserved as a development fallback. The Google Form trigger is still **not installed or enabled**.
 
 See [Cloudflare operational and security instructions](docs/cloudflare-workers.md). Cloudflare runtime secrets are configured privately, not committed in GitHub.
+
+## Staff console preparation (2026-11-04)
+
+- **Preview routes:** `/demo/staff` displays clearly labeled **synthetic** bookings; `/demo/invoice` renders a synthetic, non-payable draft with an explicit unapproved rate label. They do not access Neon or customer records.
+- **Live staff queue:** `/staff` and `/staff/api/bookings` are bounded, read-only Neon views. Both fail closed until Cloudflare Access is configured with an exact audience and staff email allowlist. No staff changes, invoice approvals or customer messages are enabled. See [staff access setup](docs/staff-access.md).
+- **Operational monitoring:** a scheduled GitHub Actions smoke test checks public health, rejected unauthorized intake, and no unauthenticated staff access every six hours. Failed runs require a human to inspect GitHub Actions; this is not a paging service.
+- **Owner information:** [Fatima handoff](docs/fatima-handoff.md) lists the remaining exact decisions/access needed before production imports, billing or staff actions.
+- **CI:** TypeScript validation, 36/36 tests and Wrangler bundle dry-run passed on the feature branch. Independent Cloudflare production verification of these **new** routes is pending deployment.

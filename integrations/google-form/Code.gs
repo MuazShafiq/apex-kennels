@@ -428,3 +428,20 @@ function testApexSyntheticFormMapping() {
   }
   Logger.log('APEX SYNTHETIC FORM MAPPING PASSED: 19 IDs, dates, contact, add-ons, grid, pet care and consent. No responses read/submitted, no HTTP request.');
 }
+
+
+/**
+ * Single staging preflight. Rechecks and saves the metadata-only map,
+ * validates it, and runs an entirely in-memory synthetic response.
+ * This DOES NOT submit a Form response, add a trigger, send an HTTP
+ * request, import historical bookings, or enable ingestion.
+ */
+function apexPreflight() {
+  stageApexFieldMapDisabled();
+  validateApexSavedFieldMap();
+  testApexSyntheticFormMapping();
+  if (apexProperties().getProperty('APEX_INTAKE_ENABLED') !== 'false') {
+    throw new Error('Unsafe configuration: intake must remain disabled');
+  }
+  Logger.log('APEX PREFLIGHT PASS: 19 question IDs verified, synthetic conversion passed, intake disabled. No customer responses read or sent.');
+}

@@ -188,6 +188,18 @@ function onApexFormSubmit(event) {
   if (live) {
     if (canaryMarker) throw new Error('Disarm test canary before enabling live intake');
     var liveConfig=apexConfig(); // Enforces recorded owner approval.
+    // Old queued Form events or manually replayed responses must NEVER be
+    // imported just because real intake was enabled after they were created.
+    var boundary=props.getProperty('APEX_LIVE_START_AFTER');
+    var boundaryMs=Date.parse(boundary||'');
+    if (!boundary || isNaN(boundaryMs)) {
+      throw new Error('Live intake requires recorded start cutoff');
+    }
+    var submittedAt=event.response.getTimestamp();
+    if (!submittedAt || isNaN(submittedAt.getTime())) {
+      throw new Error('Form response timestamp missing');
+    }
+    if (submittedAt.getTime()<boundaryMs) return;
     apexSubmit(event.response,liveConfig);
     return;
   }
@@ -603,4 +615,52 @@ function apexTestStagingDelivery() {
     throw new Error('Staging changed-care response did not reject with HTTP 409 (got '+conflict.status+')');
   }
   Logger.log('APEX STAGING DELIVERY PASS: 201 new / 200 same / 409 changed. Synthetic fixture ID: '+payload.externalResponseId+'. No real Form response, invoice or customer email.');
+}
+
+
+/**
+ * One controlled go-live action, AFTER Fatima explicitly approves capture of
+ * customer and pet-care data. Recording approval is separate; this function
+ * cannot grant consent on the owner's behalf. Billing remains disconnected.
+ */
+function apexActivateShadowIntake() {
+  var props=apexProperties();
+  if (props.getProperty('APEX_OWNER_APPROVED_LIVE')!=='true') {
+    throw new Error('Fatima must explicitly approve real customer data handling before activation');
+  }
+  if (props.getProperty('APEX_INTAKE_ENABLED')!=='false') {
+    throw new Error('Shadow intake is not disabled; refusing to change the start cutoff');
+  }
+  if (props.getProperty('APEX_CANARY_OWNER_NAME') ||
+      props.getProperty('APEX_CANARY_COMPLETE')) {
+    throw new Error('Disarm the one-shot synthetic canary before live activation');
+  }
+  validateApexSavedFieldMap();
+  apexProductionWebhookConfig();
+  var form=FormApp.getActiveForm();
+  if (!form) throw new Error('Expected original Google Form-bound project');
+  var triggers=ScriptApp.getProjectTriggers().filter(function(trigger){
+    return trigger.getHandlerFunction()==='onApexFormSubmit';
+  });
+  if (triggers.length!==1 ||
+      triggers[0].getEventType()!==ScriptApp.EventType.ON_FORM_SUBMIT ||
+      triggers[0].getTriggerSource()!==ScriptApp.TriggerSource.FORMS ||
+      triggers[0].getTriggerSourceId()!==form.getId()) {
+    throw new Error('Exactly one correct Form submit trigger is required');
+  }
+  var start=new Date().toISOString();
+  // Set the import boundary BEFORE the enabled flag, in one properties call.
+  props.setProperties({
+    APEX_LIVE_START_AFTER:start,
+    APEX_RECONCILE_AFTER:start,
+    APEX_INTAKE_ENABLED:'true'
+  });
+  Logger.log('APEX SHADOW INTAKE ACTIVATED: new responses after '+start+
+    ' only. Google Form and Sheet remain operational. Invoices and customer messages disabled. No historical backfill.');
+}
+
+/** One action to stop real customer forwarding without editing triggers. */
+function apexPauseShadowIntake() {
+  apexProperties().setProperty('APEX_INTAKE_ENABLED','false');
+  Logger.log('APEX SHADOW INTAKE PAUSED: Google Form and Sheet unaffected; no new webhook deliveries.');
 }

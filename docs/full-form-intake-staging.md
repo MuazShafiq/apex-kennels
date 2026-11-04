@@ -56,3 +56,14 @@ The actual personality grid question is titled `(optional)`, not `Personality tr
 **To apply:** In the Form-bound Apps Script project, replace the contents of the previously created `ApexIntake.gs` with the revised `integrations/google-form/Code.gs` from this **feature branch**, save and rerun `proposeApexFieldMap()`. The function inspects question metadata only. Do not create a trigger, enable `APEX_INTAKE_ENABLED` or read/import historical responses as part of the mapping procedure.
 
 **Verification:** CI passed all 52 tests on Node 22 and 24, including four synthetic Apps Script fixtures for both grid types and a multiple-selection rejection. Actual execution in the Google Form project is still pending.
+
+## Stage the verified Form item IDs (without a live submission)
+
+On 2026-11-04, `proposeApexFieldMap()` successfully resolved all **19** stable item IDs in the real Form, including the personality grid and consent checkbox. It only printed the proposal and did **not** configure runtime properties.
+
+1. Replace the contents of the existing form-bound `ApexIntake.gs` with the latest `integrations/google-form/Code.gs` **from this feature branch**. Do not duplicate functions across `.gs` files. Save.
+2. In the Apps Script function dropdown, run `stageApexFieldMapDisabled()`. It independently rechecks Form question metadata, saves `APEX_FIELD_MAP` in **Script Properties** and sets `APEX_INTAKE_ENABLED=false` (only if not already enabled). It neither reads past responses nor creates a trigger, webhook or booking.
+3. Run `validateApexSavedFieldMap()`. Success log: `APEX FIELD MAP VERIFIED: 19 item IDs match. Intake disabled. No customer responses accessed.`
+4. Do **not** set `APEX_INTAKE_ENABLED=true`, install any trigger, or manually replay old responses. Real Form email retrieval and optional answer handling still need end-to-end validation before a reviewed cutover.
+
+The item IDs are metadata, not credentials; no customer responses or API secrets are added to GitHub. Production database migration and official activation remain separate steps.

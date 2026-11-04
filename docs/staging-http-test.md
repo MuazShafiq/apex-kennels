@@ -19,7 +19,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\provision-stag
 
 3. The script explicitly asks you to type `local-development`, deploys the **separate** Cloudflare Worker `apex-kennels-intake-staging`, then prompts for the development Neon URL (hidden). It saves that as a Cloudflare secret, generates a separate 32-byte staging token, and copies that token to the Windows clipboard after a successful staging health check. No files containing secrets are written to Git. Wrangler may ask you to sign in to Cloudflare on first use. **Never run** `npm.cmd run cf:deploy` for this stage because that targets production's default config.
 
-4. Open the **existing** Google Form-bound Apps Script project. Under **Project Settings → Script Properties**, add `APEX_STAGING_INTAKE_TOKEN` and paste the value currently in your clipboard. Do not replace the production `APEX_INTAKE_TOKEN` or enable `APEX_INTAKE_ENABLED`. Keep the latter at `false`. Afterwards clear Windows clipboard using `Set-Clipboard -Value $null`.
+4. Open the **existing** Google Form-bound Apps Script project. Under **Project Settings → Script Properties**, add `APEX_STAGING_INTAKE_TOKEN` and paste the value currently in your clipboard. Do not replace the production `APEX_INTAKE_TOKEN` or enable `APEX_INTAKE_ENABLED`. Keep the latter at `false`. Afterwards clear Windows clipboard using `Set-Clipboard -Value ''`.
 5. Synchronize the updated adapter from the GitHub feature branch with **`npm.cmd run form:sync`** if the clasp first-time setup was successfully completed. Otherwise follow `docs/form-automation.md` and connect to the already-existing Apps Script project first. Avoid maintaining duplicate `.gs` function definitions.
 
 ## Exactly one Apps Script run

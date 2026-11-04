@@ -61,7 +61,7 @@ function main() {
   const remoteBackup=join(snapshot,'remote');
   const upload=join(snapshot,'upload');
   mkdirSync(remoteBackup,{recursive:true});
-  writeFileSync(join(remoteBackup,'.clasp.json'),JSON.stringify({scriptId},null,2)+'\n');
+  writeFileSync(join(remoteBackup,'.clasp.json'),JSON.stringify({scriptId,scriptExtensions:['.gs','.js']},null,2)+'\n');
   console.log('\nBacking up the remote Apps Script project locally. No files are overwritten on Google yet.');
   cli('pull',[],remoteBackup);
 
@@ -69,7 +69,11 @@ function main() {
   if(!pulled.some(p=>p.endsWith('appsscript.json'))) {
     throw new Error('Remote Apps Script manifest missing. Refusing to push.');
   }
-  const target=join(remoteBackup,'ApexIntake.gs');
+  // The primary Form-bound script is expected at project root; refuse nested
+  // duplicates rather than accidentally creating a second global function.
+  const nameMatches=pulled.filter(p=>/^(?:ApexIntake\.gs|ApexIntake\.js)$/i.test(relative(remoteBackup,p).replace(/\\/g,'/')));
+  if(nameMatches.length>1)throw new Error('More than one ApexIntake file exists in the remote project.');
+  const target=nameMatches[0]??join(remoteBackup,'ApexIntake.gs');
   const prior=existsSync(target)?readFileSync(target,'utf8'):null;
   const desired=readFileSync(ownedSource,'utf8');
 
@@ -95,7 +99,7 @@ function main() {
     }
     // Preserve the original pull as an immutable local rollback snapshot.
     cpSync(remoteBackup,upload,{recursive:true});
-    writeFileSync(join(upload,'ApexIntake.gs'),desired,'utf8');
+    writeFileSync(join(upload,relative(remoteBackup,target)),desired,'utf8');
     cli('push',['--force'],upload);
     console.log('ApexIntake.gs synced. This did NOT enable the intake trigger or send a booking.');
   }

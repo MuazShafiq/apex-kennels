@@ -12,7 +12,7 @@ Sensitive owner and pet-care details are **never** sent to the public demo, the 
 
 ## Database migration
 
-`db/migrations/001_full_form_details.sql` adds one nullable digest column and one restricted detail table. Test it on Neon branch `local-development` (`br-little-shape-az2ip3cp`) first. This is a **forward-only** migration; don't re-run the baseline `db/schema.sql`. Production must be migrated **before** deploying the new Worker; otherwise old intake queries in the feature branch would fail on production due to missing fingerprint column. Do not merge this feature until the coordinated cutover is approved.
+`db/migrations/001_full_form_details.sql` adds one nullable digest column and one restricted detail table. **Applied and verified on Neon branch `local-development` (`br-little-shape-az2ip3cp`) on 2026-11-04.** This is a **forward-only** migration; don't re-run the baseline `db/schema.sql`. Production must be migrated **before** deploying the new Worker; otherwise old intake queries in the feature branch would fail on production due to missing fingerprint column. Do not merge this feature until the coordinated cutover is approved.
 
 ## Google Forms item IDs
 
@@ -25,3 +25,24 @@ Review the proposal, then set `APEX_FIELD_MAP` as a **private Script Property** 
 Connect the already-created Neon `local-development` branch in the ignored `.dev.vars` (not the production connection string). Use the standalone local token. The local Worker runs under VS Code in `$HOME\Downloads\apex-kennels`. New full-form code is on this feature branch until it passes CI and can be migrated safely.
 
 Note: the visible Google Form advertised starting PKR 2,500/day and a PKR 500/day CCTV option, but those **are not** an approved complete price book. Billing remains disabled.
+
+## Run the full booking fixture in VS Code (after setting local secrets)
+
+From `C:\Users\muazs\Downloads\apex-kennels`:
+
+```powershell
+git fetch origin
+git switch --track origin/feat/full-form-intake-staging
+npm.cmd install --no-audit --no-fund
+npm.cmd run dev
+```
+
+In another VS Code terminal:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-full-form-local.ps1
+```
+
+The script only targets `http://127.0.0.1:8787`, creates a synthetic booking in the **development** database, and expects 201, 200 on retry, and 409 on changed feeding notes. It never sends a live Form response. Your ignored `.dev.vars` must have a `DATABASE_URL` from Neon's **local-development** branch and a newly generated local `INTAKE_API_SECRET`; do not reuse production secrets.
+
+If the branch is already checked out, use `git switch feat/full-form-intake-staging` instead. Return to stable production source with `git switch main` and `git pull --ff-only`. This feature remains unmerged until production migration and owner review.

@@ -75,4 +75,8 @@ See [Cloudflare operational and security instructions](docs/cloudflare-workers.m
 - **Live staff queue:** `/staff` and `/staff/api/bookings` are bounded, read-only Neon views. Both fail closed until Cloudflare Access is configured with an exact audience and staff email allowlist. No staff changes, invoice approvals or customer messages are enabled. See [staff access setup](docs/staff-access.md).
 - **Operational monitoring:** a scheduled GitHub Actions smoke test checks public health, rejected unauthorized intake, and no unauthenticated staff access every six hours. Failed runs require a human to inspect GitHub Actions; this is not a paging service.
 - **Owner information:** [Fatima handoff](docs/fatima-handoff.md) lists the remaining exact decisions/access needed before production imports, billing or staff actions.
-- **CI:** TypeScript validation, 36/36 tests and Wrangler bundle dry-run passed on the feature branch. Independent Cloudflare production verification of these **new** routes is pending deployment.
+- **CI:** TypeScript validation, 42/42 tests and Wrangler bundle dry-run passed on the feature branch. Independent Cloudflare production verification of these **new** routes is pending deployment.
+
+## Google Form recovery preparation
+
+The Form-bound Apps Script is still **not installed or enabled**. It now includes an opt-in manual reconciliation helper, capped at 50 submissions since an explicitly approved start timestamp, plus a PII-free synthetic response mapping audit. No history is automatically imported. See [the Google Form setup guide](integrations/google-form/README.md).

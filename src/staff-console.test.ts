@@ -13,7 +13,7 @@ const valid:StaffContext={access:{aud:'aud-synthetic-test',getIdentity:async()=>
 const booking:StaffBooking={
   id:'synthetic-id',status:'requested',customerName:'Sample <script>alert(1)</script>',
   petNames:'Demo Dog',email:'sample@example.test',phone:null,startDate:'2026-12-12',
-  endDate:'2026-12-15',accommodationType:null,createdAt:'2026-11-04'
+  endDate:'2026-12-15',accommodationType:null,createdAt:'2026-11-04',isSynthetic:true
 };
 const list:StaffList=async(_url,filter)=>{
   assert.equal(filter.status,'all');
@@ -79,6 +79,7 @@ test('staff HTML escapes user-controlled names and values',async()=>{
   assert.match(body,/Sample &lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.doesNotMatch(body,/<script>/);
   assert.match(body,/Signed in: staff@example.test/);
+  assert.match(body,/TEST RECORD/);
 });
 
 test('invalid filter rejected and does not reach database',async()=>{

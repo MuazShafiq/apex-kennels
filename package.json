@@ -14,7 +14,9 @@
     "build": "npm run typecheck && npm test && npm run compile",
     "compile": "tsc -p tsconfig.build.json",
     "cf:check": "npm run typecheck && npm test && wrangler deploy --dry-run --outdir .wrangler-dry-run",
-    "cf:deploy": "wrangler deploy"
+    "cf:deploy": "wrangler deploy",
+    "dev": "wrangler dev --ip 127.0.0.1 --port 8787",
+    "local:check": "node scripts/check-local.mjs"
   },
   "dependencies": {
     "pg": "8.23.1",

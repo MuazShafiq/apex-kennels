@@ -98,6 +98,14 @@ export function parseBoardingDetails(value:unknown): BoardingDetails|undefined {
     medicationFeedingInstructions:optionalText(row.medicationFeedingInstructions,'medicationFeedingInstructions',3000,true),
     termsAccepted:optionalBool(row.termsAccepted,'termsAccepted')
   };
-  const normalized=Object.fromEntries(Object.entries(details).filter(([,v])=>v!==undefined));
-  return Object.keys(normalized).length ? normalized : undefined;
+  // Presence of a details object means a full real Form response, not an
+  // incomplete partial record. Optional care notes and the trait grid may be empty.
+  for (const field of ['ownerAddress','emergencyContactPhone','breed','gender','age','vaccinationStatus','distemperHistory'] as const) {
+    if (!details[field]) throw new IntakeError('Missing required '+field);
+  }
+  if (details.pickupDropoffRequested===undefined || details.cameraCageRequested===undefined) {
+    throw new IntakeError('Missing boarding add-on choices');
+  }
+  if (details.termsAccepted!==true) throw new IntakeError('Terms acknowledgement required');
+  return Object.fromEntries(Object.entries(details).filter(([,v])=>v!==undefined));
 }

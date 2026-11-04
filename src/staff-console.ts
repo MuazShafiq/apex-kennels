@@ -35,7 +35,7 @@ const styles = [
   'td{border-top:1px solid #eef2ee;padding:19px 22px;vertical-align:middle;white-space:nowrap}',
   '.strong{font-weight:690;color:#293e35}.secondary{font-size:11px;color:#89998e;margin-top:6px}',
   '.state{display:inline-block;font-size:11px;font-weight:720;padding:8px 11px;border-radius:30px;background:#edf2ec;color:#597263}',
-  '.requested{background:#fff2dc;color:#956e2b}.reviewing{background:#e9f0f8;color:#557a9c}.approved{background:#e6f3ea;color:#367552}',
+  '.testmark{font-size:9px;letter-spacing:.07em;color:#9c6b2c;background:#fff2d9;padding:4px 7px;border-radius:4px;margin-left:8px;font-weight:800}.requested{background:#fff2dc;color:#956e2b}.reviewing{background:#e9f0f8;color:#557a9c}.approved{background:#e6f3ea;color:#367552}',
   '.declined,.cancelled{background:#f8e9e9;color:#ac6161}.completed{background:#e7eeea;color:#3a7460}',
   '.panelbottom{border-top:1px solid #e9efea;padding:18px 25px;color:#93a19a;font-size:11px;display:flex;justify-content:space-between}',
   '.foot{margin-top:21px;color:#8e9a94;font-size:11px;line-height:1.8}',
@@ -53,7 +53,7 @@ export function renderStaffConsoleHtml(rows:StaffBooking[], page:StaffPage):stri
   const statuses = ['all',...BOOKING_STATUSES].map(status =>
     '<option value="' + status + '"' + (status===page.filter.status?' selected':'') + '>'
       + title(status) + '</option>').join('');
-  const tr = visible.map(row=>'<tr><td><div class="strong">'+escapeHtml(row.customerName)+'</div><div class="secondary">'+escapeHtml(row.id.slice(0,8))+'</div></td>'
+  const tr = visible.map(row=>'<tr><td><div class="strong">'+escapeHtml(row.customerName)+(row.isSynthetic?'<span class="testmark">TEST RECORD</span>':'')+'</div><div class="secondary">'+escapeHtml(row.id.slice(0,8))+'</div></td>'
     + '<td><div class="strong">'+escapeHtml(row.petNames)+'</div><div class="secondary">'+escapeHtml(row.accommodationType||'Not assigned')+'</div></td>'
     + '<td><div>'+escapeHtml(row.startDate)+'</div><div class="secondary">to '+escapeHtml(row.endDate)+'</div></td>'
     + '<td><span class="state '+row.status+'">'+title(row.status)+'</span></td>'

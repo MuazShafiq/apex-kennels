@@ -1,42 +1,58 @@
 /**
- * Public, no-credentials production health check.
- * Does not create bookings or reveal customer records.
- * A red GitHub Actions run is a diagnostic signal, not a paging service.
+ * No-credential, no-customer-data Apex Worker verification.
+ * Retry after merges because GitHub Actions may start before Cloudflare finishes deploying.
  */
-const origin = process.env.APEX_WORKER_ORIGIN || 'https://apex-kennels-api.muaz-shafiq18.workers.dev';
-const base = new URL(origin);
-if (base.protocol !== 'https:') throw new Error('HTTPS is required for live checks');
+const origin=process.env.APEX_WORKER_ORIGIN || 'https://apex-kennels-api.muaz-shafiq18.workers.dev';
+const base=new URL(origin);
+if (base.protocol!=='https:') throw new Error('Health checks require HTTPS');
 
-async function check(path, options, expectedStatus) {
-  const url = new URL(path, base);
-  const response = await fetch(url, {
-    ...options,
-    signal: AbortSignal.timeout(12000),
-    redirect: 'error',
-    headers: {'Cache-Control':'no-cache',...(options?.headers||{})}
+async function get(path) {
+  const url=new URL(path,base);
+  return fetch(url,{method:'GET',redirect:'manual',signal:AbortSignal.timeout(12000),
+    headers:{'Cache-Control':'no-cache'}});
+}
+
+async function runChecks() {
+  const response=await get('/api/health');
+  if(response.status!==200) throw new Error('Health endpoint returned '+response.status);
+  const health=await response.json();
+  if(health.status!=='ok'||health.service!=='apex-intake') throw new Error('Unexpected health identity');
+
+  const reject=await fetch(new URL('/api/ingest',base),{
+    method:'POST',redirect:'manual',signal:AbortSignal.timeout(12000),
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({source:'unauthenticated-monitor'})
   });
-  if (response.status !== expectedStatus) {
-    throw new Error(path + ' returned HTTP ' + response.status + ', expected ' + expectedStatus);
+  if(reject.status!==401) throw new Error('Unauthenticated intake returned '+reject.status+' (expected 401)');
+
+  const staff=await get('/staff/api/bookings');
+  // 503 means access is intentionally not activated, 403 denied, 30x is Access login.
+  if(![301,302,303,307,308,403,503].includes(staff.status)) {
+    throw new Error('Unauthenticated staff route returned '+staff.status);
   }
-  return response;
+
+  for (const [path,marker] of [
+    ['/demo/staff','SYNTHETIC DEMO'],
+    ['/demo/invoice','NOT A PAYABLE INVOICE']
+  ]) {
+    const preview=await get(path);
+    if(preview.status!==200) throw new Error(path+' returned '+preview.status+' (expected 200)');
+    const page=await preview.text();
+    if(!page.includes(marker)) throw new Error(path+' missing its synthetic preview marker');
+  }
 }
 
-const live = await check('/api/health',{method:'GET'},200);
-const result = await live.json();
-if (result.status !== 'ok' || result.service !== 'apex-intake') {
-  throw new Error('Worker health payload did not match expected identity');
+let failure;
+for(let attempt=1;attempt<=10;attempt++){
+  try {
+    await runChecks();
+    console.log('Cloudflare production checks passed: health, intake auth, staff denial, synthetic previews');
+    failure=undefined;
+    break;
+  } catch(error) {
+    failure=error;
+    console.error('Verification attempt '+attempt+'/10: '+String(error));
+    if(attempt<10) await new Promise(resolve=>setTimeout(resolve,12000));
+  }
 }
-
-await check('/api/ingest',{
-  method:'POST',
-  headers:{'Content-Type':'application/json'},
-  body:JSON.stringify({source:'invalid-unauthenticated-monitor'})
-},401);
-
-const staff = await fetch(new URL('/staff/api/bookings',base),{
-  method:'GET',signal:AbortSignal.timeout(12000),redirect:'error'
-});
-if (staff.status !== 403 && staff.status !== 503) {
-  throw new Error('Unauthenticated staff endpoint unexpected status ' + staff.status);
-}
-console.log('Apex production smoke checks passed: health, intake auth, staff denial');
+if(failure) throw failure;

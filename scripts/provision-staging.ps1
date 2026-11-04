@@ -62,7 +62,7 @@ try {
     Write-Host '  DO NOT change APEX_INTAKE_ENABLED=false or add a trigger.'
     Write-Host 'Then run only apexTestStagingDelivery() in the Apps Script function dropdown.'
     Write-Host ('Staging endpoint: '+$stagingUrl+'/api/ingest')
-    Write-Host 'After pasting the token, clear the clipboard with: Set-Clipboard -Value $null' -ForegroundColor Yellow
+    Write-Host 'After pasting the token, clear the clipboard with: Set-Clipboard -Value ''' -ForegroundColor Yellow
   }
   finally {
     Remove-Variable token -ErrorAction SilentlyContinue

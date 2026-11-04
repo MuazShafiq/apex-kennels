@@ -1,4 +1,4 @@
-import {IntakeError} from './intake.ts';
+import {IntakeError} from './intake-error.ts';
 
 /**
  * Sensitive operational answers from Apex's five-section Google Form.

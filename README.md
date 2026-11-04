@@ -83,7 +83,7 @@ The Form-bound Apps Script is still **not installed or enabled**. It now include
 
 ## Local development on Windows
 
-See [Windows local setup](docs/local-windows.md) for the PowerShell 5.1-compatible bootstrap, local Worker previews, a loopback-only smoke checker, and an isolated Neon `local-development` branch. The local environment starts with **blank credentials** and cannot write to production. After cloning, run:
+See [Windows local setup](docs/local-windows.md) for opening **`$HOME\Downloads\apex-kennels` in VS Code**, a PowerShell 5.1-compatible bootstrap, local Worker previews, a loopback-only smoke checker, and an isolated Neon `local-development` branch. `.vscode/tasks.json` provides one-click local dev, tests and smoke-check tasks. The local environment starts with **blank credentials** and cannot write to production. After cloning, run:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-local.ps1
@@ -91,3 +91,7 @@ npm.cmd run dev
 ```
 
 Then open `http://127.0.0.1:8787/demo/staff`. In another PowerShell window run `npm.cmd run local:check`. Never commit `.dev.vars` or reuse production database/API secrets for local testing.
+
+## Existing Google Form access (2026-11-04)
+
+Editor access to the actual five-section Form was verified. The [field inventory](docs/form-field-inventory.md) records its question structure without personal submissions. The current adapter is deliberately **incomplete for health, care and contact fields**, so live imports remain disabled until the structured mapping, restricted storage and owner-approved cutover are complete.

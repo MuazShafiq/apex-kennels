@@ -50,6 +50,7 @@ const enabled={
   APEX_API_URL:'https://apex-kennels-api.muaz-shafiq18.workers.dev/api/ingest',
   APEX_INTAKE_TOKEN:'synthetic-test-token-not-real-'+'x'.repeat(44),
   APEX_OWNER_APPROVED_LIVE:'true',
+  APEX_LIVE_START_AFTER:'2026-11-01T00:00:00.000Z',
   APEX_FIELD_MAP:JSON.stringify(fieldMap)
 };
 

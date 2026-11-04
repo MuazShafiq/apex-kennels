@@ -1,10 +1,10 @@
 # Apex Kennels — Booking & Invoicing Foundation
 
-**Status: deployed API foundation; NOT connected to Apex's live Google Form.**
+**CURRENT STATUS (2026-11-05): SHADOW INTAKE ACTIVE.** The original Google Form submit trigger now forwards **new** responses after `2026-11-04T20:30:37.411Z` to Cloudflare production and Neon production. The live trigger path was verified with one synthetic canary; first *genuine* customer delivery remains to be observed. Older submissions were not imported. Customer emails, invoices and pricing automation remain **OFF**. See [current operating status](docs/shadow-intake-activation.md).
 
 The existing Google Form remains the customer-facing intake until we verify and replace it. The backend is designed to keep the database and pricing logic independent of that temporary input.
 
-## Verified as of 2026-11-04
+## Historical foundation checkpoints (pre-shadow launch)
 
 - **GitHub:** public repository with source, CI checks and all-synthetic test cases
 - **Neon:** `apex-kennels` project (`holy-bar-96685960`), production `neondb`, 11/11 tables with RLS enabled and no RLS policies. One synthetic booking and one corresponding ingestion event were independently verified on 2026-11-04.
@@ -47,14 +47,14 @@ The money calculation, promo validation and invoice HTML are reusable prototypes
 
 `db/schema.sql` is the **already-applied** production baseline. Do not re-run it. Use reviewed forward-only migrations for new columns/tables. PostgreSQL RLS currently has no staff/customer policies; the API connects from a private server runtime with a privileged database credential. Never expose that credential to any browser or public script.
 
-## Not connected or implemented
+## Historical scope list (some items superseded by current status above)
 
 - Real Google Form trigger or response mapping; any live bookings
 - Approved pricing policy, promo usage-limit redemption transaction, final invoice auto-drafting and staff approval
 - Customer/staff login and dashboard; PDF sending; notifications; payments; inventory and capacity
 - Final customer booking flow, bespoke public website, photo/media assets and Canva invoice design
 
-## Waiting on Fatima
+## Original owner handoff checklist (partially resolved)
 
 - Full Google Form editor access and linked Sheet access
 - Complete pricing and stay-day rules, extras, discounts/promo rules
@@ -92,11 +92,11 @@ npm.cmd run dev
 
 Then open `http://127.0.0.1:8787/demo/staff`. In another PowerShell window run `npm.cmd run local:check`. Never commit `.dev.vars` or reuse production database/API secrets for local testing.
 
-## Existing Google Form access (2026-11-04)
+## Original Google Form access checkpoint (superseded by shadow activation)
 
 Editor access to the actual five-section Form was verified. The [field inventory](docs/form-field-inventory.md) records its question structure without personal submissions. The current adapter is deliberately **incomplete for health, care and contact fields**, so live imports remain disabled until the structured mapping, restricted storage and owner-approved cutover are complete.
 
-## Next acceptance slice (staging, not production)
+## Staging implementation history (completed before shadow activation)
 
 - **[Provisional pricing from four invoices](docs/pricing-evidence-v0.1.md)**: observed standard 2,500/day, camera 3,000/day, inclusive dates, one 4,000-per-leg transport example, discretionary discounts. This is evidence for **internal draft estimates only**, not an approved price book. The new pure `src/provisional-quote.ts` deliberately excludes transport and promotions from any apparent final total and always requires review.
 - **[One-run staging delivery test](docs/staging-http-test.md)**: safely exercises real Google Apps Script outbound HTTPS to a dedicated Cloudflare staging Worker and Neon `local-development` branch using synthetic Form metadata. The staging Worker is separate from `apex-kennels-api` production; no Form submit trigger, live customer import, invoice, or email is enabled. Test is prepared but requires one-time Cloudflare credentials and a staging-only token.

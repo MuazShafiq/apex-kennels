@@ -1,37 +1,27 @@
-# Google Form → Apex backend (not connected yet)
+# Apex Google Form adapter (staging; not live)
 
-This is a **form-bound Apps Script adapter**, not a deployed integration. Access to the original five-section form editor was verified on 2026-11-04. See the [non-PII field inventory](../../docs/form-field-inventory.md). **Do not enable the trigger** until we capture stable Form item IDs, implement and restrict the pet-care details, and agree a cutover with Fatima.
+The canonical Apps Script source is [`Code.gs`](Code.gs), synced to the **existing** form-bound `ApexIntake.gs` file. It is not a deployed integration. **Do not enable a submit trigger, import past responses, send invoices or turn on `APEX_INTAKE_ENABLED`**.
 
-## Setup once access is available
+The real five-section Google Form was inspected on 2026-11-04. All 19 item IDs were successfully discovered and verified in Apps Script. The in-memory synthetic mapping check passed without reading past responses or sending requests. A separate local Worker + Neon development-branch test already passed HTTP **201 / 200 / 409**, including detailed pet-care storage.
 
-1. Open the real Google Form as an editor. Under **Extensions → Apps Script**, add `Code.gs`.
-2. Run `listApexFormItemIds()` and map exact **item IDs** into the secure script property `APEX_FIELD_MAP`. The required owner name, phone, pet name and dates have been verified. Email is collected as a separate required form field, which must be checked through a synthetic response.
-3. Set Script Properties `APEX_API_URL`, `APEX_INTAKE_TOKEN`, for the Cloudflare Worker. Do not put any secret in GitHub, the form, or a Sheet.
-4. Create one clearly marked synthetic response. Add `APEX_TEST_RESPONSE_ID` to Script Properties, run `validateApexSyntheticResponseMapping()`, and review the presence-only logs. Nothing is posted by this diagnostic helper.
-5. Create the installed trigger: function `onApexFormSubmit`, event source **From form**, event type **On form submit**.
-6. Keep `APEX_INTAKE_ENABLED=false` until the complete mapping, fields, and privacy handling have been owner-reviewed.
-7. After approval, enable intake and test a synthetic submission, retry, and staff review; never auto-send invoices.
+## Working routine
 
-Sample `APEX_FIELD_MAP` structure (values are **placeholders**, not actual form IDs):
+Follow **[the one-time VS Code setup](../../docs/form-automation.md)**. The normal update command is:
 
-```json
-{
-  "customerName": "<FORM_ITEM_ID>",
-  "email": "<FORM_ITEM_ID_IF_COLLECTED>",
-  "phone": "<FORM_ITEM_ID_IF_COLLECTED>",
-  "petName": "<FORM_ITEM_ID>",
-  "startDate": "<FORM_ITEM_ID>",
-  "endDate": "<FORM_ITEM_ID>",
-  "accommodationType": "<FORM_ITEM_ID_IF_PRESENT>"
-}
+```powershell
+npm.cmd run form:sync
 ```
 
-The adapter currently imports only one pet and the basic booking fields. The source form also collects address, pickup preference, CCTV preference, emergency contact, vaccination/health information, care instructions and consent. **Those are not yet imported**, so this adapter must not be used as the sole operational booking record. Keep the original Form responses and Sheet as the source for those details. Prices, extras, approval, PDF invoices and notifications stay inactive until Fatima approves the business rules.
+It runs tests, backs up the entire current remote Apps Script project, checks for duplicate functions, and updates the existing `ApexIntake.gs`. It does not create a trigger or enable ingestion. After an update, run **`apexPreflight()`** once from the Apps Script editor, which consolidates mapping verification and synthetic response conversion while keeping intake disabled.
 
-**Reliability:** The unique Google Form response ID prevents duplicate bookings on retry. A changed submission with the same ID returns HTTP 409 for manual review. Google Apps Script trigger failures must be monitored; they are not equivalent to guaranteed delivery.
+The old manual workflow of copying a new `Code.gs` into `ApexIntake.gs` and running several separate diagnostics is retired for routine development. See [staging and database migration notes](../../docs/full-form-intake-staging.md).
 
-## Recover missed submissions (not scheduled)
+## Cutover gates
 
-The form-bound script also supplies `reconcileApexRecentResponses()` for **manual, opt-in** replay. It does not create a timer automatically. Before invoking it, Fatima must approve the earliest timestamp whose responses may be imported and set Script Property `APEX_RECONCILE_AFTER` to that ISO date/time (include timezone). It requires `APEX_INTAKE_ENABLED=true`, checks at most 50 responses, and refuses larger backfills until separately reviewed. Re-sending a previous response is safe: the backend returns HTTP 200 with the same booking ID. Errors stop processing and are not logged with customer data or credentials.
+- Owner-approved full pricing rules, consent/data handling and staff access.
+- Production database migration applied and verified *before* the new Worker is deployed.
+- Real, clearly synthetic Form submission end-to-end verified without touching the existing customer records.
+- Install the Form submit trigger and enable `APEX_INTAKE_ENABLED` only after the preceding steps are satisfied.
+- Monitor failures/retries. Historical backfill is separate and requires explicit approval.
 
-Do not use reconciliation to scrape historical bookings without permission. No real customer import or email is enabled by this repository.
+No real Form submission, customer notification, production invoice or production migration has been performed by this staging branch.

@@ -1,4 +1,7 @@
 import { createHash } from 'node:crypto';
+import {parseBoardingDetails, type BoardingDetails} from './boarding-details.ts';
+import {IntakeError} from './intake-error.ts';
+export {IntakeError} from './intake-error.ts';
 
 export type IntakeRequest = {
   source: 'google_form';
@@ -10,16 +13,9 @@ export type IntakeRequest = {
   startDate: string;
   endDate: string;
   accommodationType?: string;
+  details?: BoardingDetails;
 };
 
-export class IntakeError extends Error {
-  readonly status: number;
-  constructor(message: string, status: number = 400) {
-    super(message);
-    this.name = 'IntakeError';
-    this.status = status;
-  }
-}
 
 function textField(value: unknown, name: string, max = 200, required = true): string | undefined {
   if ((value === undefined || value === null || value === '') && !required) return undefined;
@@ -59,7 +55,8 @@ export function parseIntake(value: unknown): IntakeRequest {
   const end = checkDate(endDate, 'endDate');
   if (end < start || (end - start) / 86400000 > 366) throw new IntakeError('Invalid stay duration');
   const accommodationType = textField(row.accommodationType, 'accommodationType', 120, false);
-  return { source:'google_form', externalResponseId, customerName, email, phone, petName, startDate, endDate, accommodationType };
+  const details = parseBoardingDetails(row.details);
+  return { source:'google_form', externalResponseId, customerName, email, phone, petName, startDate, endDate, accommodationType, details };
 }
 
 /** Canonical immutable import identity; does not contain invoice prices or private tokens. */
@@ -69,6 +66,7 @@ export function fingerprintIntake(input: IntakeRequest): string {
     customerName: input.customerName, email: input.email ?? null,
     phone: input.phone ?? null, petName: input.petName,
     startDate: input.startDate, endDate: input.endDate,
-    accommodationType: input.accommodationType ?? null
+    accommodationType: input.accommodationType ?? null,
+    details: input.details ?? null
   })).digest('hex');
 }

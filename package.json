@@ -16,7 +16,10 @@
     "cf:check": "npm run typecheck && npm test && wrangler deploy --dry-run --outdir .wrangler-dry-run",
     "cf:deploy": "wrangler deploy",
     "dev": "wrangler dev --ip 127.0.0.1 --port 8787",
-    "local:check": "node scripts/check-local.mjs"
+    "local:check": "node scripts/check-local.mjs",
+    "form:login": "npx --yes @google/clasp@3.4.1 login",
+    "form:sync": "node scripts/form-sync.mjs",
+    "form:check": "node --check scripts/form-sync.mjs"
   },
   "dependencies": {
     "pg": "8.23.1",

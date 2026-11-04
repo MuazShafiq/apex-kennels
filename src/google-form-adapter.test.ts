@@ -150,6 +150,8 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
   const preflight=context.apexPreflight as ()=>void;
   const testStaging=context.apexTestStagingDelivery as ()=>void;
   const armCanary=context.apexArmRealFormCanary as ()=>void;
+  const activateShadow=context.apexActivateShadowIntake as ()=>void;
+  const pauseShadow=context.apexPauseShadowIntake as ()=>void;
   const disarmCanary=context.apexDisarmRealFormCanary as ()=>void;
   const handleSubmit=context.onApexFormSubmit as (event:{response:unknown})=>void;
   const build=context.apexBuildPayload as (
@@ -164,7 +166,9 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
     : [['Yes'],['No'],['Yes'],['No'],['Yes'],['No'],['No'],['No']];
   if(opts.multiple && gridKind==='CHECKBOX_GRID') choice[0]=['Yes','No'] as never;
   values.set(String(gridId),choice);
+  let responseTimestamp=new Date('2026-12-10T12:00:00.000Z');
   const response={
+    getTimestamp:()=> responseTimestamp,
     getId:()=> 'synthetic-form-response',
     getRespondentEmail:()=> 'synthetic@example.test',
     getItemResponses:()=>Array.from(values.entries()).map(([id,value])=>({
@@ -172,11 +176,12 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
       getResponse:()=>value
     }))
   };
+  const setResponseTimestamp=(date:string)=>{responseTimestamp=new Date(date);};
   const setField=(key:keyof typeof fieldNames,value:unknown)=>{
     values.set(String(1000+Object.keys(fieldNames).indexOf(key)),value);
   };
   return {propose,stage,validate,testSynthetic,preflight,testStaging,
-    armCanary,disarmCanary,handleSubmit,setField,build,response,logs,gridId,props,requests,triggers};
+    armCanary,disarmCanary,activateShadow,pauseShadow,handleSubmit,setField,setResponseTimestamp,build,response,logs,gridId,props,requests,triggers};
 }
 
 for(const kind of ['GRID','CHECKBOX_GRID'] as const) {
@@ -354,4 +359,57 @@ test('owner approval is required even if live enabled manually',()=>{
   const f=fixture('GRID',{enabled:true});
   f.handleSubmit && assert.throws(()=>f.handleSubmit({response:f.response}),/owner approval/);
   assert.equal(f.requests.length,0);
+});
+
+
+test('shadow activation refuses missing owner approval and does not change import boundary',()=>{
+  const f=fixture('GRID');
+  f.stage();
+  f.props.APEX_API_URL='https://apex-kennels-api.muaz-shafiq18.workers.dev/api/ingest';
+  f.props.APEX_INTAKE_TOKEN='p'.repeat(64);
+  assert.throws(()=>f.activateShadow(),/Fatima must explicitly approve/);
+  assert.equal(f.props.APEX_INTAKE_ENABLED,'false');
+  assert.equal(f.props.APEX_LIVE_START_AFTER,undefined);
+});
+
+for(const kind of ['GRID','CHECKBOX_GRID'] as const) {
+  test('shadow activation has cutoff, ignores pre-activation events and pauses ('+kind+')',()=>{
+    const f=fixture(kind);
+    f.stage();
+    f.props.APEX_API_URL='https://apex-kennels-api.muaz-shafiq18.workers.dev/api/ingest';
+    f.props.APEX_INTAKE_TOKEN='p'.repeat(64);
+    f.armCanary();
+    assert.throws(()=>f.activateShadow(),/Fatima must explicitly approve/);
+    f.disarmCanary();
+    f.props.APEX_OWNER_APPROVED_LIVE='true';
+    f.activateShadow();
+    assert.equal(f.props.APEX_INTAKE_ENABLED,'true');
+    assert.match(f.props.APEX_LIVE_START_AFTER,/Z$/);
+    assert.equal(f.props.APEX_LIVE_START_AFTER,f.props.APEX_RECONCILE_AFTER);
+    assert.equal(f.triggers.length,1);
+    f.setResponseTimestamp('2026-11-01T00:00:00Z');
+    f.handleSubmit({response:f.response});
+    assert.equal(f.requests.length,0);
+    const cutoff=new Date(f.props.APEX_LIVE_START_AFTER);
+    f.setResponseTimestamp(new Date(cutoff.getTime()+1000).toISOString());
+    f.handleSubmit({response:f.response});
+    assert.equal(f.requests.length,1);
+    assert.equal(f.requests[0].url,'https://apex-kennels-api.muaz-shafiq18.workers.dev/api/ingest');
+    assert.throws(()=>f.activateShadow(),/Shadow intake is not disabled/);
+    f.pauseShadow();
+    assert.equal(f.props.APEX_INTAKE_ENABLED,'false');
+    f.handleSubmit({response:f.response});
+    assert.equal(f.requests.length,1);
+    assert.match(f.logs.at(-1)||'',/no new webhook deliveries/);
+  });
+}
+
+test('shadow activation refuses missing or incorrect Form trigger',()=>{
+  const f=fixture('GRID');
+  f.stage();
+  f.props.APEX_OWNER_APPROVED_LIVE='true';
+  f.props.APEX_API_URL='https://apex-kennels-api.muaz-shafiq18.workers.dev/api/ingest';
+  f.props.APEX_INTAKE_TOKEN='p'.repeat(64);
+  assert.throws(()=>f.activateShadow(),/Exactly one correct Form submit trigger/);
+  assert.equal(f.props.APEX_INTAKE_ENABLED,'false');
 });

@@ -1,37 +1,48 @@
 /**
- * Apex Kennels, FORM-BOUND installable trigger adapter.
- * Not installed and disabled by default. Requires access to Fatima's actual Form.
- * Google response ITEM IDs are used instead of fragile question titles.
+ * Apex Kennels: Form-bound Google Apps Script adapter.
+ * Disabled until Fatima reviews every form field, pricing interpretation and permissions.
+ * Map stable Form item IDs, never question titles or Sheet column numbers.
  *
- * Required Script Properties:
- *   APEX_INTAKE_ENABLED = true                (leave false until reviewed)
- *   APEX_API_URL = https://<your-host>/api/ingest
- *   APEX_INTAKE_TOKEN = <secret copied securely from backend settings>
- *   APEX_FIELD_MAP = JSON object of field names -> Google Form ITEM IDs
- *
- * Create an installable Form submit trigger pointing to onApexFormSubmit.
+ * Required Script Properties (never commit values):
+ *   APEX_INTAKE_ENABLED = false | true
+ *   APEX_API_URL = https://apex-kennels-api.muaz-shafiq18.workers.dev/api/ingest
+ *   APEX_INTAKE_TOKEN = [private runtime bearer token]
+ *   APEX_FIELD_MAP = JSON object of semantic fields -> Form item IDs
+ * Optional, for explicitly approved manual reconciliation:
+ *   APEX_RECONCILE_AFTER = ISO timestamp, e.g. 2026-11-05T00:00:00+05:00
  */
-function onApexFormSubmit(e) {
-  var props = PropertiesService.getScriptProperties();
-  if (props.getProperty('APEX_INTAKE_ENABLED') !== 'true') return;
-  if (!e || !e.response) throw new Error('Requires Google Form submission event, not Sheet event');
 
+function apexProperties() {
+  return PropertiesService.getScriptProperties();
+}
+
+function apexConfig() {
+  var props = apexProperties();
+  if (props.getProperty('APEX_INTAKE_ENABLED') !== 'true') return null;
   var url = props.getProperty('APEX_API_URL');
   var token = props.getProperty('APEX_INTAKE_TOKEN');
   var mapRaw = props.getProperty('APEX_FIELD_MAP');
   if (!url || !token || !mapRaw) throw new Error('Apex integration properties incomplete');
+  if (url.indexOf('https://') !== 0 || !/\/api\/ingest$/.test(url)) {
+    throw new Error('Apex endpoint must be HTTPS /api/ingest');
+  }
+  return {url:url,token:token,map:JSON.parse(mapRaw)};
+}
 
-  var fieldMap = JSON.parse(mapRaw);
-  var valuesByItemId = {};
-  e.response.getItemResponses().forEach(function (answer) {
-    valuesByItemId[String(answer.getItem().getId())] = answer.getResponse();
+function apexBuildPayload(formResponse, fieldMap) {
+  if (!formResponse || !formResponse.getId()) {
+    throw new Error('Google response has no stable response ID');
+  }
+  var valuesById = {};
+  formResponse.getItemResponses().forEach(function(answer) {
+    valuesById[String(answer.getItem().getId())] = answer.getResponse();
   });
 
   function answerFor(name) {
-    var itemId = fieldMap[name];
+    var itemId=fieldMap[name];
     if (!itemId) return undefined;
-    var value = valuesByItemId[String(itemId)];
-    if (value === null || value === undefined || value === '') return undefined;
+    var value=valuesById[String(itemId)];
+    if (value === undefined || value === null || value === '') return undefined;
     if (value instanceof Date) {
       return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
     }
@@ -39,43 +50,100 @@ function onApexFormSubmit(e) {
     return String(value).trim();
   }
 
-  var formResponseId = e.response.getId();
-  if (!formResponseId) throw new Error('Google Form response has no stable ID');
-
-  var data = {
-    source: 'google_form',
-    externalResponseId: String(formResponseId),
-    customerName: answerFor('customerName'),
-    email: answerFor('email') || e.response.getRespondentEmail() || undefined,
-    phone: answerFor('phone'),
-    petName: answerFor('petName'),
-    startDate: answerFor('startDate'),
-    endDate: answerFor('endDate'),
-    accommodationType: answerFor('accommodationType')
+  return {
+    source:'google_form',
+    externalResponseId:String(formResponse.getId()),
+    customerName:answerFor('customerName'),
+    email:answerFor('email') || formResponse.getRespondentEmail() || undefined,
+    phone:answerFor('phone'),
+    petName:answerFor('petName'),
+    startDate:answerFor('startDate'),
+    endDate:answerFor('endDate'),
+    accommodationType:answerFor('accommodationType')
   };
+}
 
-  var headers = {Authorization: 'Bearer ' + token};
-  var response = UrlFetchApp.fetch(url, {
-    method: 'post',
-    contentType: 'application/json',
-    headers: headers,
-    payload: JSON.stringify(data),
-    muteHttpExceptions: true,
-    followRedirects: false
+function apexSubmit(formResponse, config) {
+  var payload = apexBuildPayload(formResponse,config.map);
+  var response = UrlFetchApp.fetch(config.url,{
+    method:'post',
+    contentType:'application/json',
+    headers:{Authorization:'Bearer '+config.token},
+    payload:JSON.stringify(payload),
+    muteHttpExceptions:true,
+    followRedirects:false
   });
-  var status = response.getResponseCode();
+  var status=response.getResponseCode();
+  // An unchanged repeated submission is a success, not a duplicate booking.
   if (status !== 200 && status !== 201) {
-    // Never log pet names, customer details, tokens, or raw response bodies.
-    throw new Error('Apex intake request failed: HTTP ' + status);
+    // Intentionally omit request/response bodies, private tokens and personal data.
+    throw new Error('Apex intake failed with HTTP '+status+'; retry via reconciliation after review');
   }
 }
 
-/** Safe helper: lists only Form item IDs + question titles for mapping. */
+function onApexFormSubmit(event) {
+  var config=apexConfig();
+  if (!config) return;
+  if (!event || !event.response) throw new Error('Requires Form submit event, not Sheet event');
+  apexSubmit(event.response,config);
+}
+
+/**
+ * Opt-in manual recovery for deliveries missed by an installable trigger.
+ * No timer is automatically installed. Required review boundary:
+ * APEX_INTAKE_ENABLED=true, APEX_RECONCILE_AFTER set to owner's approved start date.
+ * Hard cap prevents accidentally importing a large historical backlog.
+ */
+function reconcileApexRecentResponses() {
+  var config=apexConfig();
+  if (!config) throw new Error('Apex intake is disabled; no reconciliation performed');
+  var since=apexProperties().getProperty('APEX_RECONCILE_AFTER');
+  var sinceMs=Date.parse(since||'');
+  if (!since || isNaN(sinceMs)) throw new Error('Set a reviewed ISO APEX_RECONCILE_AFTER first');
+
+  var lock=LockService.getScriptLock();
+  if (!lock.tryLock(1000)) throw new Error('Apex reconciliation is already running');
+  try {
+    var form=FormApp.getActiveForm();
+    if (!form) throw new Error('Run from the actual form-bound Apps Script');
+    var responses=form.getResponses(new Date(sinceMs)).filter(function(r) {
+      return r.getTimestamp().getTime() >= sinceMs;
+    });
+    if (responses.length > 50) {
+      throw new Error('More than 50 responses since approved start; review explicit backfill first');
+    }
+    responses.forEach(function(response) { apexSubmit(response,config); });
+    Logger.log('Apex reconciliation completed. Number of responses checked: '+responses.length);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Lists only question titles and IDs, never submitted personal answers. */
 function listApexFormItemIds() {
-  var form = FormApp.getActiveForm();
+  var form=FormApp.getActiveForm();
   if (!form) throw new Error('Run in the bound Form Apps Script editor');
-  var items = form.getItems().map(function (item) {
-    return {id: String(item.getId()), title: item.getTitle()};
-  });
-  Logger.log(JSON.stringify(items));
+  Logger.log(JSON.stringify(form.getItems().map(function(item){
+    return {id:String(item.getId()),title:item.getTitle()};
+  })));
+}
+
+/**
+ * Local-only validation of ONE explicitly synthetic test response.
+ * Does not send anything, and logs presence/absence only.
+ */
+function validateApexSyntheticResponseMapping() {
+  var props=apexProperties();
+  var raw=props.getProperty('APEX_FIELD_MAP');
+  var testId=props.getProperty('APEX_TEST_RESPONSE_ID');
+  if (!raw || !testId) throw new Error('Set APEX_FIELD_MAP and APEX_TEST_RESPONSE_ID');
+  var form=FormApp.getActiveForm();
+  if (!form) throw new Error('Run in the bound Form Apps Script editor');
+  var response=form.getResponse(testId);
+  if (!response) throw new Error('Synthetic response ID not found');
+  var payload=apexBuildPayload(response,JSON.parse(raw));
+  var fields=['customerName','email','phone','petName','startDate','endDate','accommodationType'];
+  Logger.log(JSON.stringify(fields.map(function(field){
+    return {field:field,provided:!!payload[field]};
+  })));
 }

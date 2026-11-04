@@ -85,6 +85,7 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
   };
   items.push(consent);byId.set(String(consentId),consent);
   const logs:string[]=[];
+  const requests:Array<{url:string;payload:Record<string,unknown>}>=[];
   const props:Record<string,string>={};
   if(opts.enabled) props.APEX_INTAKE_ENABLED='true';
   const form={
@@ -95,7 +96,23 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
   const context=vm.createContext({
     FormApp:{getActiveForm:()=>form,ItemType:{GRID:'GRID',CHECKBOX_GRID:'CHECKBOX_GRID',CHECKBOX:'CHECKBOX'}},
     Logger:{log:(value:string)=>logs.push(value)},
-    Utilities:{formatDate:(d:Date,_timezone:string,_format:string)=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')},
+    Utilities:{
+      formatDate:(d:Date,_timezone:string,_format:string)=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-'),
+      getUuid:()=> '00000000-0000-4000-8000-000000000001'
+    },
+    UrlFetchApp:{fetch:(url:string,options:{payload:string;headers:Record<string,string>})=>{
+      assert.equal(url,'https://apex-kennels-intake-staging.muaz-shafiq18.workers.dev/api/ingest');
+      assert.equal(options.headers.Authorization,'Bearer '+props.APEX_STAGING_INTAKE_TOKEN);
+      const payload=JSON.parse(options.payload) as Record<string,unknown>;
+      requests.push({url,payload});
+      const first=requests[0].payload;
+      const isSame=JSON.stringify(first)===JSON.stringify(payload);
+      const status=requests.length===1?201:isSame?200:409;
+      return {
+        getResponseCode:()=>status,
+        getContentText:()=>JSON.stringify({bookingId:'fake-development-booking',created:status===201})
+      };
+    }},
     Session:{getScriptTimeZone:()=> 'Asia/Karachi'},
     PropertiesService:{getScriptProperties:()=>({
       getProperty:(name:string)=>props[name]??null,
@@ -108,6 +125,7 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
   const validate=context.validateApexSavedFieldMap as ()=>void;
   const testSynthetic=context.testApexSyntheticFormMapping as ()=>void;
   const preflight=context.apexPreflight as ()=>void;
+  const testStaging=context.apexTestStagingDelivery as ()=>void;
   const build=context.apexBuildPayload as (
     response:unknown,map:Record<string,string>)=>{details:{personalityTraits:Record<string,boolean>;termsAccepted:boolean};email:string};
   const values=new Map<string,unknown>();
@@ -128,7 +146,7 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
       getResponse:()=>value
     }))
   };
-  return {propose,stage,validate,testSynthetic,preflight,build,response,logs,gridId,props};
+  return {propose,stage,validate,testSynthetic,preflight,testStaging,build,response,logs,gridId,props,requests};
 }
 
 for(const kind of ['GRID','CHECKBOX_GRID'] as const) {
@@ -228,4 +246,32 @@ test('single apexPreflight refuses to run if intake is already enabled',()=>{
   const f=fixture('GRID',{enabled:true});
   assert.throws(()=>f.preflight(),/Cannot replace field map while live intake is enabled/);
   assert.equal(f.props.APEX_INTAKE_ENABLED,'true');
+});
+
+
+for(const kind of ['GRID','CHECKBOX_GRID'] as const) {
+  test('staging delivery uses only in-memory synthetic Form data and a separate Worker ('+kind+')',()=>{
+    const f=fixture(kind);
+    f.props.APEX_STAGING_INTAKE_TOKEN='x'.repeat(64);
+    f.stage();
+    f.testStaging();
+    assert.equal(f.requests.length,3);
+    assert.equal(f.requests[0].payload.externalResponseId,'apex-form-staging-synthetic-00000000-0000-4000-8000-000000000001');
+    assert.equal(f.requests[1].payload.externalResponseId,f.requests[0].payload.externalResponseId);
+    assert.notDeepEqual(f.requests[2].payload.details,f.requests[0].payload.details);
+    assert.match(f.logs.at(-1)||'',/APEX STAGING DELIVERY PASS: 201 new \/ 200 same \/ 409 changed/);
+    assert.equal(f.props.APEX_INTAKE_ENABLED,'false');
+  });
+}
+test('staging delivery fails closed with no staging token',()=>{
+  const f=fixture('GRID');
+  f.stage();
+  assert.throws(()=>f.testStaging(),/Missing separate staging intake token/);
+  assert.equal(f.requests.length,0);
+});
+test('staging delivery refuses a live-enabled Form integration',()=>{
+  const f=fixture('GRID',{enabled:true});
+  f.props.APEX_STAGING_INTAKE_TOKEN='x'.repeat(64);
+  assert.throws(()=>f.testStaging(),/real Form intake is enabled/);
+  assert.equal(f.requests.length,0);
 });

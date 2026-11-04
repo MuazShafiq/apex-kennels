@@ -67,3 +67,11 @@ On 2026-11-04, `proposeApexFieldMap()` successfully resolved all **19** stable i
 4. Do **not** set `APEX_INTAKE_ENABLED=true`, install any trigger, or manually replay old responses. Real Form email retrieval and optional answer handling still need end-to-end validation before a reviewed cutover.
 
 The item IDs are metadata, not credentials; no customer responses or API secrets are added to GitHub. Production database migration and official activation remain separate steps.
+
+## Non-submitting synthetic Form mapping dry run
+
+After `stageApexFieldMapDisabled` and `validateApexSavedFieldMap` pass, copy the latest `integrations/google-form/Code.gs` into the existing form-bound `ApexIntake.gs` and run **`testApexSyntheticFormMapping`**. This tests all 19 saved IDs by building a synthetic response in memory from actual Form item metadata and testing dates, email, add-ons, personality-grid answers, care details and consent. It never calls `FormResponse.submit()`, `FormApp.getResponses()`, `UrlFetchApp.fetch()`, or any backend. No historical responses are read, no real response is added, and no customer email is generated.
+
+Expected log: `APEX SYNTHETIC FORM MAPPING PASSED: 19 IDs, dates, contact, add-ons, grid, pet care and consent. No responses read/submitted, no HTTP request.`
+
+This is a **mapping-only** dry run, not proof of a real Google Form submission or live ingestion. Keep `APEX_INTAKE_ENABLED=false` and install no trigger. A real end-to-end synthetic submission and runtime access design will be tested separately after approval.

@@ -80,3 +80,14 @@ See [Cloudflare operational and security instructions](docs/cloudflare-workers.m
 ## Google Form recovery preparation
 
 The Form-bound Apps Script is still **not installed or enabled**. It now includes an opt-in manual reconciliation helper, capped at 50 submissions since an explicitly approved start timestamp, plus a PII-free synthetic response mapping audit. No history is automatically imported. See [the Google Form setup guide](integrations/google-form/README.md).
+
+## Local development on Windows
+
+See [Windows local setup](docs/local-windows.md) for the PowerShell 5.1-compatible bootstrap, local Worker previews, a loopback-only smoke checker, and an isolated Neon `local-development` branch. The local environment starts with **blank credentials** and cannot write to production. After cloning, run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-local.ps1
+npm.cmd run dev
+```
+
+Then open `http://127.0.0.1:8787/demo/staff`. In another PowerShell window run `npm.cmd run local:check`. Never commit `.dev.vars` or reuse production database/API secrets for local testing.

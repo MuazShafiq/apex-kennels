@@ -72,7 +72,7 @@ Never commit `.dev.vars`, paste the connection string in a chat, or put producti
 4. Open another terminal and run:
 
 ```powershell
-cd $HOME\dev\apex-kennels
+cd "$HOME\Downloads\apex-kennels"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-local-ingest.ps1
 ```
 

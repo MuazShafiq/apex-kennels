@@ -1,0 +1,27 @@
+# Full Google Form intake staging (NOT deployed)
+
+Engineering state: prepare and test on feature branch and Neon **local-development**. Production's existing Worker and the live Google Form trigger stay unchanged and disconnected.
+
+## Data contract
+
+`POST /api/ingest` accepts an optional `details` object alongside the legacy base booking fields. If `details` is supplied, it must contain **all required operational answers** from the verified five-section Google Form: owner address, pickup/dropoff preference, CCTV camera cage preference, emergency phone, dog breed, gender, age, vaccination status, distemper status, and true terms acceptance. Vet phone, eight yes/no personality traits, special instructions and medication/feeding instructions are supported when present.
+
+Data stored in transaction: customer, pet (breed), booking request, form ingestion event with SHA-256 full-payload fingerprint, and separate restricted `booking_form_details`. Duplicate response IDs return the original booking when all details match and return **409** when any substantive detail changed. No prices are trusted from the Form and no invoices or messages are sent.
+
+Sensitive owner and pet-care details are **never** sent to the public demo, the synthetic invoice, or default staff queue API. The new table has RLS enabled with no browser policies; staff visibility and privacy retention remain separate approval work.
+
+## Database migration
+
+`db/migrations/001_full_form_details.sql` adds one nullable digest column and one restricted detail table. Test it on Neon branch `local-development` (`br-little-shape-az2ip3cp`) first. This is a **forward-only** migration; don't re-run the baseline `db/schema.sql`. Production must be migrated **before** deploying the new Worker; otherwise old intake queries in the feature branch would fail on production due to missing fingerprint column. Do not merge this feature until the coordinated cutover is approved.
+
+## Google Forms item IDs
+
+The true form title is `Boarding Appointment`. Installable Apps Script trigger remains OFF. The Form-bound `Code.gs` now includes `proposeApexFieldMap()`, which reads only question titles, types, row labels and item IDs, then logs a map of semantic keys to stable item IDs. It doesn't save script properties or send requests. Use it once after the updated source is manually placed in the Form's Apps Script editor. Do not share past customer responses, email contents or bank details in logs.
+
+Review the proposal, then set `APEX_FIELD_MAP` as a **private Script Property** and create one clearly labeled **synthetic** response. Run `validateApexSyntheticResponseMapping()` to check field presence only. Never auto-import existing responses. `APEX_INTAKE_ENABLED=false` remains a required hold point until the owner approves privacy, mapping and operational correctness.
+
+## Local development next
+
+Connect the already-created Neon `local-development` branch in the ignored `.dev.vars` (not the production connection string). Use the standalone local token. The local Worker runs under VS Code in `$HOME\Downloads\apex-kennels`. New full-form code is on this feature branch until it passes CI and can be migrated safely.
+
+Note: the visible Google Form advertised starting PKR 2,500/day and a PKR 500/day CCTV option, but those **are not** an approved complete price book. Billing remains disabled.

@@ -14,6 +14,7 @@ export type StaffBooking = {
   endDate: string;
   accommodationType: string | null;
   createdAt: string;
+  isSynthetic?: boolean;
 };
 
 export function parseStaffFilter(url: URL): StaffFilter {
@@ -30,7 +31,7 @@ export function parseStaffFilter(url: URL): StaffFilter {
 
 type RawBooking = {
   id:string; status:BookingStatus; customer_name:string; pet_names:string; email:string|null; phone:string|null;
-  start_date:string; end_date:string; accommodation_type:string|null; created_at:string;
+  start_date:string; end_date:string; accommodation_type:string|null; created_at:string; is_synthetic:boolean;
 };
 
 /** A bounded, read-only staff query: no raw form payloads or financial information. */
@@ -43,7 +44,8 @@ export async function listStaffBookings(dbUrl: string, filter: StaffFilter): Pro
              c.full_name AS customer_name, c.email, c.phone,
              coalesce(string_agg(DISTINCT p.name, ', '), '') AS pet_names,
              b.start_date::text AS start_date, b.end_date::text AS end_date,
-             b.accommodation_type, b.created_at::text AS created_at
+             b.accommodation_type, b.created_at::text AS created_at,
+             (b.external_submission_id LIKE 'apex-cf-smoke-%') AS is_synthetic
         FROM public.booking_requests b
         JOIN public.customers c ON c.id = b.customer_id
         LEFT JOIN public.booking_pets bp ON bp.booking_id = b.id
@@ -58,7 +60,7 @@ export async function listStaffBookings(dbUrl: string, filter: StaffFilter): Pro
     return result.rows.map(row=>({
       id:row.id,status:row.status,customerName:row.customer_name,petNames:row.pet_names,
       email:row.email,phone:row.phone,startDate:row.start_date,endDate:row.end_date,
-      accommodationType:row.accommodation_type,createdAt:row.created_at
+      accommodationType:row.accommodation_type,createdAt:row.created_at,isSynthetic:row.is_synthetic
     }));
   } finally {
     await client.end();

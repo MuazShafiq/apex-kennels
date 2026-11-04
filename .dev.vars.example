@@ -1,3 +1,5 @@
-# Local-only mock values. Do not use real credentials in this file.
-DATABASE_URL=postgresql://placeholder:placeholder@placeholder.neon.tech/neondb?sslmode=require
-INTAKE_API_SECRET=DISABLED_UNTIL_CONFIGURED
+# Local-only secrets. This file is a disabled template, not a working production configuration.
+# Use ONLY Neon's `local-development` branch credentials here. Never copy a production DB URL.
+DATABASE_URL=
+# Generate a DIFFERENT local token. Do not reuse Cloudflare's production INTAKE_API_SECRET.
+INTAKE_API_SECRET=

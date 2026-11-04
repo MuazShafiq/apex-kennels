@@ -107,7 +107,7 @@ export async function handleWorkerRequest(
       return html(renderStaffConsoleHtml(syntheticBookings,{demo:true,filter}));
     } catch { return json({error:'Invalid filter'},400); }
   }
-  if (path === '/staff' || path === '/api/staff/bookings') {
+  if (path === '/staff' || path === '/staff/api/bookings') {
     if (request.method !== 'GET') return json({error:'Method not allowed'},405,{Allow:'GET'});
     // Fail closed: these endpoints never fall back to an intake token or unverified headers.
     if (!env.STAFF_ACCESS_AUD || !env.STAFF_ALLOWED_EMAILS || !env.DATABASE_URL) {

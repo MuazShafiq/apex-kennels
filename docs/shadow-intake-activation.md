@@ -1,6 +1,6 @@
 # Apex: owner-gated shadow intake
 
-**Status:** Prepared, not activated. A real Google Form synthetic canary successfully reached Cloudflare production and Neon production on 2026-11-04, and was independently verified (one booking, event, pet, restricted details record; zero invoices). The canary was subsequently disarmed by Muaz. Real customer intake remains **OFF**.
+**Status: ACTIVATED and independently confirmed in the real Form-bound Apps Script execution log on 2026-11-05 at 01:30:37 PKT.** Activation cutoff: `2026-11-04T20:30:37.411Z`. Production database contained two prior synthetic test bookings, two ingestion events, one full-form details row and zero invoices at the immediate post-activation read. No actual post-activation customer submission had arrived as of that check. The canary was successfully disarmed before launch. **Live Form-to-database delivery of real customer submissions has not yet been independently reverified with a first new customer event.**
 
 ## Why shadow mode
 
@@ -17,7 +17,9 @@ Fatima must explicitly approve:
 
 This is distinct from approval of boarding rates and invoices.
 
-## One controlled activation, only AFTER permission
+## Controlled activation record (completed; do not rerun)
+
+The following activation procedure was executed and verified in Apps Script. **Do not rerun it while active.**
 
 1. Sync current source using `npm.cmd run form:sync`, then refresh the Form-bound Apps Script editor. The target must remain the **same existing** script/form, not a new project.
 2. Under **Project Settings → Script Properties**, leave the verified production `APEX_API_URL`, private `APEX_INTAKE_TOKEN` and saved `APEX_FIELD_MAP`. Ensure the canary has been disarmed. Set `APEX_OWNER_APPROVED_LIVE=true` **only with recorded owner approval**. Keep `APEX_INTAKE_ENABLED=false` before the activation.
@@ -34,3 +36,13 @@ Run **`apexPauseShadowIntake`** in Apps Script. It sets `APEX_INTAKE_ENABLED=fal
 Build the minimum staff flow: Cloudflare Access identity/allowlist, new-booking queue, explicit review/approval, status changes, clear care-detail access rules, and failure notification. Derived historical rates (standard PKR 2,500/day, camera +500/day, inclusive day counting) may power **draft-only** quotes, but transport, multi-dog pricing, discounts, grooming exceptions, payment destination and delivery consent remain owner decisions. No real invoice or payment demand should be generated until approved.
 
 **No need for another synthetic submission**: the actual Google Form trigger, Cloudflare production Worker and Neon production persistence were already independently tested in the one-shot canary.
+
+## First genuine submission acceptance check (pending; no new test submission needed)
+
+After the next genuine customer completes the existing Form, compare **only the Form response ID, booking creation time, and non-sensitive counts** against Neon's production `booking_requests`, `form_ingestion_events`, `booking_pets` and `booking_form_details`. Verify exactly one record per submission and zero invoices, and check the matching Apps Script `onApexFormSubmit` trigger execution shows Completed. Do not paste customer medical/care responses into chat or issue trackers.
+
+Until verified for the first real submission, the Google Sheet remains Fatima's operational source of truth. **Production health checks do not prove that every Form response was persisted.** A failed Apps Script trigger can leave the Google Form/Sheet successfully updated while Neon is missing that submission.
+
+## Next engineering priority (not implemented or owner-approved)
+
+Implement failure alerting and bounded recovery for new submissions after the activation cutoff. Then configure **Cloudflare Access** with a verified audience and staff email allowlist for the read-only queue before showing real customers' contact details to staff. Afterward attach draft quote review and explicit invoice approval using the owner-reviewed pricing exceptions and payment destination. Preserve current billing-off posture in the meantime.

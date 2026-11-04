@@ -34,8 +34,11 @@ function apexBuildPayload(formResponse, fieldMap) {
     throw new Error('Google response has no stable response ID');
   }
   var valuesById = {};
+  var itemsById = {};
   formResponse.getItemResponses().forEach(function(answer) {
-    valuesById[String(answer.getItem().getId())] = answer.getResponse();
+    var id=String(answer.getItem().getId());
+    valuesById[id] = answer.getResponse();
+    itemsById[id] = answer.getItem();
   });
 
   function answerFor(name) {
@@ -50,6 +53,40 @@ function apexBuildPayload(formResponse, fieldMap) {
     return String(value).trim();
   }
 
+  function yesNo(name) {
+    var value=answerFor(name);
+    if (value === undefined) return undefined;
+    if (value === 'No') return false;
+    if (/^Yes(?: |$)/.test(value)) return true;
+    throw new Error('Unexpected answer for ' + name);
+  }
+
+  function traitsFromGrid() {
+    var id=fieldMap.personalityGrid;
+    if (!id) return undefined;
+    var item=itemsById[String(id)];
+    var responses=valuesById[String(id)];
+    if (!item || !Array.isArray(responses)) return undefined;
+    var labels=item.asGridItem().getRows();
+    if (labels.length !== responses.length) throw new Error('Personality grid shape changed');
+    var keys={
+      'Friendly':'friendly','Fears (thunderstorms etc)':'fears','Climber':'climber',
+      'Food Sensitivities':'foodSensitivities','Barks Excessively':'barksExcessively',
+      'Allergies':'allergies','Bite History':'biteHistory','Medical Conditions':'medicalConditions'
+    };
+    var out={};
+    labels.forEach(function(label,index){
+      var choice=responses[index];
+      if (!choice) return;
+      if (!keys[label] || (choice!=='Yes' && choice!=='No')) {
+        throw new Error('Personality grid fields or choices changed; manual review required');
+      }
+      out[keys[label]]=(choice==='Yes');
+    });
+    return out;
+  }
+  var accepted=answerFor('termsAccepted') === 'I have read and accept all the terms and conditions';
+
   return {
     source:'google_form',
     externalResponseId:String(formResponse.getId()),
@@ -59,7 +96,23 @@ function apexBuildPayload(formResponse, fieldMap) {
     petName:answerFor('petName'),
     startDate:answerFor('startDate'),
     endDate:answerFor('endDate'),
-    accommodationType:answerFor('accommodationType')
+    accommodationType:answerFor('accommodationType'),
+    details:{
+      ownerAddress:answerFor('ownerAddress'),
+      pickupDropoffRequested:yesNo('pickupDropoffRequested'),
+      cameraCageRequested:yesNo('cameraCageRequested'),
+      emergencyContactPhone:answerFor('emergencyContactPhone'),
+      breed:answerFor('breed'),
+      gender:answerFor('gender'),
+      age:answerFor('age'),
+      vaccinationStatus:answerFor('vaccinationStatus'),
+      distemperHistory:answerFor('distemperHistory'),
+      veterinarianPhone:answerFor('veterinarianPhone'),
+      personalityTraits:traitsFromGrid(),
+      specialInstructions:answerFor('specialInstructions'),
+      medicationFeedingInstructions:answerFor('medicationFeedingInstructions'),
+      termsAccepted:accepted
+    }
   };
 }
 
@@ -142,8 +195,74 @@ function validateApexSyntheticResponseMapping() {
   var response=form.getResponse(testId);
   if (!response) throw new Error('Synthetic response ID not found');
   var payload=apexBuildPayload(response,JSON.parse(raw));
-  var fields=['customerName','email','phone','petName','startDate','endDate','accommodationType'];
-  Logger.log(JSON.stringify(fields.map(function(field){
-    return {field:field,provided:!!payload[field]};
-  })));
+  var fields=['customerName','email','phone','petName','startDate','endDate'];
+  var detailsFields=['ownerAddress','pickupDropoffRequested','cameraCageRequested','emergencyContactPhone',
+    'breed','gender','age','vaccinationStatus','distemperHistory','veterinarianPhone',
+    'personalityTraits','specialInstructions','medicationFeedingInstructions','termsAccepted'];
+  Logger.log(JSON.stringify({
+    core:fields.map(function(field){return {field:field,provided:!!payload[field]};}),
+    details:detailsFields.map(function(field){
+      return {field:field,provided:payload.details[field]!==undefined};
+    })
+  }));
+}
+
+
+/**
+ * Propose a stable ID map from the verified Form structure, with no answers
+ * or personal data. Does NOT save the property or trigger any webhook.
+ * Review the output before copying to Script Property APEX_FIELD_MAP.
+ */
+function proposeApexFieldMap() {
+  var form=FormApp.getActiveForm();
+  if (!form) throw new Error('Open this script from the live Form editor');
+  var items=form.getItems();
+  var names={
+    startDate:'Boarding Period (start date)',
+    endDate:'Boarding Period (end date)',
+    customerName:"Owner's Name",
+    ownerAddress:'Address',
+    pickupDropoffRequested:'Will you require pick-up and drop-off for your pet?',
+    cameraCageRequested:'Camera Cage with 24/7 CCTV:',
+    phone:'Phone number',
+    emergencyContactPhone:'Emergency Contact number',
+    petName:"Dog's Name",
+    breed:'Breed',
+    gender:'Gender',
+    age:'Age',
+    vaccinationStatus:'Vaccination status',
+    distemperHistory:'Has your pet ever been diagnosed with Canine Distemper?',
+    veterinarianPhone:'Veterinarian contact number',
+    specialInstructions:'Special Instructions',
+    medicationFeedingInstructions:'Medications and Feeding Instructions'
+  };
+  var map={};
+  Object.keys(names).forEach(function(field){
+    var matches=items.filter(function(item){
+      return item.getTitle().trim()===names[field];
+    });
+    if(matches.length!==1){
+      throw new Error('Review question ' + field + ' (expected exactly one matching title; found '+matches.length+')');
+    }
+    map[field]=String(matches[0].getId());
+  });
+  var traitRows=['Friendly','Fears (thunderstorms etc)','Climber','Food Sensitivities',
+    'Barks Excessively','Allergies','Bite History','Medical Conditions'];
+  var grids=items.filter(function(item){
+    if (item.getType() !== FormApp.ItemType.GRID) return false;
+    var rows=item.asGridItem().getRows();
+    return traitRows.length===rows.length && traitRows.every(function(row,i){return rows[i]===row;});
+  });
+  if(grids.length!==1) throw new Error('Personality trait grid not uniquely identified');
+  map.personalityGrid=String(grids[0].getId());
+  var consent=items.filter(function(item) {
+    if(item.getType()!==FormApp.ItemType.CHECKBOX) return false;
+    return item.asCheckboxItem().getChoices().some(function(choice){
+      return choice.getValue()==='I have read and accept all the terms and conditions';
+    });
+  });
+  if(consent.length!==1) throw new Error('Terms checkbox not uniquely identified');
+  map.termsAccepted=String(consent[0].getId());
+  // Email may be native Form collection, not a normal item; don't invent an ID.
+  Logger.log('APEX_FIELD_MAP PROPOSAL (item IDs only, no answers): '+JSON.stringify(map));
 }

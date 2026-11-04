@@ -26,3 +26,9 @@ dist/
 .dev.vars
 .dev.vars.*
 !.dev.vars.example
+
+# Private Apps Script target ID, remote snapshot backups and clasp OAuth files
+.apex-form-target.json
+.apex-form-backups/
+.clasp.json
+.clasprc.json

@@ -87,10 +87,16 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
   const logs:string[]=[];
   const props:Record<string,string>={};
   if(opts.enabled) props.APEX_INTAKE_ENABLED='true';
-  const form={getItems:()=>items,getResponses:()=>{throw Error('Must not read customer responses')}};
+  const form={
+    getItems:()=>items,
+    getItemById:(id:number)=>byId.get(String(id)),
+    getResponses:()=>{throw Error('Must not read customer responses')}
+  };
   const context=vm.createContext({
     FormApp:{getActiveForm:()=>form,ItemType:{GRID:'GRID',CHECKBOX_GRID:'CHECKBOX_GRID',CHECKBOX:'CHECKBOX'}},
     Logger:{log:(value:string)=>logs.push(value)},
+    Utilities:{formatDate:(d:Date,_timezone:string,_format:string)=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')},
+    Session:{getScriptTimeZone:()=> 'Asia/Karachi'},
     PropertiesService:{getScriptProperties:()=>({
       getProperty:(name:string)=>props[name]??null,
       setProperties:(values:Record<string,string>)=>{Object.assign(props,values);}
@@ -100,6 +106,7 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
   const propose=context.proposeApexFieldMap as ()=>void;
   const stage=context.stageApexFieldMapDisabled as ()=>void;
   const validate=context.validateApexSavedFieldMap as ()=>void;
+  const testSynthetic=context.testApexSyntheticFormMapping as ()=>void;
   const build=context.apexBuildPayload as (
     response:unknown,map:Record<string,string>)=>{details:{personalityTraits:Record<string,boolean>;termsAccepted:boolean};email:string};
   const values=new Map<string,unknown>();
@@ -120,7 +127,7 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
       getResponse:()=>value
     }))
   };
-  return {propose,stage,validate,build,response,logs,gridId,props};
+  return {propose,stage,validate,testSynthetic,build,response,logs,gridId,props};
 }
 
 for(const kind of ['GRID','CHECKBOX_GRID'] as const) {
@@ -182,4 +189,21 @@ test('metadata revalidation rejects tampered IDs and missing config while disabl
   map.petName='wrong-item-id';
   f.props.APEX_FIELD_MAP=JSON.stringify(map);
   assert.throws(()=>f.validate(),/Stored field map differs/);
+});
+
+
+for(const kind of ['GRID','CHECKBOX_GRID'] as const) {
+  test('in-memory synthetic Form mapping checks full payload without real submissions ('+kind+')',()=>{
+    const f=fixture(kind);
+    f.stage();
+    f.testSynthetic();
+    assert.match(f.logs.at(-1)||'',/APEX SYNTHETIC FORM MAPPING PASSED/);
+    assert.match(f.logs.at(-1)||'',/No responses read\/submitted, no HTTP request/);
+    assert.equal(f.props.APEX_INTAKE_ENABLED,'false');
+  });
+}
+
+test('in-memory synthetic Form validation fails if staging is missing',()=>{
+  const f=fixture('GRID');
+  assert.throws(()=>f.testSynthetic(),/Disable intake before testing/);
 });

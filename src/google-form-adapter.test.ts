@@ -86,10 +86,12 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
   items.push(consent);byId.set(String(consentId),consent);
   const logs:string[]=[];
   const requests:Array<{url:string;payload:Record<string,unknown>}>=[];
+  const triggers:Array<{getHandlerFunction:()=>string;getEventType:()=>string;getTriggerSource:()=>string;getTriggerSourceId:()=>string}>=[];
   const props:Record<string,string>={};
   if(opts.enabled) props.APEX_INTAKE_ENABLED='true';
   const form={
     getItems:()=>items,
+    getId:()=> 'synthetic-form-id',
     getItemById:(id:number)=>byId.get(String(id)),
     getResponses:()=>{throw Error('Must not read customer responses')}
   };
@@ -101,8 +103,10 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
       getUuid:()=> '00000000-0000-4000-8000-000000000001'
     },
     UrlFetchApp:{fetch:(url:string,options:{payload:string;headers:Record<string,string>})=>{
-      assert.equal(url,'https://apex-kennels-intake-staging.muaz-shafiq18.workers.dev/api/ingest');
-      assert.equal(options.headers.Authorization,'Bearer '+props.APEX_STAGING_INTAKE_TOKEN);
+      const staging='https://apex-kennels-intake-staging.muaz-shafiq18.workers.dev/api/ingest';
+      const production='https://apex-kennels-api.muaz-shafiq18.workers.dev/api/ingest';
+      assert.ok(url===staging || url===production);
+      assert.equal(options.headers.Authorization,'Bearer '+(url===staging ? props.APEX_STAGING_INTAKE_TOKEN : props.APEX_INTAKE_TOKEN));
       const payload=JSON.parse(options.payload) as Record<string,unknown>;
       requests.push({url,payload});
       const first=requests[0].payload;
@@ -114,9 +118,28 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
       };
     }},
     Session:{getScriptTimeZone:()=> 'Asia/Karachi'},
+    LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock:()=>{}})},
+    ScriptApp:{
+      EventType:{ON_FORM_SUBMIT:'ON_FORM_SUBMIT'},
+      TriggerSource:{FORMS:'FORMS'},
+      getProjectTriggers:()=>triggers,
+      newTrigger:(handler:string)=>({
+        forForm:(source:unknown)=>{
+          assert.equal(source,form);
+          return {onFormSubmit:()=>({create:()=>triggers.push({
+            getHandlerFunction:()=>handler,
+            getEventType:()=> 'ON_FORM_SUBMIT',
+            getTriggerSource:()=> 'FORMS',
+            getTriggerSourceId:()=> 'synthetic-form-id'
+          })})};
+        }
+      })
+    },
     PropertiesService:{getScriptProperties:()=>({
       getProperty:(name:string)=>props[name]??null,
-      setProperties:(values:Record<string,string>)=>{Object.assign(props,values);}
+      setProperties:(values:Record<string,string>)=>{Object.assign(props,values);},
+      setProperty:(name:string,value:string)=>{props[name]=value;},
+      deleteProperty:(name:string)=>{delete props[name];}
     })},
   });
   vm.runInContext(source,context,{filename:'Code.gs'});
@@ -126,6 +149,9 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
   const testSynthetic=context.testApexSyntheticFormMapping as ()=>void;
   const preflight=context.apexPreflight as ()=>void;
   const testStaging=context.apexTestStagingDelivery as ()=>void;
+  const armCanary=context.apexArmRealFormCanary as ()=>void;
+  const disarmCanary=context.apexDisarmRealFormCanary as ()=>void;
+  const handleSubmit=context.onApexFormSubmit as (event:{response:unknown})=>void;
   const build=context.apexBuildPayload as (
     response:unknown,map:Record<string,string>)=>{details:{personalityTraits:Record<string,boolean>;termsAccepted:boolean};email:string};
   const values=new Map<string,unknown>();
@@ -146,7 +172,11 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
       getResponse:()=>value
     }))
   };
-  return {propose,stage,validate,testSynthetic,preflight,testStaging,build,response,logs,gridId,props,requests};
+  const setField=(key:keyof typeof fieldNames,value:unknown)=>{
+    values.set(String(1000+Object.keys(fieldNames).indexOf(key)),value);
+  };
+  return {propose,stage,validate,testSynthetic,preflight,testStaging,
+    armCanary,disarmCanary,handleSubmit,setField,build,response,logs,gridId,props,requests,triggers};
 }
 
 for(const kind of ['GRID','CHECKBOX_GRID'] as const) {
@@ -273,5 +303,55 @@ test('staging delivery refuses a live-enabled Form integration',()=>{
   const f=fixture('GRID',{enabled:true});
   f.props.APEX_STAGING_INTAKE_TOKEN='x'.repeat(64);
   assert.throws(()=>f.testStaging(),/real Form intake is enabled/);
+  assert.equal(f.requests.length,0);
+});
+
+
+for(const kind of ['GRID','CHECKBOX_GRID'] as const) {
+  test('real Form canary installs exactly one disabled trigger, ignores customers, delivers once ('+kind+')',()=>{
+    const f=fixture(kind);
+    f.stage();
+    f.props.APEX_API_URL='https://apex-kennels-api.muaz-shafiq18.workers.dev/api/ingest';
+    f.props.APEX_INTAKE_TOKEN='p'.repeat(64);
+    f.armCanary();
+    assert.equal(f.triggers.length,1);
+    assert.equal(f.props.APEX_INTAKE_ENABLED,'false');
+    assert.match(f.props.APEX_CANARY_OWNER_NAME,/^APEX CANARY /);
+    // The original synthetic respondent does not match the one-time marker.
+    f.handleSubmit({response:f.response});
+    assert.equal(f.requests.length,0);
+    f.setField('customerName',f.props.APEX_CANARY_OWNER_NAME);
+    f.setField('petName','APEX SYNTHETIC CANARY PET');
+    f.handleSubmit({response:f.response});
+    assert.equal(f.requests.length,1);
+    assert.equal(f.requests[0].url,'https://apex-kennels-api.muaz-shafiq18.workers.dev/api/ingest');
+    assert.equal(f.props.APEX_CANARY_COMPLETE,'true');
+    f.handleSubmit({response:f.response});
+    assert.equal(f.requests.length,1); // Can never insert a second canary
+    f.disarmCanary();
+    assert.equal(f.props.APEX_INTAKE_ENABLED,'false');
+    assert.equal(f.props.APEX_CANARY_OWNER_NAME,undefined);
+    assert.equal(f.triggers.length,1); // No destructive trigger changes
+  });
+}
+
+test('canary arming fails closed without production credential and cannot enable live intake',()=>{
+  const f=fixture('GRID');
+  f.stage();
+  assert.throws(()=>f.armCanary(),/Production Worker endpoint not explicitly configured/);
+  assert.equal(f.triggers.length,0);
+  assert.equal(f.requests.length,0);
+  f.props.APEX_API_URL='https://apex-kennels-api.muaz-shafiq18.workers.dev/api/ingest';
+  f.props.APEX_INTAKE_TOKEN='p'.repeat(64);
+  f.armCanary();
+  f.props.APEX_INTAKE_ENABLED='true';
+  f.setField('customerName','Normal Person');
+  assert.throws(()=>f.handleSubmit({response:f.response}),/Disarm test canary/);
+  assert.equal(f.requests.length,0);
+});
+
+test('owner approval is required even if live enabled manually',()=>{
+  const f=fixture('GRID',{enabled:true});
+  f.handleSubmit && assert.throws(()=>f.handleSubmit({response:f.response}),/owner approval/);
   assert.equal(f.requests.length,0);
 });

@@ -245,7 +245,7 @@ function validateApexSyntheticResponseMapping() {
  * or personal data. Does NOT save the property or trigger any webhook.
  * Review the output before copying to Script Property APEX_FIELD_MAP.
  */
-function proposeApexFieldMap() {
+function apexProposedFieldMap() {
   var form=FormApp.getActiveForm();
   if (!form) throw new Error('Open this script from the live Form editor');
   var items=form.getItems();
@@ -300,5 +300,48 @@ function proposeApexFieldMap() {
   if(consent.length!==1) throw new Error('Terms checkbox not uniquely identified');
   map.termsAccepted=String(consent[0].getId());
   // Email may be native Form collection, not a normal item; don't invent an ID.
-  Logger.log('APEX_FIELD_MAP PROPOSAL (item IDs only, no answers): '+JSON.stringify(map));
+  return map;
+}
+
+/** Read-only. Logs item IDs, never response contents. */
+function proposeApexFieldMap() {
+  Logger.log('APEX_FIELD_MAP PROPOSAL (item IDs only, no answers): '+JSON.stringify(apexProposedFieldMap()));
+}
+
+/**
+ * One-time safe setup: saves the verified, metadata-only ID map while OFF.
+ * No responses are read and no trigger, HTTP call or database write occurs.
+ * This must never be used to reconfigure an already-live intake.
+ */
+function stageApexFieldMapDisabled() {
+  var props=apexProperties();
+  if (props.getProperty('APEX_INTAKE_ENABLED') === 'true') {
+    throw new Error('Cannot replace field map while live intake is enabled');
+  }
+  var map=apexProposedFieldMap();
+  props.setProperties({
+    APEX_FIELD_MAP:JSON.stringify(map),
+    APEX_INTAKE_ENABLED:'false'
+  });
+  Logger.log('APEX FIELD MAP STAGED: '+Object.keys(map).length+
+    ' question IDs verified. APEX_INTAKE_ENABLED=false. No responses read or sent.');
+}
+
+/** Checks saved item IDs match current form metadata; never reads responses. */
+function validateApexSavedFieldMap() {
+  var props=apexProperties();
+  if (props.getProperty('APEX_INTAKE_ENABLED') !== 'false') {
+    throw new Error('Require disabled intake during metadata verification');
+  }
+  var raw=props.getProperty('APEX_FIELD_MAP');
+  if (!raw) throw new Error('APEX_FIELD_MAP is not configured');
+  var stored=JSON.parse(raw);
+  var expected=apexProposedFieldMap();
+  var keys=Object.keys(expected);
+  if (Object.keys(stored).length!==keys.length ||
+      keys.some(function(key){return String(stored[key]) !== String(expected[key]);})) {
+    throw new Error('Stored field map differs from current form metadata; intake remains disabled');
+  }
+  Logger.log('APEX FIELD MAP VERIFIED: '+keys.length+
+    ' item IDs match. Intake disabled. No customer responses accessed.');
 }

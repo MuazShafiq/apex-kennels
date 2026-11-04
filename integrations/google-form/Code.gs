@@ -29,6 +29,19 @@ function apexConfig() {
   return {url:url,token:token,map:JSON.parse(mapRaw)};
 }
 
+/** Ignore harmless whitespace differences in Form labels without rewriting the form. */
+function apexNormalizeLabel(value) {
+  return String(value).replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/** Support both the single-choice and checkbox grid variants, without reading answers. */
+function apexGridMetadata(item) {
+  var type = item.getType();
+  if (type === FormApp.ItemType.GRID) return item.asGridItem();
+  if (type === FormApp.ItemType.CHECKBOX_GRID) return item.asCheckboxGridItem();
+  return null;
+}
+
 function apexBuildPayload(formResponse, fieldMap) {
   if (!formResponse || !formResponse.getId()) {
     throw new Error('Google response has no stable response ID');
@@ -67,22 +80,41 @@ function apexBuildPayload(formResponse, fieldMap) {
     var item=itemsById[String(id)];
     var responses=valuesById[String(id)];
     if (!item || !Array.isArray(responses)) return undefined;
-    var labels=item.asGridItem().getRows();
-    if (labels.length !== responses.length) throw new Error('Personality grid shape changed');
+    var grid=apexGridMetadata(item);
+    if (!grid) throw new Error('Personality traits item is no longer a grid');
+    var labels=grid.getRows().map(apexNormalizeLabel);
+    var columns=grid.getColumns().map(apexNormalizeLabel);
+    if (labels.length!==responses.length || columns.length!==2 ||
+        columns.indexOf('Yes')===-1 || columns.indexOf('No')===-1) {
+      throw new Error('Personality grid shape or choices changed');
+    }
     var keys={
       'Friendly':'friendly','Fears (thunderstorms etc)':'fears','Climber':'climber',
       'Food Sensitivities':'foodSensitivities','Barks Excessively':'barksExcessively',
       'Allergies':'allergies','Bite History':'biteHistory','Medical Conditions':'medicalConditions'
     };
+    var found={};
     var out={};
     labels.forEach(function(label,index){
+      var key=keys[label];
+      if (!key || found[key]) throw new Error('Unexpected or duplicate personality grid row');
+      found[key]=true;
       var choice=responses[index];
-      if (!choice) return;
-      if (!keys[label] || (choice!=='Yes' && choice!=='No')) {
-        throw new Error('Personality grid fields or choices changed; manual review required');
+      // Checkbox grids return String[][]; a single-choice grid returns String[].
+      if (Array.isArray(choice)) {
+        if (choice.length > 1) throw new Error('Multiple answers selected for one personality trait');
+        choice=choice[0];
       }
-      out[keys[label]]=(choice==='Yes');
+      if (choice===null || choice===undefined || choice==='') return;
+      choice=apexNormalizeLabel(choice);
+      if (choice!=='Yes' && choice!=='No') {
+        throw new Error('Unexpected personality grid answer; manual review required');
+      }
+      out[key]=(choice==='Yes');
     });
+    if (Object.keys(found).length!==Object.keys(keys).length) {
+      throw new Error('Personality trait rows changed; manual review required');
+    }
     return out;
   }
   var accepted=answerFor('termsAccepted') === 'I have read and accept all the terms and conditions';
@@ -249,9 +281,13 @@ function proposeApexFieldMap() {
   var traitRows=['Friendly','Fears (thunderstorms etc)','Climber','Food Sensitivities',
     'Barks Excessively','Allergies','Bite History','Medical Conditions'];
   var grids=items.filter(function(item){
-    if (item.getType() !== FormApp.ItemType.GRID) return false;
-    var rows=item.asGridItem().getRows();
-    return traitRows.length===rows.length && traitRows.every(function(row,i){return rows[i]===row;});
+    var grid=apexGridMetadata(item);
+    if (!grid) return false;
+    var rows=grid.getRows().map(apexNormalizeLabel);
+    var columns=grid.getColumns().map(apexNormalizeLabel);
+    return traitRows.length===rows.length &&
+      traitRows.every(function(row,i){return rows[i]===row;}) &&
+      columns.length===2 && columns.indexOf('Yes')!==-1 && columns.indexOf('No')!==-1;
   });
   if(grids.length!==1) throw new Error('Personality trait grid not uniquely identified');
   map.personalityGrid=String(grids[0].getId());

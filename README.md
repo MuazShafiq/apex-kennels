@@ -95,3 +95,8 @@ Then open `http://127.0.0.1:8787/demo/staff`. In another PowerShell window run `
 ## Existing Google Form access (2026-11-04)
 
 Editor access to the actual five-section Form was verified. The [field inventory](docs/form-field-inventory.md) records its question structure without personal submissions. The current adapter is deliberately **incomplete for health, care and contact fields**, so live imports remain disabled until the structured mapping, restricted storage and owner-approved cutover are complete.
+
+## Next acceptance slice (staging, not production)
+
+- **[Provisional pricing from four invoices](docs/pricing-evidence-v0.1.md)**: observed standard 2,500/day, camera 3,000/day, inclusive dates, one 4,000-per-leg transport example, discretionary discounts. This is evidence for **internal draft estimates only**, not an approved price book. The new pure `src/provisional-quote.ts` deliberately excludes transport and promotions from any apparent final total and always requires review.
+- **[One-run staging delivery test](docs/staging-http-test.md)**: safely exercises real Google Apps Script outbound HTTPS to a dedicated Cloudflare staging Worker and Neon `local-development` branch using synthetic Form metadata. The staging Worker is separate from `apex-kennels-api` production; no Form submit trigger, live customer import, invoice, or email is enabled. Test is prepared but requires one-time Cloudflare credentials and a staging-only token.

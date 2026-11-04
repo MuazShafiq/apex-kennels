@@ -46,3 +46,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-full-form
 The script only targets `http://127.0.0.1:8787`, creates a synthetic booking in the **development** database, and expects 201, 200 on retry, and 409 on changed feeding notes. It never sends a live Form response. Your ignored `.dev.vars` must have a `DATABASE_URL` from Neon's **local-development** branch and a newly generated local `INTAKE_API_SECRET`; do not reuse production secrets.
 
 If the branch is already checked out, use `git switch feat/full-form-intake-staging` instead. Return to stable production source with `git switch main` and `git pull --ff-only`. This feature remains unmerged until production migration and owner review.
+
+## Google Form grid mapping fix (2026-11-04)
+
+The actual personality grid question is titled `(optional)`, not `Personality traits`. Its eight row labels include trailing spaces and NBSPs (for example `Friendly ` and `Bite History `). The initial `proposeApexFieldMap()` compared unnormalized row names and incorrectly threw `Personality trait grid not uniquely identified`.
+
+**Fix:** `apexNormalizeLabel` normalizes whitespace in both ID discovery and live response parsing. Both Google Forms `GRID` and `CHECKBOX_GRID` types are supported and tested, including a checkbox grid's nested response arrays. The matcher also requires the expected Yes/No columns and all eight known trait rows and refuses ambiguous or changed structures.
+
+**To apply:** In the Form-bound Apps Script project, replace the contents of the previously created `ApexIntake.gs` with the revised `integrations/google-form/Code.gs` from this **feature branch**, save and rerun `proposeApexFieldMap()`. The function inspects question metadata only. Do not create a trigger, enable `APEX_INTAKE_ENABLED` or read/import historical responses as part of the mapping procedure.
+
+**Verification:** CI passed all 52 tests on Node 22 and 24, including four synthetic Apps Script fixtures for both grid types and a multiple-selection rejection. Actual execution in the Google Form project is still pending.

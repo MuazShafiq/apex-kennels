@@ -41,7 +41,7 @@ test('staff queue is disabled without staff Access configuration',async()=>{
 
 test('forged Access header is not trusted, no database call',async()=>{
   let queried=false;
-  const response=await handleWorkerRequest(new Request(origin+'/api/staff/bookings',{
+  const response=await handleWorkerRequest(new Request(origin+'/staff/api/bookings',{
     headers:{'Cf-Access-Jwt-Assertion':'forged'}
   }),env,undefined,{list:async()=>{queried=true;return[];}});
   assert.equal(response.status,403);
@@ -61,14 +61,14 @@ test('valid audience but nonallowlisted email is denied',async()=>{
 });
 
 test('authorized staff can read JSON queue but not alter state',async()=>{
-  const response=await handleWorkerRequest(new Request(origin+'/api/staff/bookings'),env,undefined,{context:valid,list});
+  const response=await handleWorkerRequest(new Request(origin+'/staff/api/bookings'),env,undefined,{context:valid,list});
   assert.equal(response.status,200);
   const body=await response.json() as {items:StaffBooking[];readOnly:boolean};
   assert.equal(body.readOnly,true);
   assert.equal(body.items.length,1);
   assert.equal(body.items[0].status,'requested');
   assert.equal(response.headers.get('cache-control'),'no-store');
-  const write=await handleWorkerRequest(new Request(origin+'/api/staff/bookings',{method:'POST'}),env,undefined,{context:valid,list});
+  const write=await handleWorkerRequest(new Request(origin+'/staff/api/bookings',{method:'POST'}),env,undefined,{context:valid,list});
   assert.equal(write.status,405);
 });
 

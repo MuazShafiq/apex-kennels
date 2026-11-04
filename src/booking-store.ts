@@ -14,6 +14,7 @@ type Existing = {
   id: string; status: string; external_response_id: string;
   customer_name: string; email: string | null; phone: string | null; pet_name: string;
   start_date: string; end_date: string; accommodation_type: string | null;
+  payload_fingerprint: string | null;
 };
 
 function requiredRow<T>(result: QueryResult<T>, label: string): T {
@@ -28,15 +29,15 @@ export async function saveBooking(pool: DbPool, input: IntakeRequest): Promise<S
   try {
     await tx.query('BEGIN');
     const event = await tx.query<IdRow>(
-      'INSERT INTO public.form_ingestion_events(source, external_submission_id) VALUES ($1, $2) ON CONFLICT (source, external_submission_id) DO NOTHING RETURNING id',
-      [input.source, input.externalResponseId]
+      'INSERT INTO public.form_ingestion_events(source, external_submission_id, payload_fingerprint) VALUES ($1, $2, $3) ON CONFLICT (source, external_submission_id) DO NOTHING RETURNING id',
+      [input.source, input.externalResponseId, fingerprintIntake(input)]
     );
     if (event.rowCount === 0) {
       const existing = requiredRow(await tx.query<Existing>(`
         SELECT b.id, b.status, b.external_submission_id AS external_response_id,
                c.full_name AS customer_name, c.email, c.phone, p.name AS pet_name,
                b.start_date::text AS start_date, b.end_date::text AS end_date,
-               b.accommodation_type
+               b.accommodation_type, e.payload_fingerprint
         FROM public.form_ingestion_events e
         JOIN public.booking_requests b ON b.id=e.booking_id
         JOIN public.customers c ON c.id=b.customer_id
@@ -53,7 +54,8 @@ export async function saveBooking(pool: DbPool, input: IntakeRequest): Promise<S
         startDate:existing.start_date, endDate:existing.end_date,
         accommodationType:existing.accommodation_type ?? undefined
       };
-      if (fingerprintIntake(original) !== fingerprintIntake(input)) {
+      const persistedDigest=existing.payload_fingerprint || fingerprintIntake(original);
+      if (persistedDigest !== fingerprintIntake(input)) {
         throw new IntakeError('Submission ID was reused with changed booking details; manual review required', 409);
       }
       await tx.query('COMMIT');
@@ -66,8 +68,8 @@ export async function saveBooking(pool: DbPool, input: IntakeRequest): Promise<S
       [input.customerName, input.email ?? null, input.phone ?? null]
     ), 'customer');
     const pet = requiredRow(await tx.query<IdRow>(
-      'INSERT INTO public.pets(customer_id,name) VALUES ($1,$2) RETURNING id',
-      [customer.id, input.petName]
+      'INSERT INTO public.pets(customer_id,name,breed) VALUES ($1,$2,$3) RETURNING id',
+      [customer.id, input.petName, input.details?.breed ?? null]
     ), 'pet');
     const booking = requiredRow(await tx.query<IdRow>(
       `INSERT INTO public.booking_requests
@@ -79,6 +81,25 @@ export async function saveBooking(pool: DbPool, input: IntakeRequest): Promise<S
       'INSERT INTO public.booking_pets(booking_id,pet_id) VALUES ($1,$2)',
       [booking.id,pet.id]
     );
+    if (input.details) {
+      const d=input.details;
+      await tx.query(
+        `INSERT INTO public.booking_form_details (
+          booking_id, owner_address, pickup_dropoff_requested,
+          camera_cage_requested, emergency_contact_phone,
+          pet_gender, pet_age_description, vaccination_status,
+          distemper_history, veterinarian_phone, personality_traits,
+          special_instructions, medication_feeding_instructions, terms_accepted
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14)`,
+        [booking.id,d.ownerAddress??null,d.pickupDropoffRequested??null,
+         d.cameraCageRequested??null,d.emergencyContactPhone??null,
+         d.gender??null,d.age??null,d.vaccinationStatus??null,
+         d.distemperHistory??null,d.veterinarianPhone??null,
+         d.personalityTraits?JSON.stringify(d.personalityTraits):null,
+         d.specialInstructions??null,d.medicationFeedingInstructions??null,
+         d.termsAccepted??null]
+      );
+    }
     await tx.query(
       'UPDATE public.form_ingestion_events SET booking_id=$1 WHERE id=$2',
       [booking.id,event.rows[0].id]

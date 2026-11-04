@@ -2,7 +2,7 @@
 .SYNOPSIS
   Prepare Apex Kennels on Windows PowerShell 5.1+ without contacting production.
 .DESCRIPTION
-  Requires an existing local clone and Node.js 22.
+  Requires an existing local clone and Node.js 22 or 24.
   Copies disabled .dev.vars placeholders only when the file is missing.
   Installs packages and executes TypeScript, unit tests, Wrangler dry-run.
   Does not deploy, connect Neon, seed bookings or mutate live data.
@@ -19,15 +19,15 @@ $root = Split-Path -Parent $PSScriptRoot
 Push-Location -LiteralPath $root
 try {
   if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-    throw 'Node.js not found. Install Node.js 22 LTS, reopen PowerShell, then rerun.'
+    throw 'Node.js not found. Install Node.js 24 LTS, reopen PowerShell, then rerun.'
   }
   if (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
-    throw 'npm.cmd not found. Repair your Node.js 22 installation, then rerun.'
+    throw 'npm.cmd not found. Repair your Node.js installation, then rerun.'
   }
 
   $nodeVersion = (& node --version).Trim()
-  if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v22\.') {
-    throw ('Apex requires Node.js 22.x. Current version: ' + $nodeVersion)
+  if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v(22|24)\.') {
+    throw ('Apex supports Node.js 22.x or 24.x. Current version: ' + $nodeVersion)
   }
   Write-Host ('Node: ' + $nodeVersion) -ForegroundColor Cyan
 

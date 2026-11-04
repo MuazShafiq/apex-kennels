@@ -1,14 +1,14 @@
-# Windows local development (PowerShell 5.1 / Node 22)
+# Windows local development (PowerShell 5.1 / Node 22 or 24)
 
 **Target:** edit Apex in **VS Code at `C:\Users\<YOU>\Downloads\apex-kennels`** and run the *same Cloudflare Workers code* locally using Wrangler. No production deployment, no live Google Form, no approved pricing, no customer messages.
 
 ## First-time setup
 
-1. Install Git and **Node.js 22.x** if missing. Use the official Node.js 22 release; the generic 'latest LTS' installer may select a newer major version. Reopen PowerShell after installation.
+1. Install Git and **Node.js 24.x LTS** if missing. Existing Node.js 22.x is also supported. Reopen PowerShell after installation.
 2. Open PowerShell and run:
 
 ```powershell
-node -v       # must start with v22.
+node -v       # v22.x or v24.x
 git --version
 cd "$HOME\Downloads"
 git clone https://github.com/MuazShafiq/apex-kennels.git
@@ -81,7 +81,8 @@ The script asks for the **local** token and sends one clearly synthetic booking 
 ## Common problems
 
 - `node` or `git` not recognized: install it and reopen PowerShell.
-- Node v24/v26: this repository currently pins Node 22. Install or select Node 22.
+- Node v24: supported. Node v26: not yet verified by our CI; use Node 24 LTS until tested.
+- `'wrangler' is not recognized`: setup stopped before installing dependencies. Run `npm.cmd install --no-audit --no-fund` in the repository directory and retry `npm.cmd run dev`.
 - `npm.ps1 cannot be loaded`: use `npm.cmd`, not `npm`.
 - Port 8787 in use: stop another Wrangler session first; don't silently switch port because `local:check` expects 8787.
 - Intake HTTP 503: `.dev.vars` has deliberately empty placeholders. This is expected before connecting development secrets.

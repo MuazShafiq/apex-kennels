@@ -55,7 +55,7 @@ type Item = {
   asCheckboxGridItem?:()=>unknown;
   asCheckboxItem?:()=>unknown;
 };
-function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow?:boolean}={}) {
+function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow?:boolean;enabled?:boolean}={}) {
   const items:Item[]=[];
   const byId=new Map<string,Item>();
   for (const [key,title] of Object.entries(fieldNames)){
@@ -85,13 +85,21 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
   };
   items.push(consent);byId.set(String(consentId),consent);
   const logs:string[]=[];
+  const props:Record<string,string>={};
+  if(opts.enabled) props.APEX_INTAKE_ENABLED='true';
   const form={getItems:()=>items,getResponses:()=>{throw Error('Must not read customer responses')}};
   const context=vm.createContext({
     FormApp:{getActiveForm:()=>form,ItemType:{GRID:'GRID',CHECKBOX_GRID:'CHECKBOX_GRID',CHECKBOX:'CHECKBOX'}},
     Logger:{log:(value:string)=>logs.push(value)},
+    PropertiesService:{getScriptProperties:()=>({
+      getProperty:(name:string)=>props[name]??null,
+      setProperties:(values:Record<string,string>)=>{Object.assign(props,values);}
+    })},
   });
   vm.runInContext(source,context,{filename:'Code.gs'});
   const propose=context.proposeApexFieldMap as ()=>void;
+  const stage=context.stageApexFieldMapDisabled as ()=>void;
+  const validate=context.validateApexSavedFieldMap as ()=>void;
   const build=context.apexBuildPayload as (
     response:unknown,map:Record<string,string>)=>{details:{personalityTraits:Record<string,boolean>;termsAccepted:boolean};email:string};
   const values=new Map<string,unknown>();
@@ -112,7 +120,7 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
       getResponse:()=>value
     }))
   };
-  return {propose,build,response,logs,gridId};
+  return {propose,stage,validate,build,response,logs,gridId,props};
 }
 
 for(const kind of ['GRID','CHECKBOX_GRID'] as const) {
@@ -144,4 +152,34 @@ test('checkbox grid cannot mark both Yes and No for the same safety trait',()=>{
   f.propose();
   const map=JSON.parse(f.logs[0].slice(f.logs[0].indexOf('{'))) as Record<string,string>;
   assert.throws(()=>f.build(f.response,map),/Multiple answers selected/);
+});
+
+
+test('metadata-only staging saves all mapped IDs and keeps intake disabled',()=>{
+  const f=fixture('GRID');
+  f.stage();
+  assert.equal(f.props.APEX_INTAKE_ENABLED,'false');
+  const map=JSON.parse(f.props.APEX_FIELD_MAP) as Record<string,string>;
+  assert.equal(Object.keys(map).length,19);
+  assert.equal(map.personalityGrid,String(f.gridId));
+  assert.match(f.logs.at(-1)||'',/19 question IDs verified/);
+  f.validate();
+  assert.match(f.logs.at(-1)||'',/Intake disabled. No customer responses accessed/);
+});
+
+test('metadata staging refuses to change live intake',()=>{
+  const f=fixture('GRID',{enabled:true});
+  assert.throws(()=>f.stage(),/Cannot replace field map while live intake is enabled/);
+  assert.equal(f.props.APEX_INTAKE_ENABLED,'true');
+  assert.equal(f.props.APEX_FIELD_MAP,undefined);
+});
+
+test('metadata revalidation rejects tampered IDs and missing config while disabled',()=>{
+  const f=fixture('GRID');
+  assert.throws(()=>f.validate(),/Require disabled intake/);
+  f.stage();
+  const map=JSON.parse(f.props.APEX_FIELD_MAP) as Record<string,string>;
+  map.petName='wrong-item-id';
+  f.props.APEX_FIELD_MAP=JSON.stringify(map);
+  assert.throws(()=>f.validate(),/Stored field map differs/);
 });

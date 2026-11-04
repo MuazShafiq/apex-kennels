@@ -5,6 +5,12 @@
 - Share a **duplicate** of the Canva invoice template with editor access. We already have three example PDFs and do not need more sensitive examples.
 - Which verified email address(es) should be allowed into the staff booking dashboard?
 
+## Public Google Form evidence, verified from page 1 of 5
+- Public form headline says boarding starts from **Rs. 2,500/day**.
+- It advertises **optional 24/7 CCTV access**, **two meals daily**, **morning/evening playtime**, and **weekly veterinary checks**. Confirm this text is current and what is included in each accommodation rate.
+- Page 1 contains two required date questions: **Boarding Period (start date)** and **Boarding Period (end date)**.
+- Pages 2–5 and stable Google Form item IDs remain uninspected; do not infer them from page 1 or connect the trigger yet.
+
 ## Billing rules (required before any real invoice)
 - Confirm date counting. Supplied July and November invoices bill both arrival and departure dates; is this always the rule? What about same-day stays and late pickup?
 - Confirm current daily rates for each actual accommodation category (the examples show PKR 2,500/day and a separate PKR 3,000/day case). Is rate per pet, per kennel, or per booking? Multiple-pet adjustments?

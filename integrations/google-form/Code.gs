@@ -427,6 +427,7 @@ function testApexSyntheticFormMapping() {
     throw new Error('In-memory Form mapping did not preserve required synthetic fields');
   }
   Logger.log('APEX SYNTHETIC FORM MAPPING PASSED: 19 IDs, dates, contact, add-ons, grid, pet care and consent. No responses read/submitted, no HTTP request.');
+  return payload;
 }
 
 
@@ -439,9 +440,70 @@ function testApexSyntheticFormMapping() {
 function apexPreflight() {
   stageApexFieldMapDisabled();
   validateApexSavedFieldMap();
-  testApexSyntheticFormMapping();
+  var sample=testApexSyntheticFormMapping();
   if (apexProperties().getProperty('APEX_INTAKE_ENABLED') !== 'false') {
     throw new Error('Unsafe configuration: intake must remain disabled');
   }
   Logger.log('APEX PREFLIGHT PASS: 19 question IDs verified, synthetic conversion passed, intake disabled. No customer responses read or sent.');
+  return sample;
+}
+
+
+/**
+ * Cloud execution of the canonical synthetic Form mapping against an ISOLATED
+ * Cloudflare staging Worker and Neon development branch only.
+ * No real FormResponse is created, no trigger is installed, and no customer
+ * answer is read. The staging URL cannot be configured to production.
+ *
+ * Before first run: provision the separate staging Worker against Neon's
+ * "local-development" branch. Set Script Property APEX_STAGING_INTAKE_TOKEN
+ * to the separate staging Worker's INTAKE_API_SECRET (never production's).
+ */
+function apexTestStagingDelivery() {
+  var config=apexProperties();
+  if (config.getProperty('APEX_INTAKE_ENABLED') !== 'false') {
+    throw new Error('Cannot test delivery while real Form intake is enabled');
+  }
+  var token=config.getProperty('APEX_STAGING_INTAKE_TOKEN');
+  if(!token || token.length<32) throw new Error('Missing separate staging intake token');
+  var url='https://apex-kennels-intake-staging.muaz-shafiq18.workers.dev/api/ingest';
+  var payload=apexPreflight();
+  payload.externalResponseId='apex-form-staging-synthetic-'+Utilities.getUuid();
+
+  function send(body) {
+    var response=UrlFetchApp.fetch(url,{
+      method:'post',
+      contentType:'application/json',
+      headers:{Authorization:'Bearer '+token},
+      payload:JSON.stringify(body),
+      muteHttpExceptions:true,
+      followRedirects:false
+    });
+    var status=response.getResponseCode();
+    // Only read the short status fields from trusted staging responses.
+    // Do not log raw response bodies, tokens, medical notes or customer data.
+    var output={};
+    if(status===200 || status===201) {
+      try {output=JSON.parse(response.getContentText());}
+      catch(_){throw new Error('Staging returned invalid JSON at HTTP '+status);}
+    }
+    return {status:status,created:output.created,bookingId:output.bookingId};
+  }
+
+  var first=send(payload);
+  if(first.status!==201 || first.created!==true || !first.bookingId) {
+    throw new Error('Staging synthetic intake failed (first request HTTP '+first.status+')');
+  }
+  var repeat=send(payload);
+  if(repeat.status!==200 || repeat.created!==false ||
+      repeat.bookingId!==first.bookingId) {
+    throw new Error('Staging retry was not idempotent (HTTP '+repeat.status+')');
+  }
+  var changed=JSON.parse(JSON.stringify(payload));
+  changed.details.medicationFeedingInstructions='Changed synthetic feeding instruction';
+  var conflict=send(changed);
+  if(conflict.status!==409) {
+    throw new Error('Staging changed-care response did not reject with HTTP 409 (got '+conflict.status+')');
+  }
+  Logger.log('APEX STAGING DELIVERY PASS: 201 new / 200 same / 409 changed. Synthetic fixture ID: '+payload.externalResponseId+'. No real Form response, invoice or customer email.');
 }

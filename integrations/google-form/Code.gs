@@ -8,6 +8,8 @@
  *   APEX_API_URL = https://apex-kennels-api.muaz-shafiq18.workers.dev/api/ingest
  *   APEX_INTAKE_TOKEN = [private runtime bearer token]
  *   APEX_FIELD_MAP = JSON object of semantic fields -> Form item IDs
+ *   APEX_OWNER_APPROVED_LIVE = false unless explicit owner go-live approval
+ * Canary-only (does not enable regular intake): APEX_CANARY_OWNER_NAME, APEX_CANARY_COMPLETE
  * Optional, for explicitly approved manual reconciliation:
  *   APEX_RECONCILE_AFTER = ISO timestamp, e.g. 2026-11-05T00:00:00+05:00
  */
@@ -16,17 +18,28 @@ function apexProperties() {
   return PropertiesService.getScriptProperties();
 }
 
-function apexConfig() {
-  var props = apexProperties();
-  if (props.getProperty('APEX_INTAKE_ENABLED') !== 'true') return null;
-  var url = props.getProperty('APEX_API_URL');
-  var token = props.getProperty('APEX_INTAKE_TOKEN');
-  var mapRaw = props.getProperty('APEX_FIELD_MAP');
-  if (!url || !token || !mapRaw) throw new Error('Apex integration properties incomplete');
-  if (url.indexOf('https://') !== 0 || !/\/api\/ingest$/.test(url)) {
-    throw new Error('Apex endpoint must be HTTPS /api/ingest');
+function apexProductionWebhookConfig() {
+  var props=apexProperties();
+  var url=props.getProperty('APEX_API_URL');
+  var token=props.getProperty('APEX_INTAKE_TOKEN');
+  var mapRaw=props.getProperty('APEX_FIELD_MAP');
+  // Fail closed: do not let a live Google Form trigger use the staging URL.
+  if (url!=='https://apex-kennels-api.muaz-shafiq18.workers.dev/api/ingest') {
+    throw new Error('Production Worker endpoint not explicitly configured');
+  }
+  if (!token || token.length<32 || !mapRaw) {
+    throw new Error('Apex production webhook properties incomplete');
   }
   return {url:url,token:token,map:JSON.parse(mapRaw)};
+}
+
+function apexConfig() {
+  var props=apexProperties();
+  if (props.getProperty('APEX_INTAKE_ENABLED')!=='true') return null;
+  if (props.getProperty('APEX_OWNER_APPROVED_LIVE')!=='true') {
+    throw new Error('Live intake is blocked pending owner approval');
+  }
+  return apexProductionWebhookConfig();
 }
 
 /** Ignore harmless whitespace differences in Form labels without rewriting the form. */
@@ -167,10 +180,94 @@ function apexSubmit(formResponse, config) {
 }
 
 function onApexFormSubmit(event) {
-  var config=apexConfig();
-  if (!config) return;
-  if (!event || !event.response) throw new Error('Requires Form submit event, not Sheet event');
-  apexSubmit(event.response,config);
+  var props=apexProperties();
+  var live=props.getProperty('APEX_INTAKE_ENABLED')==='true';
+  var canaryMarker=props.getProperty('APEX_CANARY_OWNER_NAME');
+  if (!live && !canaryMarker) return;
+  if (!event || !event.response) throw new Error('Requires a Form submit event');
+  if (live) {
+    if (canaryMarker) throw new Error('Disarm test canary before enabling live intake');
+    var liveConfig=apexConfig(); // Enforces recorded owner approval.
+    apexSubmit(event.response,liveConfig);
+    return;
+  }
+
+  // Canary is a single, explicitly named synthetic response; all other
+  // real customer submissions are ignored while normal intake is disabled.
+  var mapRaw=props.getProperty('APEX_FIELD_MAP');
+  if (!mapRaw) throw new Error('Cannot match Form canary without saved field IDs');
+  var map=JSON.parse(mapRaw);
+  var customerId=String(map.customerName);
+  var petId=String(map.petName);
+  var candidateName, candidatePet;
+  event.response.getItemResponses().forEach(function(answer){
+    var id=String(answer.getItem().getId());
+    if (id===customerId) candidateName=String(answer.getResponse()).trim();
+    if (id===petId) candidatePet=String(answer.getResponse()).trim();
+  });
+  if (candidateName!==canaryMarker || candidatePet!=='APEX SYNTHETIC CANARY PET') return;
+
+  var lock=LockService.getScriptLock();
+  if (!lock.tryLock(10000)) throw new Error('Canary is already processing; retry after inspecting trigger execution');
+  try {
+    if (props.getProperty('APEX_CANARY_COMPLETE')==='true') return;
+    apexSubmit(event.response,apexProductionWebhookConfig());
+    props.setProperty('APEX_CANARY_COMPLETE','true');
+    Logger.log('APEX REAL FORM CANARY PASS: one synthetic submission delivered. Response ID: '+String(event.response.getId())+'. Intake remains disabled for ordinary customers.');
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Idempotently install exactly one Form-specific submit trigger while intake is
+ * disabled. Does not access historical responses or send any HTTP request.
+ */
+function apexArmRealFormCanary() {
+  var props=apexProperties();
+  if (props.getProperty('APEX_INTAKE_ENABLED')!=='false') {
+    throw new Error('Disable regular intake before arming a synthetic canary');
+  }
+  if (props.getProperty('APEX_OWNER_APPROVED_LIVE')==='true') {
+    throw new Error('Canary must not be armed with live intake approval already set');
+  }
+  var form=FormApp.getActiveForm();
+  if (!form) throw new Error('Must run in the original Form-bound Apps Script project');
+  // Recheck the saved form item IDs; do not rebuild/overwrite them during a cutover.
+  validateApexSavedFieldMap();
+  apexProductionWebhookConfig();
+  var triggers=ScriptApp.getProjectTriggers().filter(function(trigger){
+    return trigger.getHandlerFunction()==='onApexFormSubmit';
+  });
+  if (triggers.length>1) throw new Error('Multiple Apex submit triggers exist; review them before cutover');
+  if (triggers.length===1) {
+    var t=triggers[0];
+    if (t.getEventType()!==ScriptApp.EventType.ON_FORM_SUBMIT ||
+        t.getTriggerSource()!==ScriptApp.TriggerSource.FORMS ||
+        t.getTriggerSourceId()!==form.getId()) {
+      throw new Error('Existing Apex trigger is not bound to the intended Form submit event');
+    }
+  } else {
+    ScriptApp.newTrigger('onApexFormSubmit').forForm(form).onFormSubmit().create();
+  }
+  var marker='APEX CANARY '+Utilities.getUuid().slice(0,12).toUpperCase();
+  props.setProperties({
+    APEX_CANARY_OWNER_NAME:marker,
+    APEX_CANARY_COMPLETE:'false',
+    APEX_INTAKE_ENABLED:'false'
+  });
+  Logger.log('APEX CANARY ARMED: submit ONE clearly synthetic real Form response. Owner Name exactly: '+marker+' ; Dog Name exactly: APEX SYNTHETIC CANARY PET. Normal customer submissions remain ignored. No old responses are imported.');
+}
+
+/** Turns off the synthetic test gate without enabling regular intake. */
+function apexDisarmRealFormCanary() {
+  var props=apexProperties();
+  if (props.getProperty('APEX_INTAKE_ENABLED')!=='false') {
+    throw new Error('Cannot change canary settings when live intake is enabled');
+  }
+  props.deleteProperty('APEX_CANARY_OWNER_NAME');
+  props.deleteProperty('APEX_CANARY_COMPLETE');
+  Logger.log('APEX CANARY DISARMED: regular intake remains disabled; the trigger remains installed.');
 }
 
 /**

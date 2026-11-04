@@ -61,7 +61,7 @@ function main() {
   const remoteBackup=join(snapshot,'remote');
   const upload=join(snapshot,'upload');
   mkdirSync(remoteBackup,{recursive:true});
-  writeFileSync(join(remoteBackup,'.clasp.json'),JSON.stringify({scriptId,scriptExtensions:['.gs','.js']},null,2)+'\n');
+  writeFileSync(join(remoteBackup,'.clasp.json'),JSON.stringify({scriptId},null,2)+'\n');
   console.log('\nBacking up the remote Apps Script project locally. No files are overwritten on Google yet.');
   cli('pull',[],remoteBackup);
 

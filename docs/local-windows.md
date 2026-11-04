@@ -1,6 +1,6 @@
 # Windows local development (PowerShell 5.1 / Node 22)
 
-**Target:** run Apex locally with the *same Cloudflare Workers code* using Wrangler. No production deployment, no live Google Form, no approved pricing, no customer messages.
+**Target:** edit Apex in **VS Code at `C:\Users\<YOU>\Downloads\apex-kennels`** and run the *same Cloudflare Workers code* locally using Wrangler. No production deployment, no live Google Form, no approved pricing, no customer messages.
 
 ## First-time setup
 
@@ -10,15 +10,13 @@
 ```powershell
 node -v       # must start with v22.
 git --version
-cd $HOME
-mkdir dev -ErrorAction SilentlyContinue
-cd dev
+cd "$HOME\Downloads"
 git clone https://github.com/MuazShafiq/apex-kennels.git
 cd apex-kennels
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-local.ps1
 ```
 
-If you already cloned the repository, open that folder, run `git pull --ff-only`, and run the same setup command. Do not clone a second copy unnecessarily.
+If you already cloned the repo elsewhere, move its folder into `C:\Users\<YOU>\Downloads\apex-kennels` (with VS Code closed), then open it, run `git pull --ff-only`, and rerun setup. Never clone a second copy over an existing folder.
 
 The setup script is PowerShell 5.1-compatible, uses `npm.cmd` (avoids Windows `npm.ps1` execution-policy problems), installs dependencies, then validates TypeScript, automated tests and Wrangler bundling. It creates `.dev.vars` with **empty, disabled values** if missing and never overwrites an existing secrets file.
 
@@ -27,8 +25,11 @@ The setup script is PowerShell 5.1-compatible, uses `npm.cmd` (avoids Windows `n
 Terminal A (from the repository root):
 
 ```powershell
+code .
 npm.cmd run dev
 ```
+
+`code .` opens the repository in **VS Code**. If `code` is not recognized, use VS Code → **File → Open Folder** and select `Downloads\apex-kennels`. In VS Code, **Terminal → New Terminal** can run `npm.cmd run dev`; or **Terminal → Run Task → Apex: Dev server**. This local server is simply your usual VS Code development runtime, not another hosting project.
 
 Worker listens at `http://127.0.0.1:8787` with hot reload. Open:
 
@@ -39,7 +40,7 @@ Worker listens at `http://127.0.0.1:8787` with hot reload. Open:
 In a **second** PowerShell terminal:
 
 ```powershell
-cd $HOME\dev\apex-kennels
+cd "$HOME\Downloads\apex-kennels"
 npm.cmd run local:check
 ```
 

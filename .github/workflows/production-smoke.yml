@@ -1,5 +1,7 @@
 name: Apex production smoke monitor
 on:
+  push:
+    branches: [main]
   schedule:
     - cron: '17 */6 * * *'
   workflow_dispatch:
@@ -8,7 +10,7 @@ permissions:
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 4
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:

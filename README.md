@@ -4,14 +4,14 @@
 
 The existing Google Form remains the customer-facing intake until we verify and replace it. The backend is designed to keep the database and pricing logic independent of that temporary input.
 
-## Verified as of 2026-11-03
+## Verified as of 2026-11-04
 
 - **GitHub:** public repository with source, CI checks and all-synthetic test cases
-- **Neon:** `apex-kennels` project (`holy-bar-96685960`), production `neondb`, 11/11 tables, RLS enabled on all 11 and no RLS policies; record counts were zero at the last independent check
+- **Neon:** `apex-kennels` project (`holy-bar-96685960`), production `neondb`, 11/11 tables with RLS enabled and no RLS policies. One synthetic booking and one corresponding ingestion event were independently verified on 2026-11-04.
 - **Vercel:** `apex-kennels` project, Node.js 22, Singapore functions, production Git integration, SSO deployment protection
 - **Secrets:** private `DATABASE_URL` and `INTAKE_API_SECRET` saved as encrypted **production-only** environment variables in Vercel. They are not in this repository.
-- **Build:** TypeScript validation and all **14 tests** passed during production deployment
-- **HTTP:** deployed `/api/health` returned 200; `GET /api/ingest` correctly returned 405. An authenticated POST creating a booking has **not** been independently executed end-to-end against production.
+- **Build:** GitHub CI passed TypeScript checks, **23/23 tests** and Cloudflare Wrangler bundle dry-run on the migration PR.
+- **HTTP:** Cloudflare `/api/health` returned 200. An authenticated synthetic POST to `/api/ingest` returned **201 Created**, and the identical retry returned **200** with the same booking ID. Independent Neon query confirmed exactly **one booking, one ingestion event and one linked pet**, with zero invoices. No real customer booking was imported.
 - **Form adapter:** source is in `integrations/google-form/`, intentionally **disabled** and not installed.
 
 ## Endpoint behavior
@@ -26,7 +26,7 @@ Accepted request fields: `source: "google_form"`, `externalResponseId`, `custome
 - Booking status begins at `requested`; **not** an accepted reservation
 - Database errors roll back the transaction; protected customer data is not included in responses
 
-Access is controlled by both Vercel deployment protection and the private API token. Before connecting Apps Script, arrange an explicit protected API access method rather than disabling protection without review.
+Cloudflare's `workers.dev` hostname is public, while the intake route requires a private bearer token. The legacy Vercel route remains separately protected. Live Google Form import stays disabled.
 
 ## Development
 
@@ -34,7 +34,8 @@ Requires Node.js 22.x.
 
 ```bash
 npm install
-npm run build  # typecheck + 14 tests + compiled server modules
+npm run build  # legacy Node/Vercel build
+npm run cf:check  # TypeScript + 23 tests + Wrangler dry-run
 npm run demo   # local synthetic quote and printable HTML invoice
 ```
 
@@ -60,10 +61,10 @@ The money calculation, promo validation and invoice HTML are reusable prototypes
 - Canva invoice template and 3–5 anonymized booking–invoice examples
 - Invoice review/sending process, kennel inventory if available
 
-Next priority: confirm the actual form fields, then perform a controlled synthetic end-to-end POST (with no real customer information) before enabling the Google trigger. Do not launch external booking automation before owner-verified mapping, access, and pricing rules.
+Next priority: obtain and verify the actual Form/Sheet fields, configure the production Google Forms trigger securely, and complete an owner-reviewed dry run before live imports. Do not launch invoice pricing or delivery before Fatima approves the rules.
 
 ## Cloudflare Workers migration
 
-A Cloudflare Workers TypeScript intake API is being introduced on a dedicated feature branch. The Vercel version remains preserved for rollback. The Cloudflare version uses request-scoped Neon WebSocket clients so the existing Postgres BEGIN/COMMIT/ROLLBACK logic works without a persistent Node server. It is **not yet deployed** to Cloudflare and is **not connected** to Apex's live Google Form.
+The Cloudflare Workers TypeScript intake API was merged in PR #1 and deployed at `https://apex-kennels-api.muaz-shafiq18.workers.dev`. Its authenticated synthetic booking and duplicate retry were verified against production Neon. The legacy Vercel version remains preserved as a development fallback. The Google Form trigger is still **not installed or enabled**.
 
-Read [Cloudflare deployment and security instructions](docs/cloudflare-workers.md). Run `npm run cf:check` to verify the Worker bundle and tests before connecting GitHub in the Cloudflare dashboard. Production secrets must be set in Cloudflare, not committed here.
+See [Cloudflare operational and security instructions](docs/cloudflare-workers.md). Cloudflare runtime secrets are configured privately, not committed in GitHub.

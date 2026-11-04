@@ -4,6 +4,7 @@ import { persistBookingWithNeon } from './neon-worker-db.ts';
 import type { SavedBooking } from './booking-store.ts';
 import {listStaffBookings,parseStaffFilter,syntheticBookings, type StaffBooking, type StaffFilter} from './staff-bookings.ts';
 import {renderStaffConsoleHtml} from './staff-console.ts';
+import {syntheticInvoiceHtml} from './demo-invoice.ts';
 
 export type WorkerEnv = {
   DATABASE_URL?: string;
@@ -99,6 +100,10 @@ export async function handleWorkerRequest(
   if (path === '/api/health') {
     if (request.method !== 'GET') return json({error:'Method not allowed'}, 405, {Allow:'GET'});
     return json({status:'ok',service:'apex-intake'});
+  }
+  if (path === '/demo/invoice') {
+    if (request.method !== 'GET') return json({error:'Method not allowed'},405,{Allow:'GET'});
+    return html(syntheticInvoiceHtml());
   }
   if (path === '/demo/staff') {
     if (request.method !== 'GET') return json({error:'Method not allowed'},405,{Allow:'GET'});

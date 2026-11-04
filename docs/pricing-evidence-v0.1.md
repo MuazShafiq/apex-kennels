@@ -1,6 +1,6 @@
 # Apex boarding pricing: invoice-evidence model v0.1
 
-**Status: proposed for draft quotes only. Not owner-approved and not live.** Derived from four supplied invoices, cross-checked against the current public Google Form. Historical adjustments are not universal policies.
+**Status: partially owner-confirmed, draft-quote implementation only, not live invoicing.** Fatima replied 'Haan best hai' to Muaz's discussion of the four-invoice evidence table and explicitly stated **PKR 2,500/day normal cage**, **PKR 3,000/day camera cage** and **monthly invoice PKR 65,000**. Treat daily cage rates as confirmed. The PKR 65,000 statement confirms that discussed invoice's amount, **not** a universal monthly tariff; whether it is a recurring monthly package or a discretionary PKR 10,000 discount remains unresolved. Do not promote historical transport/grooming examples into global policies.
 
 ## Historical source evidence (anonymized)
 
@@ -15,10 +15,10 @@ Invoice #2230 subtotal 62,000 less 2,000; invoice #2232 subtotal 75,000 less 10,
 
 The public Google Form advertises boarding **starting from PKR 2,500/day**, with a **24/7 CCTV option +PKR 500/day** and pickup/drop-off charges unspecified.
 
-## Provisional rules for staff-reviewed draft quotes
+## Confirmed rates and provisional rules for staff-reviewed draft quotes
 
-1. **Standard boarding:** 2,500 PKR per billed day, per single pet. Multi-pet pricing unconfirmed.
-2. **CCTV camera cage:** +500 PKR/day from baseline, equivalent to 3,000 PKR/day in the supplied camera-cage invoice.
+1. **Standard boarding (Fatima-confirmed):** 2,500 PKR per day for a normal cage. Multi-pet pricing unconfirmed.
+2. **Camera cage (Fatima-confirmed):** 3,000 PKR per day, corresponding to +500 PKR/day relative to normal.
 3. **Billed days:** inclusive calendar dates: Jul 3–8 = 6, Jul 23–29 = 7, Oct 22–Nov 8 = 18, Nov 1–30 = 30. Time-of-day/grace-period exceptions unknown.
 4. **Transport:** 4,000 PKR per leg in one historical example, **not** a confirmed universal rate. If transport is requested, the exact quote requires staff rate entry/confirmation unless Fatima approves this rate across all destinations.
 5. **Grooming:** listed as free on all four supplied invoices. This does not prove a permanent inclusion.
@@ -28,13 +28,13 @@ The public Google Form advertises boarding **starting from PKR 2,500/day**, with
 
 ## Existing engineering
 
-The deterministic pricing engine in src/pricing.ts supports configurable inclusive/elapsed dates, accommodation tiers, extras, manual and promo discounts, fixed/percentage amounts and limits. Existing src/pricing.test.ts already tests **all four anonymized invoices** as historical regression fixtures. This evidence does not make the rules owner-approved. Never auto-send a payable invoice without approval.
+The deterministic pricing engine in src/pricing.ts supports configurable inclusive/elapsed dates, accommodation tiers, extras, manual and promo discounts, fixed/percentage amounts and limits. Existing src/pricing.test.ts already tests **all four anonymized invoices** as historical regression fixtures. The daily cage rates are owner-confirmed; other policy details, including whether PKR 65,000 is a standard monthly package, are not. Never auto-send a payable invoice without approval.
 
 ## Minimum owner decisions
 
-1. Are 2,500/day standard, +500/day camera cage and inclusive date counting still correct for future bookings? Any special rule for multiple pets or check-in times?
+1. **Monthly amount:** Is PKR 65,000 a fixed 30-day normal-cage package, or was it a one-off PKR 10,000 reduction from 30 × 2,500 = 75,000? Also confirm inclusive day counting and any check-in-time/multi-pet exceptions.
 2. Is pickup/drop-off 4,000 PKR **each way for every destination**, or does it depend on distance/zone/route? If variable, leave price pending for staff.
-3. Are discounts staff-discretionary until formal promotion rules exist? Is grooming always free and training optionally chargeable?
+3. Are other discounts staff-discretionary until formal promotion rules exist? Is grooming always free and training optionally chargeable?
 4. Which payment recipient/account is current, and must Fatima approve each invoice before it can be sent?
 
 **Decision rule:** Infer the simple baseline from invoices; preserve uncertainty for exceptions; run quotes in DRAFT/REVIEW only until owner confirms.

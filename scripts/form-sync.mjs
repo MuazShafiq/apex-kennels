@@ -9,8 +9,8 @@
  * emails are changed by this tool. A separate, deliberate cutover is required.
  */
 import {spawnSync} from 'node:child_process';
-import {existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, copyFileSync} from 'node:fs';
-import {join, resolve, dirname, relative, sep} from 'node:path';
+import {existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, cpSync} from 'node:fs';
+import {join, resolve, dirname, relative} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
@@ -58,16 +58,18 @@ function main() {
   mkdirSync(backups,{recursive:true});
   const stamp=new Date().toISOString().replace(/[:.]/g,'-')+'-'+process.pid;
   const snapshot=join(backups,stamp);
-  mkdirSync(snapshot,{recursive:true});
-  writeFileSync(join(snapshot,'.clasp.json'),JSON.stringify({scriptId},null,2)+'\n');
+  const remoteBackup=join(snapshot,'remote');
+  const upload=join(snapshot,'upload');
+  mkdirSync(remoteBackup,{recursive:true});
+  writeFileSync(join(remoteBackup,'.clasp.json'),JSON.stringify({scriptId},null,2)+'\n');
   console.log('\nBacking up the remote Apps Script project locally. No files are overwritten on Google yet.');
-  cli('pull',[],snapshot);
+  cli('pull',[],remoteBackup);
 
-  const pulled=walk(snapshot);
+  const pulled=walk(remoteBackup);
   if(!pulled.some(p=>p.endsWith('appsscript.json'))) {
     throw new Error('Remote Apps Script manifest missing. Refusing to push.');
   }
-  const target=join(snapshot,'ApexIntake.gs');
+  const target=join(remoteBackup,'ApexIntake.gs');
   const prior=existsSync(target)?readFileSync(target,'utf8'):null;
   const desired=readFileSync(ownedSource,'utf8');
 
@@ -78,11 +80,11 @@ function main() {
     const remoteText=readFileSync(remote,'utf8');
     const collisions=ownedFunctionNames.filter(fn=>new RegExp('\\bfunction\\s+'+fn+'\\s*\\(').test(remoteText));
     if(collisions.length){
-      throw new Error('Remote '+relative(snapshot,remote)+' duplicates owned functions ('+collisions.join(', ')+'). No changes pushed. Review the backup.');
+      throw new Error('Remote '+relative(remoteBackup,remote)+' duplicates owned functions ('+collisions.join(', ')+'). No changes pushed. Review the backup.');
     }
   }
 
-  console.log('Remote snapshot saved to '+snapshot);
+  console.log('Unmodified remote backup saved to '+remoteBackup);
   if(prior===desired) {
     console.log('ApexIntake.gs already matches GitHub source. Nothing to sync.');
   } else {
@@ -91,8 +93,10 @@ function main() {
       console.log('CHECK ONLY: No Google project changes made.');
       return;
     }
-    writeFileSync(target,desired,'utf8');
-    cli('push',[],snapshot);
+    // Preserve the original pull as an immutable local rollback snapshot.
+    cpSync(remoteBackup,upload,{recursive:true});
+    writeFileSync(join(upload,'ApexIntake.gs'),desired,'utf8');
+    cli('push',['--force'],upload);
     console.log('ApexIntake.gs synced. This did NOT enable the intake trigger or send a booking.');
   }
   if(!saved.scriptId) {

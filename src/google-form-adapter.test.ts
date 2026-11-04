@@ -107,6 +107,7 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
   const stage=context.stageApexFieldMapDisabled as ()=>void;
   const validate=context.validateApexSavedFieldMap as ()=>void;
   const testSynthetic=context.testApexSyntheticFormMapping as ()=>void;
+  const preflight=context.apexPreflight as ()=>void;
   const build=context.apexBuildPayload as (
     response:unknown,map:Record<string,string>)=>{details:{personalityTraits:Record<string,boolean>;termsAccepted:boolean};email:string};
   const values=new Map<string,unknown>();
@@ -127,7 +128,7 @@ function fixture(gridKind:'GRID'|'CHECKBOX_GRID', opts:{multiple?:boolean;badRow
       getResponse:()=>value
     }))
   };
-  return {propose,stage,validate,testSynthetic,build,response,logs,gridId,props};
+  return {propose,stage,validate,testSynthetic,preflight,build,response,logs,gridId,props};
 }
 
 for(const kind of ['GRID','CHECKBOX_GRID'] as const) {
@@ -206,4 +207,25 @@ for(const kind of ['GRID','CHECKBOX_GRID'] as const) {
 test('in-memory synthetic Form validation fails if staging is missing',()=>{
   const f=fixture('GRID');
   assert.throws(()=>f.testSynthetic(),/Disable intake before testing/);
+});
+
+
+for(const kind of ['GRID','CHECKBOX_GRID'] as const) {
+  test('single apexPreflight stages, validates, and dry-runs without reading responses ('+kind+')',()=>{
+    const f=fixture(kind);
+    f.preflight();
+    assert.equal(f.props.APEX_INTAKE_ENABLED,'false');
+    assert.equal(Object.keys(JSON.parse(f.props.APEX_FIELD_MAP)).length,19);
+    assert.match(f.logs.at(-1)||'',/APEX PREFLIGHT PASS: 19 question IDs verified/);
+    assert.match(f.logs.at(-1)||'',/No customer responses read or sent/);
+    // Safe repeat even when a previous attempt was interrupted.
+    f.preflight();
+    assert.match(f.logs.at(-1)||'',/APEX PREFLIGHT PASS/);
+  });
+}
+
+test('single apexPreflight refuses to run if intake is already enabled',()=>{
+  const f=fixture('GRID',{enabled:true});
+  assert.throws(()=>f.preflight(),/Cannot replace field map while live intake is enabled/);
+  assert.equal(f.props.APEX_INTAKE_ENABLED,'true');
 });

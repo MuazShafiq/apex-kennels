@@ -345,3 +345,86 @@ function validateApexSavedFieldMap() {
   Logger.log('APEX FIELD MAP VERIFIED: '+keys.length+
     ' item IDs match. Intake disabled. No customer responses accessed.');
 }
+
+
+/**
+ * Dry-run of the real Form's question IDs and response parsing using in-memory
+ * synthetic answers. NEVER calls FormResponse.submit(), getResponses(),
+ * UrlFetchApp.fetch(), or saves test records. No secrets are required.
+ */
+function testApexSyntheticFormMapping() {
+  var props=apexProperties();
+  if (props.getProperty('APEX_INTAKE_ENABLED') !== 'false') {
+    throw new Error('Disable intake before testing the Form mapping');
+  }
+  var raw=props.getProperty('APEX_FIELD_MAP');
+  if (!raw) throw new Error('Run stageApexFieldMapDisabled first');
+  var map=JSON.parse(raw);
+  var expected=apexProposedFieldMap();
+  var fields=Object.keys(expected);
+  if (Object.keys(map).length!==fields.length ||
+      fields.some(function(name){return String(map[name])!==String(expected[name]);})) {
+    throw new Error('Saved Form item IDs differ from live metadata');
+  }
+  var form=FormApp.getActiveForm();
+  var sample={
+    startDate:new Date(2026,11,10,12,0,0),
+    endDate:new Date(2026,11,12,12,0,0),
+    customerName:'APEX SYNTHETIC OWNER',
+    ownerAddress:'Synthetic sample address',
+    pickupDropoffRequested:'No',
+    cameraCageRequested:'Yes (Additional charges 500 per day apply)',
+    phone:'03000000000',
+    emergencyContactPhone:'03000000001',
+    petName:'APEX SYNTHETIC PET',
+    breed:'Mixed breed',
+    gender:'Male',
+    age:'3 years',
+    vaccinationStatus:'Fully vaccinated and booster is up to date',
+    distemperHistory:'No',
+    veterinarianPhone:'03000000002',
+    specialInstructions:'Synthetic sample only',
+    medicationFeedingInstructions:'Synthetic feeding notes only',
+    termsAccepted:['I have read and accept all the terms and conditions']
+  };
+
+  var responses=fields.map(function(field) {
+    var item=form.getItemById(Number(map[field]));
+    var answer=sample[field];
+    if (field==='personalityGrid') {
+      var grid=apexGridMetadata(item);
+      if (!grid) throw new Error('Personality question is not a grid');
+      var isCheckbox=item.getType()===FormApp.ItemType.CHECKBOX_GRID;
+      answer=grid.getRows().map(function(row,index){
+        var chosen=index===0 ? 'Yes' : 'No';
+        return isCheckbox ? [chosen] : chosen;
+      });
+    }
+    if (answer===undefined) throw new Error('Missing synthetic fixture for '+field);
+    return {
+      getItem:function(){return item;},
+      getResponse:function(){return answer;}
+    };
+  });
+  var syntheticResponse={
+    getId:function(){return 'APEX-IN-MEMORY-TEST-ONLY';},
+    getItemResponses:function(){return responses;},
+    getRespondentEmail:function(){return 'synthetic@example.invalid';}
+  };
+  var payload=apexBuildPayload(syntheticResponse,map);
+  if (payload.customerName!=='APEX SYNTHETIC OWNER' ||
+      payload.email!=='synthetic@example.invalid' ||
+      payload.startDate!=='2026-12-10' || payload.endDate!=='2026-12-12' ||
+      payload.petName!=='APEX SYNTHETIC PET' ||
+      payload.details.ownerAddress!=='Synthetic sample address' ||
+      payload.details.cameraCageRequested!==true ||
+      payload.details.pickupDropoffRequested!==false ||
+      payload.details.termsAccepted!==true ||
+      !payload.details.personalityTraits ||
+      payload.details.personalityTraits.friendly!==true ||
+      payload.details.personalityTraits.medicalConditions!==false ||
+      payload.details.medicationFeedingInstructions!=='Synthetic feeding notes only') {
+    throw new Error('In-memory Form mapping did not preserve required synthetic fields');
+  }
+  Logger.log('APEX SYNTHETIC FORM MAPPING PASSED: 19 IDs, dates, contact, add-ons, grid, pet care and consent. No responses read/submitted, no HTTP request.');
+}

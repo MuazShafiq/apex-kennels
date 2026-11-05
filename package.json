@@ -10,6 +10,7 @@
   "scripts": {
     "test": "node --disable-warning=ExperimentalWarning --experimental-strip-types --test src/*.test.ts",
     "demo": "node --disable-warning=ExperimentalWarning --experimental-strip-types src/demo.ts",
+    "invoice:preview": "node --disable-warning=ExperimentalWarning --experimental-strip-types src/demo-apex-owner-invoice.ts",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && npm test && npm run compile",
     "compile": "tsc -p tsconfig.build.json",

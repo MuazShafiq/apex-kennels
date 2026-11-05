@@ -191,3 +191,102 @@ test('draft rejects bad ID and package before SQL; safe 404 and 500 on missing o
   assert.equal(fail.status,500);
   assert.deepEqual(await fail.json(),{error:'Internal server error'});
 });
+
+
+test('customer pin checker requires staff Access, does not require or write Neon',async()=>{
+  const url=origin+'/staff/location';
+  const disabled=await handleWorkerRequest(new Request(url),{});
+  assert.equal(disabled.status,503);
+  const forged=await handleWorkerRequest(new Request(url,{headers:{
+    'Cf-Access-Jwt-Assertion':'made-up'
+  }}),env);
+  assert.equal(forged.status,403);
+  const permitted=await handleWorkerRequest(new Request(url),env,undefined,{
+    context:valid,
+    resolvePin:async()=>{throw new Error('GET must not resolve remote links')}
+  });
+  assert.equal(permitted.status,200);
+  assert.match(await permitted.text(),/Check a customer location/);
+  assert.equal(permitted.headers.get('cache-control'),'private, no-store');
+});
+
+test('origin checks block cross-site POST before any customer URL is requested',async()=>{
+  let networkCalls=0;
+  for(const headers of [
+    {'Content-Type':'application/x-www-form-urlencoded',origin:'https://attacker.example.test'},
+    {'Content-Type':'application/x-www-form-urlencoded'},
+  ]){
+    const requestHeaders=new Headers();
+    requestHeaders.set('Content-Type','application/x-www-form-urlencoded');
+    if(headers.origin)requestHeaders.set('Origin',headers.origin);
+    const req=new Request(origin+'/staff/location',{
+      method:'POST',headers:requestHeaders,
+      body:new URLSearchParams({pinUrl:'https://maps.app.goo.gl/fake'}).toString()
+    });
+    const response=await handleWorkerRequest(req,env,undefined,{
+      context:valid,resolvePin:async()=>{networkCalls++;return {ok:false,reason:'NOT_EXACT_PIN'};}
+    });
+    assert.equal(response.status,403);
+  }
+  assert.equal(networkCalls,0);
+});
+
+test('valid staff can check a customer-submitted pin, but pin is not persisted or invoiced',async()=>{
+  const url=origin+'/staff/location';
+  const source='https://maps.app.goo.gl/x7KMJZuXFG74HqQg8';
+  const request=new Request(url,{method:'POST',headers:{
+    origin,'Content-Type':'application/x-www-form-urlencoded'
+  },body:new URLSearchParams({pinUrl:source}).toString()});
+  let received='';
+  const response=await handleWorkerRequest(request,env,undefined,{
+    context:valid,
+    resolvePin:async value=>{
+      received=value;
+      return {
+        ok:true,pin:{lat:33.2992325,lon:73.2534561},
+        verifiedBy:'google_maps_place',
+        customerConfirmationRequired:true,roadEntranceConfirmed:false
+      };
+    }
+  });
+  assert.equal(response.status,200);
+  assert.equal(received,source);
+  const body=await response.text();
+  assert.match(body,/33.2992325, 73.2534561/);
+  assert.match(body,/NOT confirmed as the property gate/);
+  assert.doesNotMatch(body,/x7KMJZuXFG74HqQg8/);
+  assert.doesNotMatch(body,/Send invoice|Download invoice/);
+});
+
+test('invalid staff location form fails with 400 before Google Maps lookup',async()=>{
+  const request=new Request(origin+'/staff/location',{method:'POST',headers:{
+    origin,'Content-Type':'application/json'
+  },body:JSON.stringify({pinUrl:'https://maps.app.goo.gl/x'})});
+  let called=false;
+  const r=await handleWorkerRequest(request,env,undefined,{context:valid,
+    resolvePin:async()=>{called=true;return {ok:false,reason:'NOT_EXACT_PIN'};}});
+  assert.equal(r.status,400);
+  assert.equal(called,false);
+});
+
+test('external redirect failure gives safe unresolved result, not a fake location',async()=>{
+  const req=new Request(origin+'/staff/location',{method:'POST',headers:{
+    origin,'Content-Type':'application/x-www-form-urlencoded'
+  },body:new URLSearchParams({pinUrl:'https://maps.app.goo.gl/example'}).toString()});
+  const response=await handleWorkerRequest(req,env,undefined,{
+    context:valid,resolvePin:async()=>({ok:false,reason:'REDIRECT_UNAVAILABLE'})
+  });
+  assert.equal(response.status,200);
+  assert.match(await response.text(),/Could not verify an exact pin/);
+});
+
+test('staff booking queue links to Access-gated pin checker; demo does not',async()=>{
+  const allowed=await handleWorkerRequest(new Request(origin+'/staff'),env,undefined,{
+    context:valid,list
+  });
+  assert.equal(allowed.status,200);
+  assert.match(await allowed.text(),/href="\/staff\/location"/);
+  const demo=await handleWorkerRequest(new Request(origin+'/demo/staff'),{});
+  assert.equal(demo.status,200);
+  assert.doesNotMatch(await demo.text(),/href="\/staff\/location"/);
+});

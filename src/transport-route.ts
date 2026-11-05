@@ -100,6 +100,8 @@ export async function routeApexTransport(
     a,w,b,w,a
   ].map(p=>p.lat+','+p.lon).join('|'));
   url.searchParams.set('mode','drive');
+  // Restaurant is a route-shaping pass-through, not a commercial/driver stop.
+  url.searchParams.set('intermediate_waypoint_mode','pass_through');
   url.searchParams.set('apiKey',key);
   try {
     const response=await (options.fetcher??fetch)(url.toString(),{

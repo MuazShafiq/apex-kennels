@@ -6,6 +6,8 @@ import {listStaffBookings,parseStaffFilter,syntheticBookings, type StaffBooking,
 import {renderStaffConsoleHtml} from './staff-console.ts';
 import {syntheticInvoiceHtml} from './demo-invoice.ts';
 import {readStaffInvoiceSource,parseStaffDraftRequest,prepareStaffDraftReview,renderStaffDraftReview,type StaffInvoiceSource} from './staff-invoice-draft.ts';
+import {resolveSharedGoogleMapsPin,type SharedPinResolution} from './shared-map-pin.ts';
+import {readPinForm,renderStaffPinChecker} from './staff-location.ts';
 
 export type WorkerEnv = {
   DATABASE_URL?: string;
@@ -18,7 +20,7 @@ export type SaveIntake = (databaseUrl: string, input: IntakeRequest) => Promise<
 export type StaffList = (databaseUrl: string, filter: StaffFilter) => Promise<StaffBooking[]>;
 export type StaffContext = {access?: {aud: string; getIdentity(): Promise<{email?:string}|null>}};
 export type StaffDraftReader=(databaseUrl:string,bookingId:string)=>Promise<StaffInvoiceSource|null>;
-export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader};
+export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>};
 
 async function authorizedStaff(env: WorkerEnv, context?: StaffContext): Promise<string|null> {
   if (!env.STAFF_ACCESS_AUD || !env.STAFF_ALLOWED_EMAILS || context?.access?.aud!==env.STAFF_ACCESS_AUD) return null;
@@ -126,6 +128,28 @@ export async function handleWorkerRequest(
       status:'requested',cameraCageRequested:false,transportRequested:true,synthetic:true
     };
     return html(renderStaffDraftReview(prepareStaffDraftReview(source,selected),'demo'));
+  }
+  if (path === '/staff/location') {
+    if(request.method!=='GET'&&request.method!=='POST'){
+      return json({error:'Method not allowed'},405,{Allow:'GET, POST'});
+    }
+    if(!env.STAFF_ACCESS_AUD||!env.STAFF_ALLOWED_EMAILS){
+      return json({error:'Staff access not configured'},503);
+    }
+    const email=await authorizedStaff(env,staff.context);
+    if(!email)return json({error:'Forbidden'},403);
+    if(request.method==='GET')return html(renderStaffPinChecker());
+    // Same-origin HTML forms only: no CORS, no cross-site POST, no hidden writes.
+    if(request.headers.get('origin')!==new URL(request.url).origin){
+      return json({error:'Forbidden'},403);
+    }
+    let sharedUrl:string;
+    try{sharedUrl=await readPinForm(request);}
+    catch{return json({error:'Invalid location form'},400);}
+    try{
+      const result=await (staff.resolvePin??resolveSharedGoogleMapsPin)(sharedUrl);
+      return html(renderStaffPinChecker(result));
+    }catch{return json({error:'Location lookup failed'},502);}
   }
   if (path === '/staff/draft') {
     if (request.method !== 'GET') return json({error:'Method not allowed'},405,{Allow:'GET'});

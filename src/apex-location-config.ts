@@ -14,10 +14,18 @@ export const APEX_KENNEL_LOCATION = Object.freeze({
 });
 
 export const APEX_KENNEL_ACCESS = Object.freeze({
-  name: 'Bawli Restaurant',
+  name: 'Bawli Restaurant (also mapped as Bawali Hotel)',
   originalMapLink: 'https://maps.app.goo.gl/x7KMJZuXFG74HqQg8',
-  /** Short link could not be reliably resolved. Never guess a pin from a name. */
-  pin: null as GeoPin|null,
-  pinConfirmed: false,
+  /**
+   * Mapped OSM building centre (way 256757113), NOT necessarily the road
+   * junction where the driver must turn. Muaz confirmed this is the intended
+   * Bawli restaurant. Source: https://mapcarta.com/W256757113
+   */
+  pin: {lat:33.31392,lon:73.25810} as GeoPin,
+  pinSource: 'OpenStreetMap way 256757113 via Mapcarta',
+  businessIdentityConfirmedByOwner: true,
+  /** Location lookup identified; the actual driveable approach is not tested. */
+  pinConfirmed: true,
+  roadApproachValidated: false,
   mandatoryForTravelToAndFromKennel: true,
 });

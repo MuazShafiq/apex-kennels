@@ -55,7 +55,7 @@ export async function readStaffInvoiceSource(databaseUrl:string,bookingId:string
       +"d.camera_cage_requested,d.pickup_dropoff_requested,"
       +"COALESCE(STRING_AGG(p.name, ', ' ORDER BY p.name),'') AS pet_names,"
       +"COUNT(bp.pet_id)::integer AS pet_count,"
-      +"(b.external_submission_id LIKE 'apex-cf-smoke-%') AS is_synthetic "
+      +"COALESCE(b.external_submission_id LIKE 'apex-cf-smoke-%',false) AS is_synthetic "
       +"FROM public.booking_requests b "
       +"JOIN public.customers c ON c.id=b.customer_id "
       +"LEFT JOIN public.booking_form_details d ON d.booking_id=b.id "

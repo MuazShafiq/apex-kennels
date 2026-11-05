@@ -8,14 +8,16 @@ const base={startDate:'2026-12-01',endDate:'2026-12-03',
   cage:'normal' as const,petCount:1,fullMonthPackageSelected:false};
 const location={
   kennelPinConfirmed:false,customerPinConfirmed:false,
+  kennelAccessWaypointConfirmed:false,
   visit:'pickup_and_dropoff' as const
 };
 const verifiedRoute:RouteResult={ok:true,estimate:{
   status:'ROUTE_REVIEW_REQUIRED',provider:'Geoapify Routing',
-  routeType:'kennel_customer_kennel',loopDistanceKm:19.45,
+  routeType:'kennel_access_customer_access_kennel',loopDistanceKm:19.45,
   plannedRoundTrips:2,totalDrivenKm:38.9,
   retrievedAt:'2026-11-05T12:00:00Z',
   kennelPin:{lat:33.654,lon:73.034},customerPin:{lat:33.704,lon:73.075},
+  kennelAccessWaypoint:{lat:33.690,lon:73.061},
   needsStaffConfirmation:true
 }};
 const rate=parseNotifiedPetrolRate({

@@ -5,8 +5,10 @@ import {parseExplicitCoordinatePin,routeApexTransport} from './transport-route.t
 // Completely synthetic coordinate fixtures, NOT Apex's real kennel location.
 const kennel={lat:33.654,lon:73.034};
 const customer={lat:33.704,lon:73.075};
+const access={lat:33.690,lon:73.061}; // SYNTHETIC: not the real restaurant
 const confirmed={kennelPin:kennel,customerPin:customer,
-  kennelPinConfirmed:true,customerPinConfirmed:true} as const;
+  kennelPinConfirmed:true,customerPinConfirmed:true,
+  kennelAccessWaypoint:access,kennelAccessWaypointConfirmed:true} as const;
 const key='synthetic-demo-api-key';
 
 test('accepts explicit geographic pins but never treats a map viewport or text address as a pin',()=>{
@@ -29,6 +31,7 @@ test('no kennel pin, no confirmed customer pin, and no unambiguous trip types me
     {...confirmed,customerPinConfirmed:false,visit:'dropoff' as const},
     {...confirmed,customerPin:kennel,visit:'pickup' as const},
     {...confirmed,visit:undefined},
+    {...confirmed,kennelAccessWaypoint:undefined,visit:'pickup' as const},
   ];
   for(const c of cases) {
     const r=await routeApexTransport(c,{apiKey:key,fetcher:f});
@@ -54,6 +57,7 @@ test('one kennel > customer > kennel route counts 1 full round trip for pickup',
     assert.equal(r.estimate.loopDistanceKm,19.45);
     assert.equal(r.estimate.totalDrivenKm,19.45);
     assert.equal(r.estimate.plannedRoundTrips,1);
+    assert.deepEqual(r.estimate.kennelAccessWaypoint,access);
     assert.equal(r.estimate.status,'ROUTE_REVIEW_REQUIRED');
   }
   assert.equal(seen.length,1);
@@ -62,7 +66,7 @@ test('one kennel > customer > kennel route counts 1 full round trip for pickup',
   assert.equal(url.pathname,'/v1/routing');
   assert.equal(url.searchParams.get('mode'),'drive');
   assert.equal(url.searchParams.get('waypoints'),
-    '33.654,73.034|33.704,73.075|33.654,73.034');
+    '33.654,73.034|33.69,73.061|33.704,73.075|33.69,73.061|33.654,73.034');
 });
 
 test('explicit pickup AND drop-off require two driven round trips, not one',async()=>{

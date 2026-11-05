@@ -66,8 +66,8 @@ test('20 percent gross margin gives different amount, never silently chosen',()=
   assert.equal(transportFuelDraftPkr(12,'gross_margin_on_sale',400),500);
   assert.equal(transportFuelDraftPkr(24,'gross_margin_on_sale',400),1000);
   assert.notEqual(
-    transportFuelDraftPkr(12,'gross_margin_on_sale'),
-    transportFuelDraftPkr(12,'markup_on_fuel_cost')
+    transportFuelDraftPkr(12,'gross_margin_on_sale',400),
+    transportFuelDraftPkr(12,'markup_on_fuel_cost',400)
   );
 });
 

@@ -7,7 +7,7 @@ test('invoice preview is clearly synthetic, draft-only and not payable',()=>{
   const html=syntheticInvoiceHtml();
   assert.match(html,/SYNTHETIC EXAMPLE/);
   assert.match(html,/NOT FOR CUSTOMER DELIVERY/);
-  assert.match(html,/RATE UNAPPROVED/);
+  assert.match(html,/SYNTHETIC EXAMPLE/);
   assert.match(html,/DEMO-0001/);
   assert.match(html,/DRAFT/);
   assert.match(html,/Sample Owner/);

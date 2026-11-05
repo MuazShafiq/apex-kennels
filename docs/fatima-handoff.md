@@ -1,3 +1,5 @@
+> **HISTORICAL (pre-2026-11-05) checklist.** Superseded by [current verified decisions and blockers](current-gates-2026-11-06.md). The Google Form trigger is now active for new-only shadow intake, and several pricing decisions below have since been confirmed. Retained for project history, not as today's action list.
+
 # Questions for Fatima, only what the engineering cannot decide
 
 ## Access (required to connect live bookings)

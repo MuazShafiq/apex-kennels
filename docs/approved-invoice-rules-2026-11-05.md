@@ -45,7 +45,7 @@ Both calculations are included for technical comparison; **neither is automatica
 
 ## Current engineering
 
-`src/apex-invoice-draft.ts` contains deterministic **pure** calculations for the confirmed rates, optional explicitly selected monthly package, always-free grooming, and either explicitly selected fuel-cost profit basis. It is deliberately **not wired to live Neon bookings, payment details, sending, staff permissions or deployed Worker endpoints**. `src/invoice.ts` has a prominent owner-review / not-payable watermark option. Production ingestion stays unchanged.
+`src/apex-invoice-draft.ts` contains deterministic **pure** calculations for the confirmed rates, optional explicitly selected monthly package, always-free grooming, and either explicitly selected fuel-cost profit basis. It now feeds a **source-only, read-only staff booking preview** using a protected parameterized Neon query. **Cloudflare Access is not yet activated; the updated Worker is not deployed.** It is not wired to payable invoices, payment details, sending or durable approvals. `src/invoice.ts` has a prominent owner-review / not-payable watermark option. Production ingestion stays unchanged. The new staff preview has no financial writes. See [current gates](current-gates-2026-11-06.md).
 
 
 ## Updated engineering: live price lookup supersedes fixed fuel estimate

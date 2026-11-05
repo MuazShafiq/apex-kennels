@@ -1,8 +1,8 @@
 # Apex Kennels — Booking & Invoicing Foundation
 
-**CURRENT STATUS (2026-11-05): SHADOW INTAKE ACTIVE.** The original Google Form submit trigger now forwards **new** responses after `2026-11-04T20:30:37.411Z` to Cloudflare production and Neon production. The live trigger path was verified with one synthetic canary; first *genuine* customer delivery remains to be observed. Older submissions were not imported. Customer emails, invoices and pricing automation remain **OFF**. See [current operating status](docs/shadow-intake-activation.md).
+**CURRENT STATUS (2026-11-06): SHADOW INTAKE ACTIVE; STAFF / BILLING CHANGES SOURCE-ONLY.** The existing Form still operates for Fatima. A trigger also forwards **new** responses from `2026-11-04T20:30:37.411Z` to Cloudflare/Neon; the synthetic canary and activation were verified, but first genuine-submission delivery is not independently confirmed in the documented checkpoint. **No live customer invoices, staff approvals, emails or payment requests.** New Access-gated staff quote previews and Google Maps pin checker are merged into source, **not deployed**. See [canonical operational status and blockers](docs/current-gates-2026-11-06.md).
 
-The existing Google Form remains the customer-facing intake until we verify and replace it. The backend is designed to keep the database and pricing logic independent of that temporary input.
+The existing Google Form remains the customer-facing intake while the backend is developed. **Historical sections below document past checkpoints; their older disabled-trigger statements are superseded by the current status above.**
 
 ## Historical foundation checkpoints (pre-shadow launch)
 
@@ -26,7 +26,7 @@ Accepted request fields: `source: "google_form"`, `externalResponseId`, `custome
 - Booking status begins at `requested`; **not** an accepted reservation
 - Database errors roll back the transaction; protected customer data is not included in responses
 
-Cloudflare's `workers.dev` hostname is public, while the intake route requires a private bearer token. The legacy Vercel route remains separately protected. Live Google Form import stays disabled.
+Cloudflare's `workers.dev` hostname is public, while intake requires a private bearer token. The legacy Vercel route remains separately protected. **New-only Form shadow forwarding is active**; automatic booking acceptance and invoicing are disabled.
 
 ## Development
 
@@ -35,13 +35,13 @@ Requires Node.js 22.x.
 ```bash
 npm install
 npm run build  # legacy Node/Vercel build
-npm run cf:check  # TypeScript + 23 tests + Wrangler dry-run
+npm run cf:check  # TypeScript + current test suite + Wrangler dry-run
 npm run demo   # local synthetic quote and printable HTML invoice
 ```
 
 The `api/ingest.js` Vercel entrypoint loads compiled code from `dist/src/`; `dist/` is generated at build time and is not tracked.
 
-The money calculation, promo validation and invoice HTML are reusable prototypes. **Do not use them for real prices until Fatima confirms the rulebook.** The demonstrated invoice is synthetic and not an approved Canva adaptation.
+Boarding rate rules have owner confirmation; **monthly eligibility, transport profit definition, invoice number/payment details and approval remain unresolved**. All calculated invoices and synthetic previews remain internal and non-payable. The demonstrated design is not an approved Canva adaptation.
 
 ## Database safety
 
@@ -61,25 +61,25 @@ The money calculation, promo validation and invoice HTML are reusable prototypes
 - Canva invoice template and 3–5 anonymized booking–invoice examples
 - Invoice review/sending process, kennel inventory if available
 
-Next priority: obtain and verify the actual Form/Sheet fields, configure the production Google Forms trigger securely, and complete an owner-reviewed dry run before live imports. Do not launch invoice pricing or delivery before Fatima approves the rules.
+Historical onboarding items above are largely complete. **Current priority is Cloudflare Access activation, first genuine intake verification, road validation, and a staff-reviewed invoice workflow**. See [current gates](docs/current-gates-2026-11-06.md).
 
 ## Cloudflare Workers migration
 
-The Cloudflare Workers TypeScript intake API was merged in PR #1 and deployed at `https://apex-kennels-api.muaz-shafiq18.workers.dev`. Its authenticated synthetic booking and duplicate retry were verified against production Neon. The legacy Vercel version remains preserved as a development fallback. The Google Form trigger is still **not installed or enabled**.
+The Cloudflare Workers TypeScript intake API was merged in PR #1 and deployed at `https://apex-kennels-api.muaz-shafiq18.workers.dev`. Its authenticated synthetic booking and duplicate retry were verified against production Neon. The legacy Vercel version remains preserved as a development fallback. The Google Form trigger is **now active for new-only shadow intake** as documented above; the prior sentence was a historical checkpoint.
 
 See [Cloudflare operational and security instructions](docs/cloudflare-workers.md). Cloudflare runtime secrets are configured privately, not committed in GitHub.
 
 ## Staff console preparation (2026-11-04)
 
-- **Preview routes:** `/demo/staff` displays clearly labeled **synthetic** bookings; `/demo/invoice` renders a synthetic, non-payable draft with an explicit unapproved rate label. They do not access Neon or customer records.
-- **Live staff queue:** `/staff` and `/staff/api/bookings` are bounded, read-only Neon views. Both fail closed until Cloudflare Access is configured with an exact audience and staff email allowlist. No staff changes, invoice approvals or customer messages are enabled. See [staff access setup](docs/staff-access.md).
+- **Preview routes (historical deployment milestone):** `/demo/staff` and `/demo/invoice` are synthetic-only. New source also includes `/demo/draft` for a synthetic internal estimate. They do not access Neon or customer records.
+- **Staff paths (code-ready, not operational):** `/staff` and `/staff/api/bookings` are read-only, and `/staff/draft` plus `/staff/location` now provide internal estimate/pin-checking. All require Cloudflare Access AUD plus an exact approved email allowlist; no customer communication, approval or payment action. See [staff access](docs/staff-access.md) and [current gates](docs/current-gates-2026-11-06.md).
 - **Operational monitoring:** a scheduled GitHub Actions smoke test checks public health, rejected unauthorized intake, and no unauthenticated staff access every six hours. Failed runs require a human to inspect GitHub Actions; this is not a paging service.
-- **Owner information:** [Fatima handoff](docs/fatima-handoff.md) lists the remaining exact decisions/access needed before production imports, billing or staff actions.
-- **CI:** TypeScript validation, 42/42 tests and Wrangler bundle dry-run passed on the feature branch. Independent Cloudflare production verification of these **new** routes is pending deployment.
+- **Owner information:** [Current owner decisions and technical blockers](docs/current-gates-2026-11-06.md) supersedes the older [historical Fatima handoff](docs/fatima-handoff.md).
+- **CI (historical):** The initial staff queue passed tests and Wrangler bundle dry-run. Newer PRs each passed expanded tests; **production verification of newer staff routes remains pending deployment**.
 
 ## Google Form recovery preparation
 
-The Form-bound Apps Script is still **not installed or enabled**. It now includes an opt-in manual reconciliation helper, capped at 50 submissions since an explicitly approved start timestamp, plus a PII-free synthetic response mapping audit. No history is automatically imported. See [the Google Form setup guide](integrations/google-form/README.md).
+**Historical preparation:** The Form-bound Apps Script includes a bounded reconciliation helper and PII-free mapping checks. The live trigger was subsequently activated for new-only submissions; **no history has been backfilled**. See [the Google Form setup guide](integrations/google-form/README.md).
 
 ## Local development on Windows
 
@@ -94,7 +94,7 @@ Then open `http://127.0.0.1:8787/demo/staff`. In another PowerShell window run `
 
 ## Original Google Form access checkpoint (superseded by shadow activation)
 
-Editor access to the actual five-section Form was verified. The [field inventory](docs/form-field-inventory.md) records its question structure without personal submissions. The current adapter is deliberately **incomplete for health, care and contact fields**, so live imports remain disabled until the structured mapping, restricted storage and owner-approved cutover are complete.
+Editor access to the actual five-section Form was verified. The [field inventory](docs/form-field-inventory.md) records its question structure without personal submissions. The adapter was **later completed and activated** after mapping and full-form validation. This section preserves the earlier checkpoint only; see [shadow intake activation](docs/shadow-intake-activation.md).
 
 ## Staging implementation history (completed before shadow activation)
 

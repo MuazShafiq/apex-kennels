@@ -149,7 +149,7 @@ export function buildApexInvoiceDraft(input: ApexDraftInput): ApexDraftQuote {
     rateVersion:'fatima-confirmed-2026-11-05',
     status:'DRAFT_REVIEW_ONLY',quote,unresolved,
     requiresStaffReview:true,sendAutomatically:false,
-    ...(input.transport?.requested && lines.some(x=>x.label.startsWith('Transport')) && input.transport.fuelRate
+    ...(input.transport?.requested && lines.some(x=>x.label==='Pet transport') && input.transport.fuelRate
       ? {fuelRateSnapshot:{...input.transport.fuelRate}} : {})
   };
 }

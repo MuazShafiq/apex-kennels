@@ -81,7 +81,7 @@ export function parseNotifiedPetrolRate(
   if(row.unit!=='litre') throw new Error('Petrol rate is not PKR per litre');
   if(typeof row.pricePkr!=='number' || !Number.isFinite(row.pricePkr) ||
     row.pricePkr<150 || row.pricePkr>1000 ||
-    Math.round(row.pricePkr*100)!==row.pricePkr*100) {
+    Math.abs(Math.round(row.pricePkr*100)-row.pricePkr*100)>1e-6) {
     throw new Error('Petrol price is outside accepted bounds or precision');
   }
   const effectiveDate=(row.effectiveDate??container.effectiveDate) as unknown;

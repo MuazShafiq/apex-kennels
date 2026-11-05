@@ -9,7 +9,7 @@ test('invoice preview is clearly synthetic, draft-only and not payable',()=>{
   assert.match(html,/NOT FOR CUSTOMER DELIVERY/);
   assert.match(html,/SYNTHETIC EXAMPLE/);
   assert.match(html,/DEMO-0001/);
-  assert.match(html,/DRAFT/);
+  assert.match(html,/INTERNAL PREVIEW/);
   assert.match(html,/Sample Owner/);
   assert.match(html,/Boarding \(example only\)/);
   assert.doesNotMatch(html,/MUHAMMAD ZAIN|FATIMA SHABBIR|PK29MPBL|PK90HABB/);

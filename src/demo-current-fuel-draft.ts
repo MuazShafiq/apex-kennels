@@ -9,7 +9,8 @@ import {FUEL_SOURCE} from './islamabad-petrol-rate.ts';
 const result=await buildApexDraftWithFreshFuel({
   startDate:'2026-12-01',endDate:'2026-12-03',
   cage:'normal',petCount:1,fullMonthPackageSelected:false,
-  transport:{requested:true,totalDrivenKm:24,profitBasis:'markup_on_fuel_cost'}
+  // No kennel/customer pins have been verified: deliberately leave route unpriced.
+  transport:{requested:true}
 });
 const outputDir=join(dirname(fileURLToPath(import.meta.url)),'../output');
 mkdirSync(outputDir,{recursive:true});
@@ -23,7 +24,7 @@ const html=renderInvoiceHtml({
 writeFileSync(join(outputDir,'apex-current-fuel-draft.html'),html,'utf8');
 writeFileSync(join(outputDir,'apex-current-fuel-draft.json'),JSON.stringify({
   ...result,attribution:FUEL_SOURCE.attribution,
-  important:'National OGRA-notified baseline; Islamabad pump freight is not included. No actual customer invoice created.'
+  important:'No real kennel/customer pin or route. Transport is intentionally UNPRICED. Fuel source is a national baseline, not an Islamabad pump quote.'
 },null,2),'utf8');
 console.log('Synthetic review-only draft generated. No live customer booking, payment or email.');
 console.log('Fuel lookup:',result.fuelLookup);
@@ -33,4 +34,5 @@ if(result.rate){
 } else {
   console.log('Transport remains UNPRICED; manual rate confirmation required.');
 }
+console.log('No verified route: boarding-only preview. Fuel details and warnings are in the internal .json only.');
 console.log('Review output/apex-current-fuel-draft.html and .json. Never send as payable.');

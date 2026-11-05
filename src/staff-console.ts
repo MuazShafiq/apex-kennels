@@ -15,7 +15,7 @@ const styles = [
   '*{box-sizing:border-box}html,body{margin:0;min-height:100%}body{font-size:14px}a{color:inherit;text-decoration:none}',
   '.shell{display:flex;min-height:100vh}.sidebar{width:236px;padding:34px 22px;background:#182e2b;color:#f6f5ee;display:flex;flex-direction:column;flex-shrink:0}',
   '.brand{font-size:19px;letter-spacing:.2em;font-weight:800}.under{font-size:10px;color:#a6bab2;letter-spacing:.21em;margin-top:2px}',
-  '.navlabel{font-size:10px;text-transform:uppercase;letter-spacing:.16em;color:#a1b1a8;margin:70px 0 17px}.nav{background:#344e46;padding:15px;border-radius:9px;font-weight:700}',
+  '.secondarynav{display:block;margin:12px 0 0;color:#d5e5d9;padding:12px 15px;font-size:12px}.navlabel{font-size:10px;text-transform:uppercase;letter-spacing:.16em;color:#a1b1a8;margin:70px 0 17px}.nav{background:#344e46;padding:15px;border-radius:9px;font-weight:700}',
   '.sidebarfoot{margin-top:auto;font-size:12px;color:#afc0b8;line-height:1.9;border-top:1px solid #3b544b;padding-top:22px}',
   'main{flex:1;padding:44px clamp(18px,4.6vw,72px);max-width:1600px;margin:0 auto;min-width:0}',
   '.top{display:flex;justify-content:space-between;color:#8a9a91;font-size:12px;margin-bottom:50px;gap:12px}',
@@ -65,6 +65,7 @@ export function renderStaffConsoleHtml(rows:StaffBooking[], page:StaffPage):stri
     + '<meta name="robots" content="noindex,nofollow"><title>Apex Kennels | Booking operations</title><style>'+styles+'</style></head><body>'
     + '<div class="shell"><aside class="sidebar"><a href="'+base+'"><div class="brand">APEX</div><div class="under">KENNELS</div></a>'
     + '<div class="navlabel">Workspace</div><a class="nav" href="'+base+'">▦ &nbsp; Bookings</a>'
+    +(page.demo?'':'<a class="secondarynav" href="/staff/location">⌖ &nbsp; Check pickup pin</a>')
     + '<div class="sidebarfoot">Operations console<br>Read-only foundation.<br>Pricing and invoices pending.</div></aside>'
     + '<main><div class="top"><span>Apex Kennels &nbsp; / &nbsp; Operations &nbsp; / &nbsp; Bookings</span><span class="tag">'+(page.demo?'SYNTHETIC DEMO':'STAFF · READ ONLY')+'</span></div>'
     + (page.demo?'<div class="notice"><strong>DEMO ONLY.</strong> All bookings and names below are synthetic. This preview uses no customer records, database, or automated invoicing.</div>':'')

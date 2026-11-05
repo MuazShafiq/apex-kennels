@@ -20,15 +20,15 @@ Retain source fuel, notified rate, effective date, retrieval time, selected 20% 
 
 ## Real distance: no text-address guessing
 
-**Current state:** No kennel coordinates have been supplied, and no customer pin has been verified. Previous `24 km` was synthetic, not calculated. The synthetic fuel preview now intentionally has **no transport charge** unless a verified route is provided.
+**Current state (2026-11-06): Muaz supplied kennel coordinates **33.2992325, 73.2534561** and a short Google Maps link for Bawli Restaurant, the required approach waypoint. The kennel location is recorded but the precise vehicle entrance has not been verified. The short Bawli link could not be reliably expanded to exact coordinates, so no Bawli pin or customer pin is verified.** Previous `24 km` was synthetic, not calculated. The synthetic fuel preview now intentionally has **no transport charge** unless a verified route is provided.
 
 ### Minimum working flow with existing Form
 
-1. Fatima supplies **one exact Apex kennel vehicle entrance pin** (Google Maps dropped pin). Store it privately in the staff system.
+1. Muaz supplied the **Apex kennel site pin**. Staff verifies this is the exact vehicle entrance; retain the source pin in `src/apex-location-config.ts`.
 2. Keep the existing Google Form address field as contact information only. If transport is requested, staff asks the owner to share a **static pinned Google Maps/WhatsApp location for the pickup/drop-off entrance** and to confirm it; **do not request ongoing live-location sharing**.
 3. Staff opens the pin to confirm the correct property gate, not just a road map centroid. The location is recorded as numeric latitude/longitude; arbitrary text addresses are **never** converted directly into a billable distance.
 4. Staff must choose **pickup**, **drop-off**, or **both**. The Form's current yes/no transport checkbox does not distinguish these.
-5. The backend requests a drivable loop **kennel → owner location → kennel** from Geoapify Routing; this includes the actual road distance for the outward and return segments. If both pickup and drop-off are separately needed, budget two such loops (adjust manually if driver has another confirmed route).
+5. The backend **requires a confirmed Bawli Restaurant access pin** and requests a drivable loop **kennel → Bawli access waypoint → owner location → Bawli access waypoint → kennel** from Geoapify Routing; this includes the actual road distance for the outward and return segments. If both pickup and drop-off are separately needed, budget two such loops (adjust manually if driver has another confirmed route).
 6. The quote service uses the route's **total vehicle km**, not straight-line map distance, and fetches the fresh notified petrol baseline only after a valid route is available. Fatima reviews local pump/freight adjustments, actual driver operations and margin versus markup before sending an invoice.
 7. If pins or route fail verification, transport remains unpriced and the customer invoice remains pending review.
 
@@ -45,7 +45,7 @@ Replace the WhatsApp step with a **customer location picker** on the website: ge
 
 ## Immediate open input
 
-**One thing we need:** the exact Apex kennel gate/vehicle entrance Google Maps pin from Fatima. We have deliberately not invented or inferred it. Even after obtaining that, a pickup quote requires the customer's confirmed location. No live invoice generation or map requests occur until owner details and necessary credentials are configured.
+**Required before any actual quote:** confirm that the supplied kennel pin is the vehicle entrance, resolve the exact Bawli Restaurant waypoint coordinates from the supplied short link (do not substitute a similarly named business), and obtain the future customer's confirmed pickup/drop-off entrance pin. The source link and unresolved status are in `src/apex-location-config.ts`. The restaurant is an access-routing waypoint, **not** a commercial stop or invoice line. No live invoice generation or map requests occur until owner details and necessary credentials are configured.
 
 ## Completed in this branch
 
@@ -55,3 +55,8 @@ Replace the WhatsApp step with a **customer location picker** on the website: ge
 - Pure route adapter requires two Pakistan-based exact pins + staff confirmation and explicit pickup/dropoff count.
 - Route+fuel composer blocks transport billing if any required coordinate or source is missing.
 - Existing Form intake and live Cloudflare Worker remain unchanged.
+
+
+### Mandatory restaurant waypoint requirement (2026-11-06)
+
+The previous 3-point loop is superseded. Because the road network can produce a fictitious/impassable approach, **no transport cost is allowed without the confirmed Bawli Restaurant access waypoint**. Code enforces 5 waypoints: kennel → access → customer → access → kennel. This is an imposed routing constraint, not a requirement to stop and buy food. Exact pin still unresolved: the supplied Google Maps short link could not be expanded to coordinates in our tools. We found a Bawli Restaurant publicly listed around Ghungrilla/Gujar Khan, but **have NOT established it is the place in the user's shortened link**, so its listing is not used as coordinates. Must compare a real routed trace against the locally known drive before approving any transport charge. No geocoding guess, no substituted restaurant, no route-charge fallback.

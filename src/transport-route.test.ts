@@ -65,6 +65,7 @@ test('one kennel > customer > kennel route counts 1 full round trip for pickup',
   assert.equal(url.hostname,'api.geoapify.com');
   assert.equal(url.pathname,'/v1/routing');
   assert.equal(url.searchParams.get('mode'),'drive');
+  assert.equal(url.searchParams.get('intermediate_waypoint_mode'),'pass_through');
   assert.equal(url.searchParams.get('waypoints'),
     '33.654,73.034|33.69,73.061|33.704,73.075|33.69,73.061|33.654,73.034');
 });

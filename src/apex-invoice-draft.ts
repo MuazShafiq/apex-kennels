@@ -1,3 +1,4 @@
+import type { VerifiedPetrolRate } from './islamabad-petrol-rate.ts';
 import { countBilledDays, type Quote, type QuoteLine } from './pricing.ts';
 
 /**
@@ -11,7 +12,6 @@ export const APEX_CONFIRMED_PRICING = Object.freeze({
   normalFullMonthPerDogPkr: 65000,
   groomingPkr: 0,
   transportKmPerLitre: 12,
-  transportFuelPkrPerLitre: 400,
   transportDesiredProfitPercent: 20,
 });
 
@@ -22,6 +22,8 @@ export type TransportDraftInput = {
   totalDrivenKm?: number;
   /** Must be explicitly chosen by staff until Fatima clarifies "20% profit". */
   profitBasis?: TransportProfitBasis;
+  /** Server-fetched, timestamped national notified petrol baseline, not Form input. */
+  fuelRate?: VerifiedPetrolRate;
 };
 export type ApexDraftInput = {
   startDate: string;
@@ -41,6 +43,8 @@ export type ApexDraftQuote = {
   requiresStaffReview: true;
   sendAutomatically: false;
   rateVersion: 'fatima-confirmed-2026-11-05';
+  /** Frozen with the draft; never recalculate an issued invoice from a new rate. */
+  fuelRateSnapshot?: VerifiedPetrolRate;
 };
 
 function safeMoney(value: number): number {
@@ -58,13 +62,16 @@ function validDistanceKm(km: number): boolean {
  * route are not included. This cannot be a final customer price until Fatima
  * confirms whether "20% profit" means markup or gross margin.
  */
-export function transportFuelDraftPkr(totalDrivenKm: number, basis: TransportProfitBasis): number {
+export function transportFuelDraftPkr(totalDrivenKm: number, basis: TransportProfitBasis, petrolPkrPerLitre: number): number {
   if (!validDistanceKm(totalDrivenKm)) throw new Error('Total driven km must be >0 and <=1000');
+  if (!Number.isFinite(petrolPkrPerLitre) || petrolPkrPerLitre<150 || petrolPkrPerLitre>1000) {
+    throw new Error('A validated current petrol price is required');
+  }
   if (basis !== 'markup_on_fuel_cost' && basis !== 'gross_margin_on_sale') {
     throw new Error('Choose a supported 20% profit calculation explicitly');
   }
   const fuelCost = totalDrivenKm / APEX_CONFIRMED_PRICING.transportKmPerLitre *
-    APEX_CONFIRMED_PRICING.transportFuelPkrPerLitre;
+    petrolPkrPerLitre;
   const price = basis === 'markup_on_fuel_cost'
     ? fuelCost * 1.20
     : fuelCost / 0.80;
@@ -109,19 +116,26 @@ export function buildApexInvoiceDraft(input: ApexDraftInput): ApexDraftQuote {
   if (input.transport?.requested) {
     const km = input.transport.totalDrivenKm;
     const basis = input.transport.profitBasis;
+    const rate = input.transport.fuelRate;
     if (km !== undefined && !validDistanceKm(km)) throw new Error('Invalid transport driven distance');
     if (basis && basis !== 'markup_on_fuel_cost' && basis !== 'gross_margin_on_sale') {
       throw new Error('Unknown transport profit basis');
     }
-    if (km !== undefined && basis) {
-      const unitPrice = transportFuelDraftPkr(km,basis);
+    if (rate && (rate.product !== 'Motor Spirit (Petrol)' || rate.unit !== 'litre' ||
+        rate.currency !== 'PKR' || rate.requiresStaffReview !== true ||
+        rate.geographicBasis !== 'Pakistan national notified price; Islamabad pump freight excluded')) {
+      throw new Error('Invalid fuel rate provenance');
+    }
+    if (km !== undefined && basis && rate) {
+      const unitPrice = transportFuelDraftPkr(km,basis,rate.pricePkrPerLitre);
       lines.push({
         label:'Transport (provisional fuel-based quote; staff review required)',
         quantity:1,unitPricePkr:unitPrice,totalPkr:unitPrice
       });
     } else {
-      unresolved.push('Transport total driven distance and 20% profit basis need staff input');
+      unresolved.push('Transport needs total driven distance, 20% profit basis and a fresh source-backed fuel rate');
     }
+    unresolved.push('National notified price excludes Islamabad pump freight; staff must verify local fuel price');
     unresolved.push('Fatima must confirm transport route accounting, tolls and 20% markup versus margin');
   }
   const subtotalPkr = safeMoney(lines.reduce((acc,line)=>acc+line.totalPkr,0));
@@ -132,6 +146,8 @@ export function buildApexInvoiceDraft(input: ApexDraftInput): ApexDraftQuote {
   return {
     rateVersion:'fatima-confirmed-2026-11-05',
     status:'DRAFT_REVIEW_ONLY',quote,unresolved,
-    requiresStaffReview:true,sendAutomatically:false
+    requiresStaffReview:true,sendAutomatically:false,
+    ...(input.transport?.requested && lines.some(x=>x.label.startsWith('Transport')) && input.transport.fuelRate
+      ? {fuelRateSnapshot:{...input.transport.fuelRate}} : {})
   };
 }

@@ -36,7 +36,7 @@ html,body{margin:0;background:#f4f5f4;font-family:Arial,sans-serif;color:#193128
 main{max-width:1000px;margin:20px auto;padding:0 16px}
 h1{font-size:24px;margin:8px 0}p{font-size:13px;line-height:1.6}
 small{color:#a14d27;font-weight:bold;letter-spacing:.09em}
-#map{height:520px;border-radius:8px;background:#dce9df}
+#map{height:clamp(480px,68vw,680px);border-radius:8px;background:#dce9df}
 .cards{display:flex;gap:12px;margin:16px 0;flex-wrap:wrap}
 .card{padding:15px;background:white;border:1px solid #d9e1db;border-radius:8px;flex:1;min-width:220px}
 .card strong{font-size:20px}ul{font-size:13px;line-height:1.7}
@@ -49,6 +49,7 @@ small{color:#a14d27;font-weight:bold;letter-spacing:.09em}
 <div class="cards" id="stats"></div>
 <p id="basemap-warning" hidden style="background:#fff4de;padding:9px;border-radius:5px">Background map unavailable. The route geometry still renders, but road validation needs map imagery.</p>
 <div id="map"></div>
+<p style="color:#5d7569;font-size:12px">Green dashed: Bawli → Kennel · Brown solid: Kennel → Bawli. Traces may overlap where the same road serves both directions.</p>
 <div class="notice"><strong>Manual checks required</strong><ul id="warnings"></ul></div>
 <p>Routing and map imagery powered by <a href="https://www.geoapify.com/">Geoapify</a>. Map © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> / © <a href="https://openmaptiles.org/">OpenMapTiles</a>. No API key or customer information is embedded.</p>
 </main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -74,13 +75,17 @@ if(typeof L!=='undefined'){
  const bounds=L.latLngBounds([]);
  for(const leg of data.legs){
   const line=L.geoJSON({type:'Feature',geometry:leg.geometry,properties:{}},{
-   style:{color:leg.direction==='bawli_to_kennel'?'#287c66':'#bd7541',weight:5}
+   style:{color:leg.direction==='bawli_to_kennel'?'#287c66':'#bd7541',weight:5,
+    dashArray:leg.direction==='bawli_to_kennel'?'10 7':undefined}
   }).addTo(map);
   bounds.extend(line.getBounds());
  }
- L.marker([data.accessPin.lat,data.accessPin.lon]).bindPopup('Bawli restaurant: mapped building point, NOT verified turn').addTo(map);
- L.marker([data.kennelPin.lat,data.kennelPin.lon]).bindPopup('Apex Kennels: mapped site, entrance not verified').addTo(map);
- if(bounds.isValid())map.fitBounds(bounds.pad(.15));
+ L.marker([data.accessPin.lat,data.accessPin.lon]).bindPopup('Bawli restaurant: mapped building point, NOT verified turn').bindTooltip('Bawli Restaurant',{permanent:true,direction:'top',offset:[0,-10]}).addTo(map);
+ L.marker([data.kennelPin.lat,data.kennelPin.lon]).bindPopup('Apex Kennels: mapped site, entrance not verified').bindTooltip('Apex Kennels',{permanent:true,direction:'bottom',offset:[0,10]}).addTo(map);
+ // Fit the full downloaded PNG extent, not only the line geometry. Fitting
+ // the smaller route caused the basemap to occupy a postage-stamp area.
+ if(__BASEMAP_READY__)map.fitBounds(L.latLngBounds(__FRAME_BOUNDS__),{padding:[4,4],animate:false});
+ else if(bounds.isValid())map.fitBounds(bounds.pad(.15));
  else map.setView([data.kennelPin.lat,data.kennelPin.lon],14);
 }
 </script></body></html>`;

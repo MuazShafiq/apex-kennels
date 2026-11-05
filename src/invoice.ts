@@ -1,3 +1,4 @@
+import type { VerifiedPetrolRate } from './islamabad-petrol-rate.ts';
 import type { Quote } from './pricing.ts';
 
 export type InvoiceView = {
@@ -12,6 +13,8 @@ export type InvoiceView = {
   demo?: boolean;
   /** Internal owner-review copy. Never present as a payment demand. */
   reviewOnly?: boolean;
+  /** Auditable petrol input when the draft includes a transport line. */
+  fuelRateSnapshot?: VerifiedPetrolRate;
 };
 const escapeHtml = (value: string): string => value.replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c] ?? c));
 const money = (value: number) => `PKR ${value.toLocaleString('en-PK')}`;
@@ -19,15 +22,25 @@ const money = (value: number) => `PKR ${value.toLocaleString('en-PK')}`;
 export function renderInvoiceHtml(invoice: InvoiceView, quote: Quote): string {
   const lineRows = quote.lines.map(item => `<tr><td>${escapeHtml(item.label)}</td><td class="center">${item.quantity}</td><td class="right">${money(item.unitPricePkr)}</td><td class="right">${money(item.totalPkr)}</td></tr>`).join('');
   const discountRows = quote.discounts.map(d => `<div class="total-row"><span>Discount (${escapeHtml(d.label)})</span><strong>− ${money(d.amountPkr)}</strong></div>`).join('');
+  const fuelDisclosure=invoice.fuelRateSnapshot
+    ? '<section class="fuel-note"><strong>TRANSPORT FUEL BASIS (FOR REVIEW)</strong>'
+      + '<p>National notified petrol: '+money(invoice.fuelRateSnapshot.pricePkrPerLitre)
+      + '/litre. Effective: '+escapeHtml(invoice.fuelRateSnapshot.effectiveDate)
+      + '. Checked: '+escapeHtml(invoice.fuelRateSnapshot.retrievedAt)
+      + '. Source: '+escapeHtml(invoice.fuelRateSnapshot.sourceUrl)
+      + '. Fuel price data from OilPrices.pk, CC BY 4.0.'
+      + ' Islamabad pump freight not included; verify route and local pump price before sending.</p></section>'
+    : '';
   const bank = invoice.bankDetails ? `<div class="payment"><div class="overline">PAYMENT DETAILS</div><p>${escapeHtml(invoice.bankDetails.bankName)}<br>${escapeHtml(invoice.bankDetails.accountTitle)}<br>${escapeHtml(invoice.bankDetails.iban)}</p></div>` : `<div class="payment"><div class="overline">PAYMENT DETAILS</div><p>To be confirmed by Apex Kennels.</p></div>`;
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><title>Invoice ${escapeHtml(invoice.number)}</title><style>
   @page{size:A4;margin:0}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#17242d;margin:0;background:#fff}main{width:210mm;min-height:297mm;padding:24mm 19mm 20mm;position:relative}.top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #17242d;padding-bottom:27px}.brand{font-weight:800;font-size:25px;letter-spacing:1.9px}.tag{font-size:10px;letter-spacing:2px;color:#66717a;margin-top:8px}.invoice-title{font-size:31px;letter-spacing:1px;margin:0;text-align:right}.status{text-align:right;color:#927247;font-size:11px;margin-top:8px;font-weight:700;letter-spacing:1px}.details{display:flex;justify-content:space-between;margin:32px 0 36px;gap:15px}.overline{font-size:10px;font-weight:700;letter-spacing:1.8px;color:#79828a}.info{margin-top:10px;font-size:14px;line-height:1.7}.right{text-align:right}.center{text-align:center}table{border-collapse:collapse;width:100%;font-size:12px}th{padding:13px 11px;background:#17242d;color:white;font-weight:700;letter-spacing:.7px;font-size:10px;text-align:left}td{padding:14px 11px;border-bottom:1px solid #e7e9eb}.totals{margin:24px 0 0 auto;width:47%}.total-row{display:flex;justify-content:space-between;padding:8px 0;font-size:13px}.total-row.grand{margin-top:12px;border-top:2px solid #17242d;padding-top:17px;font-size:21px;font-weight:800}.payment{margin-top:70px;border-top:1px solid #e7e9eb;padding-top:20px;font-size:12px;line-height:1.8}.footer{position:absolute;left:19mm;right:19mm;bottom:19mm;text-align:center;font-size:11px;color:#6a747b}
+  .fuel-note{font-size:10px;color:#617069;line-height:1.5;margin-top:18px}.fuel-note p{margin:7px 0 0}
   .demo-ribbon{background:#fff0d7;border:2px solid #ba8d4e;color:#69481b;font-size:13px;letter-spacing:.04em;padding:14px 16px;margin:-10mm 0 15mm;text-align:center;font-weight:800}
   </style></head><body><main>${invoice.reviewOnly ? '<div class="demo-ribbon">' + (invoice.demo ? 'SYNTHETIC SAMPLE • ' : '') + 'OWNER REVIEW DRAFT • NOT PAYABLE • DO NOT SEND UNTIL APPROVED</div>' : invoice.demo ? '<div class="demo-ribbon">SYNTHETIC EXAMPLE • NOT A PAYABLE INVOICE • RATE UNAPPROVED</div>' : ''}
   <header class="top"><div><div class="brand">APEX KENNELS</div><div class="tag">BOARDING & PET CARE</div></div><div><h1 class="invoice-title">INVOICE</h1><div class="status">${escapeHtml(invoice.status)}</div></div></header>
   <section class="details"><div><div class="overline">BILLED TO</div><div class="info">${escapeHtml(invoice.billedTo)}<br>Pet: ${escapeHtml(invoice.petName)}${invoice.petBreed ? `<br>Breed: ${escapeHtml(invoice.petBreed)}` : ''}</div></div><div class="right"><div class="overline">INVOICE DETAILS</div><div class="info"># ${escapeHtml(invoice.number)}<br>${escapeHtml(invoice.issuedOn)}<br>${escapeHtml(quote.startDate)} to ${escapeHtml(quote.endDate)}<br>${quote.billedDays} billable days</div></div></section>
   <table><thead><tr><th>SERVICE</th><th class="center">QTY</th><th class="right">RATE</th><th class="right">AMOUNT</th></tr></thead><tbody>${lineRows}</tbody></table>
   <section class="totals"><div class="total-row"><span>Subtotal</span><strong>${money(quote.subtotalPkr)}</strong></div>${discountRows}<div class="total-row grand"><span>Total</span><span>${money(quote.totalPkr)}</span></div></section>
-  ${bank}<div class="footer">Thank you for choosing Apex Kennels.</div>
+  ${bank}${fuelDisclosure}<div class="footer">Thank you for choosing Apex Kennels.</div>
   </main></body></html>`;
 }

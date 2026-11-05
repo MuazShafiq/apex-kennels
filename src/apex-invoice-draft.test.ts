@@ -1,8 +1,13 @@
+import {parseNotifiedPetrolRate} from './islamabad-petrol-rate.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {buildApexInvoiceDraft,transportFuelDraftPkr} from './apex-invoice-draft.ts';
 import {renderInvoiceHtml} from './invoice.ts';
 
+const verified400=parseNotifiedPetrolRate({
+ effectiveDate:'2026-11-05',
+ products:[{product:'Motor Spirit (Petrol)',pricePkr:400,unit:'litre'}]
+},{now:new Date('2026-11-05T11:00:00Z'),sourceUrl:'https://oilprices.pk/api/latest'});
 const basic={startDate:'2026-12-01',endDate:'2026-12-03',cage:'normal' as const,
   petCount:1,fullMonthPackageSelected:false};
 
@@ -47,21 +52,22 @@ test('camera cage monthly package must be separately priced by owner',()=>{
 });
 
 test('transport 20 percent on fuel COST: 12 km/litre, 400 PKR/litre',()=>{
-  assert.equal(transportFuelDraftPkr(12,'markup_on_fuel_cost'),480);
-  assert.equal(transportFuelDraftPkr(24,'markup_on_fuel_cost'),960);
+  assert.equal(transportFuelDraftPkr(12,'markup_on_fuel_cost',400),480);
+  assert.equal(transportFuelDraftPkr(24,'markup_on_fuel_cost',400),960);
   const q=buildApexInvoiceDraft({...basic,transport:{
-    requested:true,totalDrivenKm:24,profitBasis:'markup_on_fuel_cost'
+    requested:true,totalDrivenKm:24,profitBasis:'markup_on_fuel_cost',fuelRate:verified400
   }});
   assert.equal(q.quote.totalPkr,8460);
   assert.ok(q.unresolved.some(s=>s.includes('markup versus margin')));
+  assert.equal(q.fuelRateSnapshot?.pricePkrPerLitre,400);
 });
 
 test('20 percent gross margin gives different amount, never silently chosen',()=>{
-  assert.equal(transportFuelDraftPkr(12,'gross_margin_on_sale'),500);
-  assert.equal(transportFuelDraftPkr(24,'gross_margin_on_sale'),1000);
+  assert.equal(transportFuelDraftPkr(12,'gross_margin_on_sale',400),500);
+  assert.equal(transportFuelDraftPkr(24,'gross_margin_on_sale',400),1000);
   assert.notEqual(
-    transportFuelDraftPkr(12,'gross_margin_on_sale'),
-    transportFuelDraftPkr(12,'markup_on_fuel_cost')
+    transportFuelDraftPkr(12,'gross_margin_on_sale',400),
+    transportFuelDraftPkr(12,'markup_on_fuel_cost',400)
   );
 });
 
@@ -69,13 +75,13 @@ test('missing route distance or profit definition leaves transport UNPRICED',()=
   const draft=buildApexInvoiceDraft({...basic,transport:{requested:true,totalDrivenKm:18}});
   assert.equal(draft.quote.totalPkr,7500);
   assert.equal(draft.quote.lines.filter(x=>x.label.includes('Transport')).length,0);
-  assert.ok(draft.unresolved.some(s=>s.includes('staff input')));
+  assert.ok(draft.unresolved.some(s=>s.includes('source-backed fuel rate')));
 });
 
 test('reject invalid distances, quantities and backwards dates',()=>{
-  assert.throws(()=>transportFuelDraftPkr(-1,'markup_on_fuel_cost'),/Total driven km/);
-  assert.throws(()=>transportFuelDraftPkr(0,'markup_on_fuel_cost'),/Total driven km/);
-  assert.throws(()=>transportFuelDraftPkr(12,'not-a-mode' as never),/supported/);
+  assert.throws(()=>transportFuelDraftPkr(-1,'markup_on_fuel_cost',400),/Total driven km/);
+  assert.throws(()=>transportFuelDraftPkr(0,'markup_on_fuel_cost',400),/Total driven km/);
+  assert.throws(()=>transportFuelDraftPkr(12,'not-a-mode' as never,400),/supported/);
   assert.throws(()=>buildApexInvoiceDraft({...basic,petCount:0}),/Pet count/);
   assert.throws(()=>buildApexInvoiceDraft({...basic,startDate:'2026-12-04'}),/before/);
 });
@@ -90,4 +96,42 @@ test('printable owner review draft carries a clear not-payable notice',()=>{
   assert.match(html,/NOT PAYABLE/);
   assert.match(html,/PKR 7,500/);
   assert.doesNotMatch(html,/PAY NOW/);
+});
+
+test('transport stays UNPRICED without fresh rate even if distance and basis known',()=>{
+  const draft=buildApexInvoiceDraft({...basic,transport:{
+    requested:true,totalDrivenKm:24,profitBasis:'markup_on_fuel_cost'
+  }});
+  assert.equal(draft.quote.totalPkr,7500);
+  assert.equal(draft.fuelRateSnapshot,undefined);
+  assert.equal(draft.quote.lines.filter(x=>x.label.startsWith('Transport')).length,0);
+});
+
+test('transport 362/L snapshot is priced only after validated rate supplied',()=>{
+  const rate=parseNotifiedPetrolRate({effectiveDate:'2026-11-05',
+    products:[{product:'Motor Spirit (Petrol)',pricePkr:362,unit:'litre'}]},
+    {now:new Date('2026-11-05T11:00:00Z'),sourceUrl:'https://oilprices.pk/api/latest'});
+  const draft=buildApexInvoiceDraft({...basic,transport:{
+    requested:true,totalDrivenKm:24,profitBasis:'markup_on_fuel_cost',fuelRate:rate
+  }});
+  assert.equal(draft.quote.lines.find(x=>x.label.startsWith('Transport'))?.totalPkr,869);
+  assert.equal(draft.fuelRateSnapshot?.effectiveDate,'2026-11-05');
+  assert.equal(draft.fuelRateSnapshot?.geographicBasis,'Pakistan national notified price; Islamabad pump freight excluded');
+});
+
+test('printable fuel-based draft discloses provider and effective date with CC BY credit',()=>{
+  const fuelRate=parseNotifiedPetrolRate({
+    effectiveDate:'2026-11-05',
+    products:[{product:'Motor Spirit (Petrol)',pricePkr:362,unit:'litre'}]
+  },{now:new Date('2026-11-05T12:00:00Z'),sourceUrl:'https://oilprices.pk/api/latest'});
+  const q=buildApexInvoiceDraft({...basic,transport:{
+    requested:true,totalDrivenKm:24,profitBasis:'markup_on_fuel_cost',fuelRate
+  }});
+  const html=renderInvoiceHtml({number:'FUEL-TEST',issuedOn:'2026-11-05',
+    billedTo:'Synthetic',petName:'Synthetic Dog',status:'DRAFT',
+    reviewOnly:true,fuelRateSnapshot:q.fuelRateSnapshot},q.quote);
+  assert.match(html,/OilPrices.pk, CC BY 4.0/);
+  assert.match(html,/Effective: 2026-11-05/);
+  assert.match(html,/Islamabad pump freight not included/);
+  assert.match(html,/NOT PAYABLE/);
 });

@@ -1,5 +1,7 @@
 # Apex: owner-gated shadow intake
 
+> **Activation checkpoint (2026-11-05).** For current engineering status, including source-only invoice previews and pending staff Access, see [current gates](current-gates-2026-11-06.md). Statements below about 'next engineering priority' preserve historical plans, not the newest code status.
+
 **Status: ACTIVATED and independently confirmed in the real Form-bound Apps Script execution log on 2026-11-05 at 01:30:37 PKT.** Activation cutoff: `2026-11-04T20:30:37.411Z`. Production database contained two prior synthetic test bookings, two ingestion events, one full-form details row and zero invoices at the immediate post-activation read. No actual post-activation customer submission had arrived as of that check. The canary was successfully disarmed before launch. **Live Form-to-database delivery of real customer submissions has not yet been independently reverified with a first new customer event.**
 
 ## Why shadow mode

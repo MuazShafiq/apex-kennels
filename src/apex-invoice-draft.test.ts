@@ -114,7 +114,7 @@ test('transport 362/L snapshot is priced only after validated rate supplied',()=
   const draft=buildApexInvoiceDraft({...basic,transport:{
     requested:true,totalDrivenKm:24,profitBasis:'markup_on_fuel_cost',fuelRate:rate
   }});
-  assert.equal(draft.quote.lines.find(x=>x.label.startsWith('Transport'))?.totalPkr,869);
+  assert.equal(draft.quote.lines.find(x=>x.label.startsWith('Pet transport'))?.totalPkr,869);
   assert.equal(draft.fuelRateSnapshot?.effectiveDate,'2026-11-05');
   assert.equal(draft.fuelRateSnapshot?.geographicBasis,'Pakistan national notified price; Islamabad pump freight excluded');
 });
@@ -134,9 +134,10 @@ test('fuel provenance stays in INTERNAL quote data, not in customer-facing invoi
   assert.equal(q.fuelRateSnapshot?.pricePkrPerLitre,362);
   assert.equal(q.fuelRateSnapshot?.sourceUrl,'https://oilprices.pk/api/latest');
   assert.match(html,/Pet transport/);
+  const customerVisible=html.replace(/<style>[\s\S]*?<\/style>/,'');
   for(const forbidden of ['OilPrices','CC BY','petrol','fuel','markup','margin',
     'Staff','STAFF','provisional','NOT PAYABLE','To be confirmed by Apex','APPROVED']) {
-    assert.ok(!html.includes(forbidden),forbidden+' should not appear in customer invoice');
+    assert.ok(!customerVisible.includes(forbidden),forbidden+' should not appear in customer invoice');
   }
 });
 

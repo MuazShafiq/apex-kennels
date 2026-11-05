@@ -1,6 +1,6 @@
 # Apex Kennels invoice rules: Fatima's 2026-11-05 confirmations
 
-**Owner-confirmed, pending implementation and staff review.** Source: Fatima's WhatsApp messages sent 02:40–02:47 PKT, 2026-11-05, as shared by Muaz. This document intentionally distinguishes explicit facts from unresolved interpretations. No live billing, messages, payments or delivery are authorized by this specification.
+**Owner-confirmed, pending integration into live customer invoicing.** Source: Fatima's WhatsApp messages sent 02:40–02:47 PKT, 2026-11-05, as shared by Muaz. This document intentionally distinguishes explicit facts from unresolved interpretations. No live billing, messages, payments or delivery are authorized by this specification.
 
 ## Confirmed
 
@@ -46,3 +46,8 @@ Both calculations are included for technical comparison; **neither is automatica
 ## Current engineering
 
 `src/apex-invoice-draft.ts` contains deterministic **pure** calculations for the confirmed rates, optional explicitly selected monthly package, always-free grooming, and either explicitly selected fuel-cost profit basis. It is deliberately **not wired to live Neon bookings, payment details, sending, staff permissions or deployed Worker endpoints**. `src/invoice.ts` has a prominent owner-review / not-payable watermark option. Production ingestion stays unchanged.
+
+
+## Updated engineering: live price lookup supersedes fixed fuel estimate
+
+For new transport invoice **drafts**, the earlier owner-supplied PKR 400/litre is preserved as a historical assumption, **not an automatic fallback rate**. See [live petrol rate implementation](live-petrol-rate-invoices.md). The draft service fetches a current OGRA-notified national petrol price each time transport is quoted, validates the effective date and snapshots the source. Islamabad pump secondary freight still requires manual adjustment; no rate is silently invented when the feed is unavailable. Transport profit basis and total driven kilometres still need staff confirmation. No customer-facing auto-send.

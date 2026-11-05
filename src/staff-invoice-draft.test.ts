@@ -1,0 +1,99 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  prepareStaffDraftReview,parseStaffDraftRequest,renderStaffDraftReview,
+  type StaffInvoiceSource
+} from './staff-invoice-draft.ts';
+
+const id='123e4567-e89b-42d3-a456-426614174001';
+const standard:StaffInvoiceSource={
+  bookingId:id,customerName:'SYNTHETIC TEST OWNER',petNames:'SYNTHETIC PET',
+  petCount:1,startDate:'2026-12-01',endDate:'2026-12-03',
+  status:'requested',cameraCageRequested:false,transportRequested:false,synthetic:true,
+};
+
+test('read-only staff estimate: confirmed daily normal rate, no payable invoice',()=>{
+  const r=prepareStaffDraftReview(standard,'daily');
+  assert.equal(r.draft?.quote.billedDays,3);
+  assert.equal(r.draft?.quote.totalPkr,7500);
+  assert.equal(r.previewOnly,true);
+  assert.equal(r.canApprove,false);
+  assert.equal(r.canSend,false);
+  assert.ok(r.issues.some(x=>x.includes('Booking is not approved')));
+  const html=renderStaffDraftReview(r);
+  assert.match(html,/INTERNAL ONLY/);
+  assert.match(html,/NOT PAYABLE/);
+  assert.match(html,/PKR 7,500/);
+  assert.doesNotMatch(html,/Pay now|Download approved invoice|Send email|WhatsApp customer/i);
+});
+
+test('camera requested only: compute provisional 3000/day, warn selection needs checking',()=>{
+  const r=prepareStaffDraftReview({...standard,cameraCageRequested:true},'daily');
+  assert.equal(r.draft?.quote.totalPkr,9000);
+  assert.ok(r.issues.some(x=>x.includes('REQUESTED')));
+});
+
+test('one-month normal package per dog requires explicit package choice and human eligibility confirmation',()=>{
+  const b={...standard,petCount:2,startDate:'2026-11-01',endDate:'2026-11-30',synthetic:false};
+  const daily=prepareStaffDraftReview(b,'daily');
+  assert.equal(daily.draft?.quote.totalPkr,150000);
+  const monthly=prepareStaffDraftReview(b,'monthly');
+  assert.equal(monthly.draft?.quote.totalPkr,130000);
+  assert.ok(monthly.issues.some(x=>x.includes('eligibility')));
+  assert.equal(monthly.canApprove,false);
+  assert.equal(monthly.canSend,false);
+});
+
+test('monthly discount never silently applies to 3-day stay, 32-day stay or camera cage',()=>{
+  assert.equal(prepareStaffDraftReview(standard,'monthly').draft,null);
+  assert.equal(prepareStaffDraftReview({
+    ...standard,startDate:'2026-12-01',endDate:'2027-01-01'
+  },'monthly').draft,null);
+  assert.equal(prepareStaffDraftReview({
+    ...standard,startDate:'2026-12-01',endDate:'2026-12-30',cameraCageRequested:true
+  },'monthly').draft,null);
+});
+
+test('pickup requested: boarding estimate is clearly incomplete, transport never invented',()=>{
+  const r=prepareStaffDraftReview({...standard,transportRequested:true},'daily');
+  assert.equal(r.draft?.quote.totalPkr,7500);
+  assert.equal(r.draft?.quote.lines.some(l=>l.label.includes('transport')),false);
+  assert.ok(r.issues.some(x=>x.includes('transport amount excluded')));
+  const html=renderStaffDraftReview(r);
+  assert.match(html,/transport excluded/);
+  assert.doesNotMatch(html,/Transport\s+PKR/);
+});
+
+test('missing cage preference, transport preference or valid pet count blocks even preview amounts',()=>{
+  assert.equal(prepareStaffDraftReview({...standard,cameraCageRequested:null},'daily').draft,null);
+  assert.equal(prepareStaffDraftReview({...standard,transportRequested:null},'daily').draft,null);
+  assert.equal(prepareStaffDraftReview({...standard,petCount:0},'daily').draft,null);
+  assert.equal(prepareStaffDraftReview({...standard,petCount:2.5},'daily').draft,null);
+});
+
+test('review HTML escapes customer-controlled names, pet names, status and ID',()=>{
+  const r=prepareStaffDraftReview({
+    ...standard,customerName:'<img src=x onerror=alert(1)>',
+    petNames:'Dog & <svg/onload=alert(1)>',
+    status:'<script>alert(1)</script>',
+  },'daily');
+  const html=renderStaffDraftReview(r);
+  assert.match(html,/&lt;img/);
+  assert.match(html,/Dog &amp; &lt;svg/);
+  assert.ok(!html.includes('<img'));
+  assert.ok(!html.includes('<svg'));
+  assert.ok(!html.includes('<script'));
+});
+
+test('staff draft ID and package must be validated before any database query',()=>{
+  const valid=parseStaffDraftRequest(new URL('https://example.com/staff/draft?id='+id+'&package=monthly'));
+  assert.deepEqual(valid,{bookingId:id,packageChoice:'monthly'});
+  for(const url of [
+    '/staff/draft?id=not-uuid',
+    '/staff/draft',
+    '/staff/draft?id='+id+'&package=yearly',
+    '/staff/draft?id=1%27%20OR%201%3D1',
+  ]){
+    assert.throws(()=>parseStaffDraftRequest(new URL('https://example.com'+url)));
+  }
+});

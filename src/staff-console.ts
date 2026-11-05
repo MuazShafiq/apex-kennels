@@ -34,7 +34,7 @@ const styles = [
   'thead{background:#f7f9f6}th{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#88988e;padding:16px 22px}',
   'td{border-top:1px solid #eef2ee;padding:19px 22px;vertical-align:middle;white-space:nowrap}',
   '.strong{font-weight:690;color:#293e35}.secondary{font-size:11px;color:#89998e;margin-top:6px}',
-  '.state{display:inline-block;font-size:11px;font-weight:720;padding:8px 11px;border-radius:30px;background:#edf2ec;color:#597263}',
+  '.action{color:#21664c;font-size:12px;font-weight:700;text-decoration:underline;text-underline-offset:4px}.state{display:inline-block;font-size:11px;font-weight:720;padding:8px 11px;border-radius:30px;background:#edf2ec;color:#597263}',
   '.testmark{font-size:9px;letter-spacing:.07em;color:#9c6b2c;background:#fff2d9;padding:4px 7px;border-radius:4px;margin-left:8px;font-weight:800}.requested{background:#fff2dc;color:#956e2b}.reviewing{background:#e9f0f8;color:#557a9c}.approved{background:#e6f3ea;color:#367552}',
   '.declined,.cancelled{background:#f8e9e9;color:#ac6161}.completed{background:#e7eeea;color:#3a7460}',
   '.panelbottom{border-top:1px solid #e9efea;padding:18px 25px;color:#93a19a;font-size:11px;display:flex;justify-content:space-between}',
@@ -57,7 +57,8 @@ export function renderStaffConsoleHtml(rows:StaffBooking[], page:StaffPage):stri
     + '<td><div class="strong">'+escapeHtml(row.petNames)+'</div><div class="secondary">'+escapeHtml(row.accommodationType||'Not assigned')+'</div></td>'
     + '<td><div>'+escapeHtml(row.startDate)+'</div><div class="secondary">to '+escapeHtml(row.endDate)+'</div></td>'
     + '<td><span class="state '+row.status+'">'+title(row.status)+'</span></td>'
-    + '<td><div class="secondary">'+escapeHtml(row.email||row.phone||(page.demo?'Demo record':'No contact'))+'</div></td></tr>').join('');
+    + '<td><div class="secondary">'+escapeHtml(row.email||row.phone||(page.demo?'Demo record':'No contact'))+'</div></td>'
+    + '<td><a class="action" href="'+(page.demo?'/demo/draft':'/staff/draft?id='+encodeURIComponent(row.id))+'">Review estimate</a></td></tr>').join('');
   const c = (status:string)=>visible.filter(row=>row.status===status).length;
   const metric=(label:string,value:number,note:string)=>'<article class="metric"><div class="metriclabel">'+label+'</div><div class="number">'+value+'</div><div class="fine">'+note+'</div></article>';
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -73,8 +74,8 @@ export function renderStaffConsoleHtml(rows:StaffBooking[], page:StaffPage):stri
     + '<section class="panel"><div class="panelhead"><div><h2>Booking queue</h2><p class="sub">Read-only until staff approvals are configured.</p></div>'
     + '<form action="'+base+'" method="get"><input aria-label="Search by customer or pet" name="q" type="search" maxlength="80" placeholder="Search owner or pet" value="'+escapeHtml(page.filter.query)+'">'
     + '<select aria-label="Filter booking status" name="status">'+statuses+'</select><button type="submit">Filter</button></form></div>'
-    + '<div class="overflow"><table><thead><tr><th>Customer / ID</th><th>Pet / type</th><th>Stay dates</th><th>Status</th><th>Contact</th></tr></thead><tbody>'
-    + (tr || '<tr><td colspan="5" style="padding:45px;text-align:center;color:#8d9d91">No matching bookings.</td></tr>')
+    + '<div class="overflow"><table><thead><tr><th>Customer / ID</th><th>Pet / type</th><th>Stay dates</th><th>Status</th><th>Contact</th><th>Draft</th></tr></thead><tbody>'
+    + (tr || '<tr><td colspan="6" style="padding:45px;text-align:center;color:#8d9d91">No matching bookings.</td></tr>')
     + '</tbody></table></div><div class="panelbottom"><span>Showing '+visible.length+' entries, newest first</span><span>Read-only</span></div></section>'
-    + '<p class="foot">Boarding rates, payment details, approval decisions and invoice sending are intentionally disabled until Apex confirms its rules.</p></main></div></body></html>';
+    + '<p class="foot">Boarding draft estimates are internal only. Approval, payment, PDFs and customer sending remain disabled.</p></main></div></body></html>';
 }

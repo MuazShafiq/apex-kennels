@@ -15,7 +15,7 @@ test('standard 2500/day; inclusive stay; grooming always free; never sends',()=>
   const draft=buildApexInvoiceDraft(basic);
   assert.equal(draft.quote.billedDays,3);
   assert.equal(draft.quote.totalPkr,7500);
-  assert.equal(draft.quote.lines[1].totalPkr,0);
+  assert.equal(draft.quote.lines.length,1); // Don't advertise grooming nobody requested.
   assert.equal(draft.status,'DRAFT_REVIEW_ONLY');
   assert.equal(draft.sendAutomatically,false);
   assert.equal(draft.requiresStaffReview,true);
@@ -74,7 +74,7 @@ test('20 percent gross margin gives different amount, never silently chosen',()=
 test('missing route distance or profit definition leaves transport UNPRICED',()=>{
   const draft=buildApexInvoiceDraft({...basic,transport:{requested:true,totalDrivenKm:18}});
   assert.equal(draft.quote.totalPkr,7500);
-  assert.equal(draft.quote.lines.filter(x=>x.label.includes('Transport')).length,0);
+  assert.equal(draft.quote.lines.filter(x=>x.label.includes('Pet transport')).length,0);
   assert.ok(draft.unresolved.some(s=>s.includes('source-backed fuel rate')));
 });
 
@@ -93,7 +93,7 @@ test('printable owner review draft carries a clear not-payable notice',()=>{
     billedTo:'Synthetic Owner',petName:'Synthetic Dog',status:'DRAFT',
     reviewOnly:true
   },draft.quote);
-  assert.match(html,/NOT PAYABLE/);
+  assert.match(html,/INTERNAL PREVIEW/);
   assert.match(html,/PKR 7,500/);
   assert.doesNotMatch(html,/PAY NOW/);
 });
@@ -104,7 +104,7 @@ test('transport stays UNPRICED without fresh rate even if distance and basis kno
   }});
   assert.equal(draft.quote.totalPkr,7500);
   assert.equal(draft.fuelRateSnapshot,undefined);
-  assert.equal(draft.quote.lines.filter(x=>x.label.startsWith('Transport')).length,0);
+  assert.equal(draft.quote.lines.filter(x=>x.label.startsWith('Pet transport')).length,0);
 });
 
 test('transport 362/L snapshot is priced only after validated rate supplied',()=>{
@@ -119,7 +119,7 @@ test('transport 362/L snapshot is priced only after validated rate supplied',()=
   assert.equal(draft.fuelRateSnapshot?.geographicBasis,'Pakistan national notified price; Islamabad pump freight excluded');
 });
 
-test('printable fuel-based draft discloses provider and effective date with CC BY credit',()=>{
+test('fuel provenance stays in INTERNAL quote data, not in customer-facing invoice',()=>{
   const fuelRate=parseNotifiedPetrolRate({
     effectiveDate:'2026-11-05',
     products:[{product:'Motor Spirit (Petrol)',pricePkr:362,unit:'litre'}]
@@ -127,11 +127,48 @@ test('printable fuel-based draft discloses provider and effective date with CC B
   const q=buildApexInvoiceDraft({...basic,transport:{
     requested:true,totalDrivenKm:24,profitBasis:'markup_on_fuel_cost',fuelRate
   }});
-  const html=renderInvoiceHtml({number:'FUEL-TEST',issuedOn:'2026-11-05',
-    billedTo:'Synthetic',petName:'Synthetic Dog',status:'DRAFT',
-    reviewOnly:true,fuelRateSnapshot:q.fuelRateSnapshot},q.quote);
-  assert.match(html,/OilPrices.pk, CC BY 4.0/);
-  assert.match(html,/Effective: 2026-11-05/);
-  assert.match(html,/Islamabad pump freight not included/);
-  assert.match(html,/NOT PAYABLE/);
+  const html=renderInvoiceHtml({
+    number:'FUEL-TEST',issuedOn:'2026-11-05',billedTo:'Synthetic',
+    petName:'Synthetic Dog',status:'APPROVED'
+  },q.quote);
+  assert.equal(q.fuelRateSnapshot?.pricePkrPerLitre,362);
+  assert.equal(q.fuelRateSnapshot?.sourceUrl,'https://oilprices.pk/api/latest');
+  assert.match(html,/Pet transport/);
+  for(const forbidden of ['OilPrices','CC BY','petrol','fuel','markup','margin',
+    'Staff','STAFF','provisional','NOT PAYABLE','To be confirmed by Apex','APPROVED']) {
+    assert.ok(!html.includes(forbidden),forbidden+' should not appear in customer invoice');
+  }
+});
+
+test('grooming is always free but printed only when actually requested',()=>{
+  const draft=buildApexInvoiceDraft({...basic,groomingRequested:true});
+  assert.equal(draft.quote.totalPkr,7500);
+  assert.deepEqual(draft.quote.lines.map(x=>x.totalPkr),[7500,0]);
+  assert.match(renderInvoiceHtml({
+    number:'GROOM',issuedOn:'2026-11-05',
+    billedTo:'Sample',petName:'Dog',status:'APPROVED'
+  },draft.quote),/Grooming \(complimentary\)/);
+});
+
+test('payment details shown only when owner supplies actual verified payment account',()=>{
+  const draft=buildApexInvoiceDraft(basic);
+  const base={number:'A-001',issuedOn:'2026-11-05',
+    billedTo:'Sample',petName:'Sample Dog',status:'APPROVED' as const};
+  const without=renderInvoiceHtml(base,draft.quote);
+  assert.ok(!without.includes('PAYMENT DETAILS'));
+  assert.ok(!without.includes('To be confirmed'));
+  const withBank=renderInvoiceHtml({...base,bankDetails:{
+    bankName:'Synthetic Bank',accountTitle:'Sample Account',
+    iban:'PK00 TEST 0000'
+  }},draft.quote);
+  assert.match(withBank,/Synthetic Bank/);
+  assert.match(withBank,/Sample Account/);
+});
+
+test('DRAFT invoice cannot be rendered as an unmarked customer invoice',()=>{
+  const draft=buildApexInvoiceDraft(basic);
+  assert.throws(()=>renderInvoiceHtml({
+    number:'X',issuedOn:'2026-11-05',
+    billedTo:'Customer',petName:'Pet',status:'DRAFT'
+  },draft.quote),/internal-only/);
 });

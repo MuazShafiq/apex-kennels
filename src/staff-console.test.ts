@@ -1,3 +1,4 @@
+import type {StaffInvoiceSource} from './staff-invoice-draft.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {handleWorkerRequest, type WorkerEnv, type StaffList, type StaffContext} from './cloudflare-worker.ts';
@@ -101,4 +102,92 @@ test('synthetic staff search and status filters work independently of live data'
   const body=await response.text();
   assert.match(body,/Sample Owner B/);
   assert.doesNotMatch(body,/Sample Owner A/);
+});
+
+
+const invoiceBookingId='123e4567-e89b-42d3-a456-426614174001';
+const invoiceBooking:StaffInvoiceSource={
+  bookingId:invoiceBookingId,customerName:'SYNTHETIC CLIENT',
+  petNames:'SYNTHETIC PET',petCount:1,startDate:'2026-12-01',endDate:'2026-12-03',
+  status:'requested',cameraCageRequested:false,transportRequested:true,synthetic:true
+};
+
+test('public synthetic draft is read-only and never reads Neon',async()=>{
+  const response=await handleWorkerRequest(new Request(origin+'/demo/draft'),{},undefined,{
+    draft:async()=>{throw new Error('Database must never be read for demo')}
+  });
+  assert.equal(response.status,200);
+  const body=await response.text();
+  assert.match(body,/SYNTHETIC DATA/);
+  assert.match(body,/NOT PAYABLE/);
+  assert.match(body,/transport excluded/);
+  assert.doesNotMatch(body,/PK29MPBL|real personal data/);
+  const invalid=await handleWorkerRequest(new Request(origin+'/demo/draft?package=fiveyears'),{});
+  assert.equal(invalid.status,400);
+  const post=await handleWorkerRequest(new Request(origin+'/demo/draft',{method:'POST'}),{});
+  assert.equal(post.status,405);
+});
+
+test('staff draft is denied before DB access when Access or config is missing',async()=>{
+  let calls=0;
+  const draft=async()=>{calls++;return invoiceBooking};
+  const url=origin+'/staff/draft?id='+invoiceBookingId;
+  const blocked=await handleWorkerRequest(new Request(url),{},undefined,{draft});
+  assert.equal(blocked.status,503);
+  const forged=await handleWorkerRequest(new Request(url,{
+    headers:{'Cf-Access-Jwt-Assertion':'FAKE'}
+  }),env,undefined,{draft});
+  assert.equal(forged.status,403);
+  const denied=await handleWorkerRequest(new Request(url),env,undefined,{
+    context:{access:{aud:'aud-synthetic-test',getIdentity:async()=>({email:'not-staff@example.test'})}},draft
+  });
+  assert.equal(denied.status,403);
+  assert.equal(calls,0);
+});
+
+test('authorized staff can only preview invoice draft; no approval or customer sending',async()=>{
+  let calls=0;
+  const draft=async (_url:string,id:string)=>{calls++;assert.equal(id,invoiceBookingId);return invoiceBooking;};
+  const response=await handleWorkerRequest(
+    new Request(origin+'/staff/draft?id='+invoiceBookingId),
+    env,undefined,{context:valid,draft}
+  );
+  assert.equal(response.status,200);
+  const body=await response.text();
+  assert.match(body,/SYNTHETIC CLIENT/);
+  assert.match(body,/PKR 7,500/);
+  assert.match(body,/transport excluded/);
+  assert.match(body,/NOT PAYABLE/);
+  assert.doesNotMatch(body,/Send invoice|Approved PDF|Mark paid/);
+  assert.equal(response.headers.get('cache-control'),'private, no-store');
+  assert.equal(calls,1);
+  const post=await handleWorkerRequest(
+    new Request(origin+'/staff/draft?id='+invoiceBookingId,{method:'POST'}),
+    env,undefined,{context:valid,draft}
+  );
+  assert.equal(post.status,405);
+  assert.equal(calls,1);
+});
+
+test('draft rejects bad ID and package before SQL; safe 404 and 500 on missing or failed reads',async()=>{
+  let calls=0;
+  const draft=async()=>{calls++;return null;};
+  for(const query of [
+    '?id=nope','?id='+invoiceBookingId+'&package=discount99',
+    '?id=1%27%20OR%20true'
+  ]){
+    const response=await handleWorkerRequest(new Request(origin+'/staff/draft'+query),
+      env,undefined,{context:valid,draft});
+    assert.equal(response.status,400);
+  }
+  assert.equal(calls,0);
+  const notFound=await handleWorkerRequest(
+    new Request(origin+'/staff/draft?id='+invoiceBookingId),
+    env,undefined,{context:valid,draft});
+  assert.equal(notFound.status,404);
+  const fail=await handleWorkerRequest(
+    new Request(origin+'/staff/draft?id='+invoiceBookingId),
+    env,undefined,{context:valid,draft:async()=>{throw new Error('secret database password')}} );
+  assert.equal(fail.status,500);
+  assert.deepEqual(await fail.json(),{error:'Internal server error'});
 });

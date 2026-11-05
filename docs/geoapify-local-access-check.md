@@ -32,6 +32,6 @@ The terminal also prints the two distances, road snap distances and total loop. 
 2. Check the **snap distances**: more than 150m from either point is flagged. A small distance is NOT proof of a valid road; the mapped restaurant centre is not necessarily the exact junction.
 3. A provider route with impossible cuts, disconnected paths or wrong gate means **no transport charge**. Adjust the intermediate access waypoint to the actual *drivable road junction*, not an arbitrary building centroid, then rerun and inspect.
 4. Once real access is validated, configure `GEOAPIFY_API_KEY` securely in Cloudflare and add customer-confirmed collection pins to a staff-only, approved route/quote workflow. This is **not connected to production** yet.
-5. Bawli in the customer route is a **pass-through shaping waypoint** (`intermediate_waypoint_mode=pass_through`), not a stop to buy anything. The proper quote will include the customer location and real vehicle distance for each direction.
+5. Bawli is a **mandatory routing waypoint**, not a stop to buy anything. Geoapify's global `pass_through` option would also bypass the actual customer pickup stop in our current five-point request, so it is NOT enabled. Before live transport billing, we should model the actual customer service stop separately from Bawli's road-shaping point, validating both driven directions.
 
 If Geoapify cannot return valid road geometry, use a different routing provider or manually review the route; do not invent kilometres or treat straight-line distance as the road distance.

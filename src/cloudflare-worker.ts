@@ -5,6 +5,7 @@ import type { SavedBooking } from './booking-store.ts';
 import {listStaffBookings,parseStaffFilter,syntheticBookings, type StaffBooking, type StaffFilter} from './staff-bookings.ts';
 import {renderStaffConsoleHtml} from './staff-console.ts';
 import {syntheticInvoiceHtml} from './demo-invoice.ts';
+import {readStaffInvoiceSource,parseStaffDraftRequest,prepareStaffDraftReview,renderStaffDraftReview,type StaffInvoiceSource} from './staff-invoice-draft.ts';
 
 export type WorkerEnv = {
   DATABASE_URL?: string;
@@ -16,7 +17,8 @@ export type WorkerEnv = {
 export type SaveIntake = (databaseUrl: string, input: IntakeRequest) => Promise<SavedBooking>;
 export type StaffList = (databaseUrl: string, filter: StaffFilter) => Promise<StaffBooking[]>;
 export type StaffContext = {access?: {aud: string; getIdentity(): Promise<{email?:string}|null>}};
-export type StaffOptions = {context?: StaffContext; list?: StaffList};
+export type StaffDraftReader=(databaseUrl:string,bookingId:string)=>Promise<StaffInvoiceSource|null>;
+export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader};
 
 async function authorizedStaff(env: WorkerEnv, context?: StaffContext): Promise<string|null> {
   if (!env.STAFF_ACCESS_AUD || !env.STAFF_ALLOWED_EMAILS || context?.access?.aud!==env.STAFF_ACCESS_AUD) return null;
@@ -111,6 +113,37 @@ export async function handleWorkerRequest(
       const filter=parseStaffFilter(new URL(request.url));
       return html(renderStaffConsoleHtml(syntheticBookings,{demo:true,filter}));
     } catch { return json({error:'Invalid filter'},400); }
+  }
+  if (path === '/demo/draft') {
+    if (request.method !== 'GET') return json({error:'Method not allowed'},405,{Allow:'GET'});
+    const url=new URL(request.url);
+    const selected=url.searchParams.get('package')??'daily';
+    if(selected!=='daily'&&selected!=='monthly')return json({error:'Invalid package choice'},400);
+    const source:StaffInvoiceSource={
+      bookingId:'00000000-0000-4000-8000-000000000001',
+      customerName:'Sample Owner A',petNames:'Dog 01',petCount:1,
+      startDate:'2026-12-10',endDate:'2026-12-12',
+      status:'requested',cameraCageRequested:false,transportRequested:true,synthetic:true
+    };
+    return html(renderStaffDraftReview(prepareStaffDraftReview(source,selected),'demo'));
+  }
+  if (path === '/staff/draft') {
+    if (request.method !== 'GET') return json({error:'Method not allowed'},405,{Allow:'GET'});
+    // Identical Access controls as /staff and /staff/api/bookings; no secret fallbacks.
+    if(!env.STAFF_ACCESS_AUD || !env.STAFF_ALLOWED_EMAILS || !env.DATABASE_URL){
+      return json({error:'Staff access not configured'},503);
+    }
+    const email=await authorizedStaff(env,staff.context);
+    if(!email)return json({error:'Forbidden'},403);
+    let parsed:ReturnType<typeof parseStaffDraftRequest>;
+    try{parsed=parseStaffDraftRequest(new URL(request.url));}
+    catch{return json({error:'Invalid invoice draft request'},400);}
+    try{
+      const source=await (staff.draft??readStaffInvoiceSource)(env.DATABASE_URL,parsed.bookingId);
+      if(!source)return json({error:'Booking not found'},404);
+      const review=prepareStaffDraftReview(source,parsed.packageChoice);
+      return html(renderStaffDraftReview(review));
+    }catch{return json({error:'Internal server error'},500);}
   }
   if (path === '/staff' || path === '/staff/api/bookings') {
     if (request.method !== 'GET') return json({error:'Method not allowed'},405,{Allow:'GET'});

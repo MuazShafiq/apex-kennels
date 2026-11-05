@@ -20,7 +20,7 @@ Retain source fuel, notified rate, effective date, retrieval time, selected 20% 
 
 ## Real distance: no text-address guessing
 
-**Current state (2026-11-06): Muaz supplied kennel coordinates **33.2992325, 73.2534561** and a short Google Maps link for Bawli Restaurant, the required approach waypoint. The kennel location is recorded but the precise vehicle entrance has not been verified. The short Bawli link could not be reliably expanded to exact coordinates, so no Bawli pin or customer pin is verified.** Previous `24 km` was synthetic, not calculated. The synthetic fuel preview now intentionally has **no transport charge** unless a verified route is provided.
+**Current state (2026-11-06): Muaz supplied kennel coordinates **33.2992325, 73.2534561** and a short Google Maps link for Bawli Restaurant, the required approach waypoint. The kennel location is recorded but the precise vehicle entrance has not been verified. Muaz confirmed the public Bawli Restaurant listing is the intended venue. A mapped OSM building coordinate (33.31392, 73.25810, [way 256757113](https://mapcarta.com/W256757113)) is now stored; the correct drivable access point and full route **have not been validated**. No customer pin is verified.** Previous `24 km` was synthetic, not calculated. The synthetic fuel preview now intentionally has **no transport charge** unless a verified route is provided.
 
 ### Minimum working flow with existing Form
 
@@ -45,7 +45,7 @@ Replace the WhatsApp step with a **customer location picker** on the website: ge
 
 ## Immediate open input
 
-**Required before any actual quote:** confirm that the supplied kennel pin is the vehicle entrance, resolve the exact Bawli Restaurant waypoint coordinates from the supplied short link (do not substitute a similarly named business), and obtain the future customer's confirmed pickup/drop-off entrance pin. The source link and unresolved status are in `src/apex-location-config.ts`. The restaurant is an access-routing waypoint, **not** a commercial stop or invoice line. No live invoice generation or map requests occur until owner details and necessary credentials are configured.
+**Required before any actual quote:** confirm that the supplied kennel pin is the vehicle entrance, verify the mapped Bawli building coordinate is an appropriate **road-shaping waypoint** (not just a map label), and obtain the future customer's confirmed pickup/drop-off entrance pin. The source link and unresolved status are in `src/apex-location-config.ts`. The restaurant is an access-routing waypoint, **not** a commercial stop or invoice line. No live invoice generation or map requests occur until owner details and necessary credentials are configured.
 
 ## Completed in this branch
 
@@ -59,4 +59,14 @@ Replace the WhatsApp step with a **customer location picker** on the website: ge
 
 ### Mandatory restaurant waypoint requirement (2026-11-06)
 
-The previous 3-point loop is superseded. Because the road network can produce a fictitious/impassable approach, **no transport cost is allowed without the confirmed Bawli Restaurant access waypoint**. Code enforces 5 waypoints: kennel → access → customer → access → kennel. This is an imposed routing constraint, not a requirement to stop and buy food. Exact pin still unresolved: the supplied Google Maps short link could not be expanded to coordinates in our tools. We found a Bawli Restaurant publicly listed around Ghungrilla/Gujar Khan, but **have NOT established it is the place in the user's shortened link**, so its listing is not used as coordinates. Must compare a real routed trace against the locally known drive before approving any transport charge. No geocoding guess, no substituted restaurant, no route-charge fallback.
+The previous 3-point loop is superseded. Because the road network can produce a fictitious/impassable approach, **no transport cost is allowed without the confirmed Bawli Restaurant access waypoint**. Code enforces 5 waypoints: kennel → access → customer → access → kennel. This is an imposed routing constraint, not a requirement to stop and buy food. **Update:** Muaz confirmed the Bawli Restaurant listing is the intended venue. Its OSM mapped point (33.31392, 73.25810) is recorded with source attribution in `src/apex-location-config.ts`. This is a mapped **building**, not an independently verified road junction; `roadApproachValidated=false` until a live drive-route trace is checked against the known access route. The supplied Google Maps shortlink itself still has not expanded in our tool environment. Must compare a real routed trace against the locally known drive before approving any transport charge. No geocoding guess, no substituted restaurant, no route-charge fallback.
+
+
+### Recorded location status (2026-11-06)
+
+| Place | Coordinates | Provenance | Status |
+| --- | --- | --- | --- |
+| Apex Kennels | 33.2992325, 73.2534561 | Muaz-provided Google Maps pin | Site mapped; vehicle entrance NOT confirmed |
+| Bawli Restaurant / Bawali Hotel | 33.31392, 73.25810 | Mapcarta / OpenStreetMap building way [256757113](https://mapcarta.com/W256757113); Muaz confirms restaurant identity | Site point stored; road approach NOT independently verified |
+
+**Next operational validation:** Staff provides a customer pickup pin for a test route, ensures the Google Maps known route genuinely passes through the Bawli approach, and compares it to the selected Geoapify output. This may require shifting the route-shaping waypoint from the restaurant building centre to the actual Mohra Dhamial access road junction. Never silently bill a customer from the raw OSM building centre alone.

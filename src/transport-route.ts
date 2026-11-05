@@ -11,23 +11,27 @@ export type RouteRequest={
   customerPin?:GeoPin;
   kennelPinConfirmed:boolean;
   customerPinConfirmed:boolean;
+  /** Mandatory road-access point on all kennel-bound and outward drives. */
+  kennelAccessWaypoint?:GeoPin;
+  kennelAccessWaypointConfirmed?:boolean;
   visit?:TransportVisit;
 };
 export type RouteEstimate={
   status:'ROUTE_REVIEW_REQUIRED';
   provider:'Geoapify Routing';
-  routeType:'kennel_customer_kennel';
+  routeType:'kennel_access_customer_access_kennel';
   loopDistanceKm:number;
   plannedRoundTrips:1|2;
   totalDrivenKm:number;
   retrievedAt:string;
   kennelPin:GeoPin;
   customerPin:GeoPin;
+  kennelAccessWaypoint:GeoPin;
   needsStaffConfirmation:true;
 };
 export type RouteResult=
   | {ok:true;estimate:RouteEstimate}
-  | {ok:false;reason:'PINS_NOT_VERIFIED'|'ROUTE_NOT_AVAILABLE'|'INVALID_VISITS';detail:string};
+  | {ok:false;reason:'PINS_NOT_VERIFIED'|'ACCESS_WAYPOINT_NOT_VERIFIED'|'ROUTE_NOT_AVAILABLE'|'INVALID_VISITS';detail:string};
 
 type Fetcher=typeof fetch;
 function validPakistanCoordinate(p:GeoPin|undefined):p is GeoPin{
@@ -74,7 +78,11 @@ export async function routeApexTransport(
     return {ok:false,reason:'PINS_NOT_VERIFIED',
       detail:'Get the exact kennel entrance pin and a customer-approved pickup/drop-off pin before routing'};
   }
-  const a=input.kennelPin,b=input.customerPin;
+  if(!input.kennelAccessWaypointConfirmed || !validPakistanCoordinate(input.kennelAccessWaypoint)) {
+    return {ok:false,reason:'ACCESS_WAYPOINT_NOT_VERIFIED',
+      detail:'The kennel access restaurant waypoint must be resolved to confirmed coordinates; the short Maps link alone is not sufficient'};
+  }
+  const a=input.kennelPin,b=input.customerPin,w=input.kennelAccessWaypoint;
   if(Math.abs(a.lat-b.lat)<1e-7&&Math.abs(a.lon-b.lon)<1e-7){
     return {ok:false,reason:'PINS_NOT_VERIFIED',
       detail:'Customer pin and kennel pin cannot be identical'};
@@ -85,8 +93,12 @@ export async function routeApexTransport(
     detail:'Server-side Geoapify API key is not configured; no route distance estimated'
   };
   const url=new URL('https://api.geoapify.com/v1/routing');
-  url.searchParams.set('waypoints',
-    a.lat+','+a.lon+'|'+b.lat+','+b.lon+'|'+a.lat+','+a.lon);
+  // Enforce the access point in BOTH directions. Routing may be asymmetric
+  // around the restaurant, so one-way road distance must never be doubled.
+  // Route: kennel -> access -> customer -> access -> kennel.
+  url.searchParams.set('waypoints',[
+    a,w,b,w,a
+  ].map(p=>p.lat+','+p.lon).join('|'));
   url.searchParams.set('mode','drive');
   url.searchParams.set('apiKey',key);
   try {
@@ -110,8 +122,9 @@ export async function routeApexTransport(
     return {ok:true,estimate:{
       status:'ROUTE_REVIEW_REQUIRED',
       provider:'Geoapify Routing',
-      routeType:'kennel_customer_kennel',
+      routeType:'kennel_access_customer_access_kennel',
       kennelPin:{...a},customerPin:{...b},
+      kennelAccessWaypoint:{...w},
       loopDistanceKm,plannedRoundTrips:tripCount,totalDrivenKm,
       retrievedAt:(options.now??new Date()).toISOString(),
       needsStaffConfirmation:true,

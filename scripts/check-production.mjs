@@ -25,20 +25,38 @@ async function runChecks() {
   });
   if(reject.status!==401) throw new Error('Unauthenticated intake returned '+reject.status+' (expected 401)');
 
-  const staff=await get('/staff/api/bookings');
-  // 503 means access is intentionally not activated, 403 denied, 30x is Access login.
-  if(![301,302,303,307,308,403,503].includes(staff.status)) {
-    throw new Error('Unauthenticated staff route returned '+staff.status);
+  // All known staff entrypoints must deny public access, even after
+  // newer source-only routes are eventually deployed.
+  for(const path of ['/staff','/staff/api/bookings']){
+    const response=await get(path);
+    // 503: Access not yet activated; 403: Worker denial; 30x: Access login.
+    if(![301,302,303,307,308,403,503].includes(response.status)){
+      throw new Error('Unauthenticated '+path+' returned '+response.status);
+    }
+  }
+  for(const path of ['/staff/draft','/staff/location']){
+    const response=await get(path);
+    // 404 is allowed ONLY while this source-only route is not deployed.
+    // After deployment, remove 404 to require positive Access enforcement.
+    if(![301,302,303,307,308,403,404,503].includes(response.status)){
+      throw new Error('Unauthenticated '+path+' returned '+response.status);
+    }
   }
 
-  for (const [path,marker] of [
-    ['/demo/staff','SYNTHETIC DEMO'],
-    ['/demo/invoice','NOT A PAYABLE INVOICE']
-  ]) {
-    const preview=await get(path);
-    if(preview.status!==200) throw new Error(path+' returned '+preview.status+' (expected 200)');
-    const page=await preview.text();
-    if(!page.includes(marker)) throw new Error(path+' missing its synthetic preview marker');
+  const staffDemo=await get('/demo/staff');
+  if(staffDemo.status!==200)throw new Error('/demo/staff returned '+staffDemo.status);
+  if(!(await staffDemo.text()).includes('SYNTHETIC DEMO')){
+    throw new Error('/demo/staff missing synthetic data label');
+  }
+  const invoiceDemo=await get('/demo/invoice');
+  if(invoiceDemo.status!==200)throw new Error('/demo/invoice returned '+invoiceDemo.status);
+  const invoicePage=await invoiceDemo.text();
+  // Explicitly require a synthetic and non-payable notice, both before and
+  // after the new clean-invoice design. Do not accept only an invoice title.
+  if(!invoicePage.includes('SYNTHETIC EXAMPLE')||
+     !(invoicePage.includes('NOT FOR CUSTOMER DELIVERY')||
+       invoicePage.includes('NOT A PAYABLE INVOICE'))){
+    throw new Error('/demo/invoice missing clearly non-payable synthetic label');
   }
 }
 

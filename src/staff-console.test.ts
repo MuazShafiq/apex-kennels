@@ -216,8 +216,12 @@ test('origin checks block cross-site POST before any customer URL is requested',
     {'Content-Type':'application/x-www-form-urlencoded',origin:'https://attacker.example.test'},
     {'Content-Type':'application/x-www-form-urlencoded'},
   ]){
+    const requestHeaders=new Headers();
+    requestHeaders.set('Content-Type','application/x-www-form-urlencoded');
+    if(headers.origin)requestHeaders.set('Origin',headers.origin);
     const req=new Request(origin+'/staff/location',{
-      method:'POST',headers,body:new URLSearchParams({pinUrl:'https://maps.app.goo.gl/fake'}).toString()
+      method:'POST',headers:requestHeaders,
+      body:new URLSearchParams({pinUrl:'https://maps.app.goo.gl/fake'}).toString()
     });
     const response=await handleWorkerRequest(req,env,undefined,{
       context:valid,resolvePin:async()=>{networkCalls++;return {ok:false,reason:'NOT_EXACT_PIN'};}

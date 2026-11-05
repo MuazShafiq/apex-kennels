@@ -19,7 +19,6 @@ const html=renderInvoiceHtml({
   billedTo:'SYNTHETIC SAMPLE CUSTOMER',
   petName:'SYNTHETIC SAMPLE DOG',
   status:'DRAFT',reviewOnly:true,demo:true,
-  fuelRateSnapshot:result.draft.fuelRateSnapshot,
 },result.draft.quote);
 writeFileSync(join(outputDir,'apex-current-fuel-draft.html'),html,'utf8');
 writeFileSync(join(outputDir,'apex-current-fuel-draft.json'),JSON.stringify({

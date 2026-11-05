@@ -118,3 +118,20 @@ test('transport 362/L snapshot is priced only after validated rate supplied',()=
   assert.equal(draft.fuelRateSnapshot?.effectiveDate,'2026-11-05');
   assert.equal(draft.fuelRateSnapshot?.geographicBasis,'Pakistan national notified price; Islamabad pump freight excluded');
 });
+
+test('printable fuel-based draft discloses provider and effective date with CC BY credit',()=>{
+  const fuelRate=parseNotifiedPetrolRate({
+    effectiveDate:'2026-11-05',
+    products:[{product:'Motor Spirit (Petrol)',pricePkr:362,unit:'litre'}]
+  },{now:new Date('2026-11-05T12:00:00Z'),sourceUrl:'https://oilprices.pk/api/latest'});
+  const q=buildApexInvoiceDraft({...basic,transport:{
+    requested:true,totalDrivenKm:24,profitBasis:'markup_on_fuel_cost',fuelRate
+  }});
+  const html=renderInvoiceHtml({number:'FUEL-TEST',issuedOn:'2026-11-05',
+    billedTo:'Synthetic',petName:'Synthetic Dog',status:'DRAFT',
+    reviewOnly:true,fuelRateSnapshot:q.fuelRateSnapshot},q.quote);
+  assert.match(html,/OilPrices.pk, CC BY 4.0/);
+  assert.match(html,/Effective: 2026-11-05/);
+  assert.match(html,/Islamabad pump freight not included/);
+  assert.match(html,/NOT PAYABLE/);
+});

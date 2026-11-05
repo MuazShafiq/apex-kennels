@@ -36,7 +36,7 @@ test('upstream outage leaves transport UNPRICED, no silent fixed 400/L fallback'
   assert.equal(x.fuelLookup,'MANUAL_REVIEW_REQUIRED');
   assert.equal(x.draft.quote.totalPkr,7500);
   assert.equal(x.draft.fuelRateSnapshot,undefined);
-  assert.equal(x.draft.quote.lines.filter(l=>l.label.startsWith('Transport')).length,0);
+  assert.equal(x.draft.quote.lines.filter(l=>l.label.startsWith('Pet transport')).length,0);
   assert.ok(x.draft.unresolved.some(s=>s.includes('Fuel lookup unavailable')));
 });
 
@@ -63,6 +63,6 @@ test('caller-supplied stale fuelRate is overwritten by a newly fetched one',asyn
   const x=await buildApexDraftWithFreshFuel({...standard,transport:{
     requested:true,totalDrivenKm:12,profitBasis:'markup_on_fuel_cost',fuelRate:old
   }},async()=>({ok:true,rate}));
-  assert.equal(x.draft.quote.lines.find(l=>l.label.startsWith('Transport'))?.totalPkr,435);
+  assert.equal(x.draft.quote.lines.find(l=>l.label.startsWith('Pet transport'))?.totalPkr,435);
   assert.equal(x.draft.fuelRateSnapshot?.pricePkrPerLitre,362);
 });

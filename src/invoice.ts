@@ -1,4 +1,3 @@
-import type { VerifiedPetrolRate } from './islamabad-petrol-rate.ts';
 import type { Quote } from './pricing.ts';
 
 export type InvoiceView = {
@@ -13,34 +12,91 @@ export type InvoiceView = {
   demo?: boolean;
   /** Internal owner-review copy. Never present as a payment demand. */
   reviewOnly?: boolean;
-  /** Auditable petrol input when the draft includes a transport line. */
-  fuelRateSnapshot?: VerifiedPetrolRate;
 };
 const escapeHtml = (value: string): string => value.replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c] ?? c));
 const money = (value: number) => `PKR ${value.toLocaleString('en-PK')}`;
 /** HTML is printable as PDF now and can be swapped to the Canva-based visual treatment later. */
+/**
+ * Clean, customer-safe A4 invoice. Source rates, maps, petrol, approvals,
+ * medical notes and internal workflow details stay outside the customer PDF.
+ * DRAFT output is internal-only by construction; no shipping integration.
+ */
 export function renderInvoiceHtml(invoice: InvoiceView, quote: Quote): string {
-  const lineRows = quote.lines.map(item => `<tr><td>${escapeHtml(item.label)}</td><td class="center">${item.quantity}</td><td class="right">${money(item.unitPricePkr)}</td><td class="right">${money(item.totalPkr)}</td></tr>`).join('');
-  const discountRows = quote.discounts.map(d => `<div class="total-row"><span>Discount (${escapeHtml(d.label)})</span><strong>− ${money(d.amountPkr)}</strong></div>`).join('');
-  const fuelDisclosure=invoice.fuelRateSnapshot
-    ? '<section class="fuel-note"><strong>TRANSPORT FUEL BASIS (FOR REVIEW)</strong>'
-      + '<p>National notified petrol: '+money(invoice.fuelRateSnapshot.pricePkrPerLitre)
-      + '/litre. Effective: '+escapeHtml(invoice.fuelRateSnapshot.effectiveDate)
-      + '. Checked: '+escapeHtml(invoice.fuelRateSnapshot.retrievedAt)
-      + '. Source: '+escapeHtml(invoice.fuelRateSnapshot.sourceUrl)
-      + '. Fuel price data from OilPrices.pk, CC BY 4.0.'
-      + ' Islamabad pump freight not included; verify route and local pump price before sending.</p></section>'
+  if(invoice.status==='DRAFT' && !invoice.reviewOnly && !invoice.demo) {
+    throw new Error('A draft invoice must be explicitly marked internal-only');
+  }
+  const lineRows=quote.lines.map(line=>
+    '<tr><td class="service">'+escapeHtml(line.label)+'</td>'
+    +'<td class="num">'+line.quantity+'</td>'
+    +'<td class="amount">'+money(line.unitPricePkr)+'</td>'
+    +'<td class="amount">'+money(line.totalPkr)+'</td></tr>'
+  ).join('');
+  const discountRows=quote.discounts.map(d=>
+    '<div class="sumline"><span>Discount ('+escapeHtml(d.label)+')</span>'
+    +'<span>− '+money(d.amountPkr)+'</span></div>'
+  ).join('');
+  // No unapproved bank info or "to be confirmed" placeholders on a customer invoice.
+  const payment=invoice.bankDetails
+    ? '<section class="payment"><h2>Payment details</h2><p>'
+       + escapeHtml(invoice.bankDetails.bankName)+'<br>'
+       + escapeHtml(invoice.bankDetails.accountTitle)+'<br>'
+       + escapeHtml(invoice.bankDetails.iban)+'</p></section>'
     : '';
-  const bank = invoice.bankDetails ? `<div class="payment"><div class="overline">PAYMENT DETAILS</div><p>${escapeHtml(invoice.bankDetails.bankName)}<br>${escapeHtml(invoice.bankDetails.accountTitle)}<br>${escapeHtml(invoice.bankDetails.iban)}</p></div>` : `<div class="payment"><div class="overline">PAYMENT DETAILS</div><p>To be confirmed by Apex Kennels.</p></div>`;
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><title>Invoice ${escapeHtml(invoice.number)}</title><style>
-  @page{size:A4;margin:0}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#17242d;margin:0;background:#fff}main{width:210mm;min-height:297mm;padding:24mm 19mm 20mm;position:relative}.top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #17242d;padding-bottom:27px}.brand{font-weight:800;font-size:25px;letter-spacing:1.9px}.tag{font-size:10px;letter-spacing:2px;color:#66717a;margin-top:8px}.invoice-title{font-size:31px;letter-spacing:1px;margin:0;text-align:right}.status{text-align:right;color:#927247;font-size:11px;margin-top:8px;font-weight:700;letter-spacing:1px}.details{display:flex;justify-content:space-between;margin:32px 0 36px;gap:15px}.overline{font-size:10px;font-weight:700;letter-spacing:1.8px;color:#79828a}.info{margin-top:10px;font-size:14px;line-height:1.7}.right{text-align:right}.center{text-align:center}table{border-collapse:collapse;width:100%;font-size:12px}th{padding:13px 11px;background:#17242d;color:white;font-weight:700;letter-spacing:.7px;font-size:10px;text-align:left}td{padding:14px 11px;border-bottom:1px solid #e7e9eb}.totals{margin:24px 0 0 auto;width:47%}.total-row{display:flex;justify-content:space-between;padding:8px 0;font-size:13px}.total-row.grand{margin-top:12px;border-top:2px solid #17242d;padding-top:17px;font-size:21px;font-weight:800}.payment{margin-top:70px;border-top:1px solid #e7e9eb;padding-top:20px;font-size:12px;line-height:1.8}.footer{position:absolute;left:19mm;right:19mm;bottom:19mm;text-align:center;font-size:11px;color:#6a747b}
-  .fuel-note{font-size:10px;color:#617069;line-height:1.5;margin-top:18px}.fuel-note p{margin:7px 0 0}
-  .demo-ribbon{background:#fff0d7;border:2px solid #ba8d4e;color:#69481b;font-size:13px;letter-spacing:.04em;padding:14px 16px;margin:-10mm 0 15mm;text-align:center;font-weight:800}
-  </style></head><body><main>${invoice.reviewOnly ? '<div class="demo-ribbon">' + (invoice.demo ? 'SYNTHETIC SAMPLE • ' : '') + 'OWNER REVIEW DRAFT • NOT PAYABLE • DO NOT SEND UNTIL APPROVED</div>' : invoice.demo ? '<div class="demo-ribbon">SYNTHETIC EXAMPLE • NOT A PAYABLE INVOICE • RATE UNAPPROVED</div>' : ''}
-  <header class="top"><div><div class="brand">APEX KENNELS</div><div class="tag">BOARDING & PET CARE</div></div><div><h1 class="invoice-title">INVOICE</h1><div class="status">${escapeHtml(invoice.status)}</div></div></header>
-  <section class="details"><div><div class="overline">BILLED TO</div><div class="info">${escapeHtml(invoice.billedTo)}<br>Pet: ${escapeHtml(invoice.petName)}${invoice.petBreed ? `<br>Breed: ${escapeHtml(invoice.petBreed)}` : ''}</div></div><div class="right"><div class="overline">INVOICE DETAILS</div><div class="info"># ${escapeHtml(invoice.number)}<br>${escapeHtml(invoice.issuedOn)}<br>${escapeHtml(quote.startDate)} to ${escapeHtml(quote.endDate)}<br>${quote.billedDays} billable days</div></div></section>
-  <table><thead><tr><th>SERVICE</th><th class="center">QTY</th><th class="right">RATE</th><th class="right">AMOUNT</th></tr></thead><tbody>${lineRows}</tbody></table>
-  <section class="totals"><div class="total-row"><span>Subtotal</span><strong>${money(quote.subtotalPkr)}</strong></div>${discountRows}<div class="total-row grand"><span>Total</span><span>${money(quote.totalPkr)}</span></div></section>
-  ${bank}${fuelDisclosure}<div class="footer">Thank you for choosing Apex Kennels.</div>
-  </main></body></html>`;
+  const note=invoice.reviewOnly || invoice.demo
+    ? '<div class="review-banner">'
+      +(invoice.demo?'SYNTHETIC EXAMPLE · ':'')
+      +'INTERNAL PREVIEW · NOT FOR CUSTOMER DELIVERY</div>'
+    : '';
+  // Only actual PAID invoices carry a payment-status label; APPROVED and SENT
+  // are staff workflow statuses and are never exposed on the document.
+  const paid=invoice.status==='PAID'?' <span class="paid">PAID</span>':'';
+  const fmtDate=(raw:string)=>{
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(raw))return escapeHtml(raw);
+    const date=new Date(raw+'T12:00:00Z');
+    if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==raw)return escapeHtml(raw);
+    return escapeHtml(new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).format(date));
+  };
+  return '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+    +'<meta name="viewport" content="width=device-width,initial-scale=1">'
+    +'<meta name="robots" content="noindex,nofollow"><title>Invoice '
+    +escapeHtml(invoice.number)+'</title><style>'
+    +'@page{size:A4;margin:0}*{box-sizing:border-box}html,body{margin:0}'
+    +'body{font-family:Inter,Arial,Helvetica,sans-serif;background:#edf0ed;color:#1e302b;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'.sheet{width:210mm;min-height:297mm;margin:22px auto;background:#fff;padding:22mm 19mm 20mm;box-shadow:0 12px 40px #19261f15}'
+    +'.review-banner{border:1px solid #b3a37e;background:#f8f5ec;padding:11px 14px;font-size:10px;font-weight:700;letter-spacing:.06em;text-align:center;margin-bottom:24px;color:#6d5b3e}'
+    +'.top{display:flex;align-items:start;justify-content:space-between;gap:24px;padding-bottom:27px;border-bottom:1px solid #dbe1dc}'
+    +'.brand{font-weight:800;letter-spacing:.12em;font-size:20px;color:#182f29}'
+    +'.subtitle{font-size:9px;text-transform:uppercase;letter-spacing:.22em;color:#7a8b83;margin-top:7px}'
+    +'h1{font-size:29px;letter-spacing:-.05em;font-weight:600;margin:0;text-align:right}'
+    +'.invoice-no{margin-top:9px;text-align:right;font-size:12px;color:#61736a}.paid{font-size:10px;color:#286647;font-weight:700;letter-spacing:.1em}'
+    +'.intro{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin:36px 0 36px}'
+    +'.label{font-size:10px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:#85948b}'
+    +'.value{font-size:13px;line-height:1.75;margin-top:10px}.align-right{text-align:right}'
+    +'table{width:100%;border-collapse:collapse;font-size:12px}th{border-bottom:1px solid #becbc1;padding:13px 10px;text-align:left;color:#6a7d70;font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase}'
+    +'td{border-bottom:1px solid #edf0ec;padding:17px 10px;color:#26382e}.service{font-weight:600}.num{text-align:center}.amount{text-align:right;white-space:nowrap}'
+    +'.totals{width:48%;min-width:230px;margin:28px 0 0 auto}.sumline{display:flex;justify-content:space-between;gap:16px;color:#53675c;padding:8px 0;font-size:12px}'
+    +'.grand{border-top:1px solid #afc0b3;margin-top:14px;padding-top:18px;display:flex;justify-content:space-between;gap:16px;align-items:center}'
+    +'.grand span:first-child{font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700}'
+    +'.grand span:last-child{font-size:22px;letter-spacing:-.04em;font-weight:700;white-space:nowrap}'
+    +'.payment{margin-top:46px;border-top:1px solid #edf0ec;padding-top:20px}.payment h2{font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin:0}'
+    +'.payment p{font-size:12px;color:#4c5e54;line-height:1.9;margin:12px 0 0}'
+    +'.footer{margin-top:80px;padding-top:16px;border-top:1px solid #edf0ec;color:#7d8b82;font-size:10px}'
+    +'@media print{body{background:#fff}.sheet{margin:0;box-shadow:none;page-break-after:auto}}'
+    +'@media screen and (max-width:800px){.sheet{width:100%;min-height:100vh;margin:0;padding:34px 20px}.intro{gap:20px}.totals{width:100%}}'
+    +'</style></head><body><main class="sheet">'+note
+    +'<header class="top"><div><div class="brand">APEX KENNELS</div><div class="subtitle">Boarding &amp; pet care</div></div>'
+    +'<div><h1>Invoice'+paid+'</h1><div class="invoice-no"># '+escapeHtml(invoice.number)+'</div></div></header>'
+    +'<section class="intro"><div><div class="label">Billed to</div><div class="value">'
+    +escapeHtml(invoice.billedTo)+'<br>Pet: '+escapeHtml(invoice.petName)
+    +(invoice.petBreed?'<br>Breed: '+escapeHtml(invoice.petBreed):'')+'</div></div>'
+    +'<div class="align-right"><div class="label">Invoice date</div><div class="value">'+fmtDate(invoice.issuedOn)
+    +'</div><div class="label" style="margin-top:16px">Boarding period</div><div class="value">'
+    +fmtDate(quote.startDate)+' – '+fmtDate(quote.endDate)+'</div></div></section>'
+    +'<table><thead><tr><th>Service</th><th class="num">Qty</th><th class="amount">Rate</th>'
+    +'<th class="amount">Amount</th></tr></thead><tbody>'+lineRows+'</tbody></table>'
+    +'<section class="totals"><div class="sumline"><span>Subtotal</span><span>'+money(quote.subtotalPkr)
+    +'</span></div>'+discountRows+'<div class="grand"><span>Total</span><span>'
+    +money(quote.totalPkr)+'</span></div></section>'+payment
+    +'<div class="footer">Thank you for trusting Apex Kennels with your pet.</div>'
+    +'</main></body></html>';
 }

@@ -30,6 +30,8 @@ export type ApexDraftInput = {
   endDate: string;
   cage: 'normal' | 'camera';
   petCount: number;
+  /** Show free grooming only when it was requested or provided. */
+  groomingRequested?: boolean;
   /** Staff-selected applicability; 28/30/31 days are NOT auto-classified. */
   fullMonthPackageSelected: boolean;
   transport?: TransportDraftInput;
@@ -102,10 +104,10 @@ export function buildApexInvoiceDraft(input: ApexDraftInput): ApexDraftQuote {
     unitPricePkr,
     totalPkr: safeMoney(quantity * unitPricePkr)
   };
-  const lines: QuoteLine[] = [
-    boardingLine,
-    {label:'Grooming (included)',quantity:input.petCount,unitPricePkr:0,totalPkr:0}
-  ];
+  const lines: QuoteLine[] = [boardingLine];
+  if (input.groomingRequested === true) {
+    lines.push({label:'Grooming (complimentary)',quantity:input.petCount,unitPricePkr:0,totalPkr:0});
+  }
   const unresolved: string[] = [
     'Fatima reviews and manually sends every customer-facing invoice',
     'Payment account and invoice layout must be approved',
@@ -129,7 +131,7 @@ export function buildApexInvoiceDraft(input: ApexDraftInput): ApexDraftQuote {
     if (km !== undefined && basis && rate) {
       const unitPrice = transportFuelDraftPkr(km,basis,rate.pricePkrPerLitre);
       lines.push({
-        label:'Transport (provisional fuel-based quote; staff review required)',
+        label:'Pet transport',
         quantity:1,unitPricePkr:unitPrice,totalPkr:unitPrice
       });
     } else {
@@ -147,7 +149,7 @@ export function buildApexInvoiceDraft(input: ApexDraftInput): ApexDraftQuote {
     rateVersion:'fatima-confirmed-2026-11-05',
     status:'DRAFT_REVIEW_ONLY',quote,unresolved,
     requiresStaffReview:true,sendAutomatically:false,
-    ...(input.transport?.requested && lines.some(x=>x.label.startsWith('Transport')) && input.transport.fuelRate
+    ...(input.transport?.requested && lines.some(x=>x.label==='Pet transport') && input.transport.fuelRate
       ? {fuelRateSnapshot:{...input.transport.fuelRate}} : {})
   };
 }

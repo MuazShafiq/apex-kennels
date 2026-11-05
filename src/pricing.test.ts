@@ -51,7 +51,7 @@ test('Google form field mapping is configurable, with a required contact',()=>{
 });
 test('invoice rendering escapes customer-controlled markup',()=>{
  const q=calculateQuote(basic,config);
- const html=renderInvoiceHtml({number:'DEMO',issuedOn:'2026-11-03',billedTo:'<script>alert(1)</script>',petName:'Sample',status:'DRAFT'},q);
+ const html=renderInvoiceHtml({number:'DEMO',issuedOn:'2026-11-03',billedTo:'<script>alert(1)</script>',petName:'Sample',status:'DRAFT',reviewOnly:true},q);
  assert.ok(html.includes('&lt;script&gt;'));
  assert.ok(!html.includes('<script>alert(1)</script>'));
 });

@@ -102,31 +102,31 @@ export function renderStaffBookingDetail(b:StaffBookingDetail):string {
     ? b.pets.map(p=>esc(p.name)+(p.breed?' ('+esc(p.breed)+')':'')).join(', ')
     : '<span class="missing">No linked pets</span>';
   const form=b.hasFormDetails
-    ? section('Boarding & pickup',
-        value('Cage preference',b.cameraCageRequested===null?'<span class="missing">Not recorded</span>':b.cameraCageRequested?'Camera cage requested':'Normal cage requested')
-        +value('Pickup / drop-off',yesNo(b.pickupDropoffRequested))
+    ? section('Boarding & transport',
+        value('Requested cage',b.cameraCageRequested===null?'<span class="missing">Not recorded</span>':b.cameraCageRequested?'Camera cage':'Standard cage')
+        +value('Pickup / drop-off requested',yesNo(b.pickupDropoffRequested))
         +value('Owner address',present(b.ownerAddress))
-        +value('Terms acknowledged',yesNo(b.termsAccepted)))
+        +value('Boarding terms accepted',yesNo(b.termsAccepted)))
       +section('Health & emergency',
         value('Vaccination status',present(b.vaccinationStatus))
-        +value('Distemper history',present(b.distemperHistory))
-        +value('Emergency contact',present(b.emergencyContactPhone))
-        +value('Veterinarian phone',present(b.veterinarianPhone))
-        +value('Reported gender',present(b.petGender))
-        +value('Reported age',present(b.petAgeDescription)))
-      +section('Care notes',
-        value('Medication & feeding',present(b.medicationFeedingInstructions))
+        +value('Canine distemper history',present(b.distemperHistory))
+        +value('Emergency contact number',present(b.emergencyContactPhone))
+        +value('Vet phone number',present(b.veterinarianPhone))
+        +value('Pet gender',present(b.petGender))
+        +value('Pet age',present(b.petAgeDescription)))
+      +section('Care instructions',
+        value('Medication and feeding',present(b.medicationFeedingInstructions))
         +value('Special instructions',present(b.specialInstructions))
-        +value('Personality & safety flags',
+        +value('Owner-reported traits and health',
           Object.entries(traitLabels).map(([key,label])=>'<div class="trait">'+esc(label)
-          +': <strong>'+(b.personalityTraits?.[key as PersonalityTrait]===true?'Selected':
-            b.personalityTraits?.[key as PersonalityTrait]===false?'Not selected':'Not recorded')
+          +': <strong>'+(b.personalityTraits?.[key as PersonalityTrait]===true?'Yes':
+            b.personalityTraits?.[key as PersonalityTrait]===false?'No':'Not recorded')
           +'</strong></div>').join('')
-          +'<p class="fine">Not selected does not confirm a medical or behavioural issue is absent. Verify with the owner.</p>'))
-    : '<section class="notice">Detailed Google Form answers are unavailable for this booking. Check the original Form before accepting the animal.</section>';
+          +'<p class="fine">Yes / No reflects the owner's answers, not a medical assessment.</p>'))
+    : '<section class="notice">Full boarding details are missing. Check the original Google Form before confirming this stay.</section>';
   return '<!doctype html><html lang="en"><head><meta charset="utf-8">'
    +'<meta name="viewport" content="width=device-width,initial-scale=1">'
-   +'<meta name="robots" content="noindex,nofollow"><title>Apex | Booking review</title>'
+   +'<meta name="robots" content="noindex,nofollow"><title>Apex | Booking details</title>'
    +'<style>:root{font:14px/1.55 Inter,ui-sans-serif,system-ui,sans-serif;color:#19362b;background:#f4f6f3}'
    +'*{box-sizing:border-box}body{margin:0}.wrap{max-width:1060px;margin:36px auto;padding:0 20px}'
    +'a{color:#23644a;text-decoration:underline;text-underline-offset:3px}h1{font-size:clamp(29px,5vw,46px);letter-spacing:-.055em;line-height:1.1;margin:14px 0}'
@@ -139,20 +139,20 @@ export function renderStaffBookingDetail(b:StaffBookingDetail):string {
    +'.actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.action{background:#1e4937;color:white;border-radius:8px;text-decoration:none;padding:12px 16px;font-size:12px;font-weight:700}'
    +'@media(max-width:620px){.detail-grid{grid-template-columns:1fr}.panel{padding:18px}}</style></head><body>'
    +'<main class="wrap"><a href="/staff">← Booking queue</a>'
-   +'<p class="tag" style="margin-top:30px">Apex Kennels / Private staff review</p>'
-   +'<h1>Booking details.</h1>'
-   +'<div class="banner">'+(b.isSynthetic?'SYNTHETIC TEST RECORD · NEVER CONTACT CUSTOMER':'REQUEST ONLY · NOT CONFIRMED FOR BOARDING')+'</div>'
+   +'<p class="tag" style="margin-top:30px">Apex Kennels / Staff</p>'
+   +'<h1>Booking details</h1>'
+   +'<div class="banner">'+(b.isSynthetic?'TEST RECORD · DO NOT CONTACT':'STAFF VIEW · READ ONLY')+'</div>'
    +'<section class="panel"><h2>'+esc(b.customerName)+'</h2><dl class="detail-grid">'
-   +value('Booking ID',esc(b.id))+value('Status',esc(b.status))
-   +value('Stay',esc(b.startDate)+' → '+esc(b.endDate))
-   +value('Submitted',esc(b.createdAt))
+   +value('Booking ID',esc(b.id))+value('Booking status',esc(b.status))
+   +value('Requested dates',esc(b.startDate)+' → '+esc(b.endDate))
+   +value('Received',esc(b.createdAt))
    +value('Pets',petText)
-   +value('Accommodation assigned',present(b.accommodationType))
-   +value('Customer phone',present(b.phone))
-   +value('Customer email',present(b.email))
+   +value('Assigned accommodation',present(b.accommodationType))
+   +value('Owner phone',present(b.phone))
+   +value('Owner email',present(b.email))
    +'</dl></section>'+form
-   +'<div class="actions"><a class="action" href="/staff/draft?id='+encodeURIComponent(b.id)+'">Review boarding estimate</a>'
+   +'<div class="actions"><a class="action" href="/staff/draft?id='+encodeURIComponent(b.id)+'">Review price estimate</a>'
    +'<a href="/staff">Back to bookings</a></div>'
-   +'<p class="fine">Private customer and animal-care information. Read-only. Verify critical health and safety information with the owner. No booking approval, invoice, email or payment is created here.</p>'
+   +'<p class="fine">Owner-reported details. Confirm health and safety information before accepting a booking. Nothing is approved or sent from this page.</p>'
    +'</main></body></html>';
 }

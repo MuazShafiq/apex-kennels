@@ -32,15 +32,15 @@ Retain source fuel, notified rate, effective date, retrieval time, selected 20% 
 6. The quote service uses the route's **total vehicle km**, not straight-line map distance, and fetches the fresh notified petrol baseline only after a valid route is available. Fatima reviews local pump/freight adjustments, actual driver operations and margin versus markup before sending an invoice.
 7. If pins or route fail verification, transport remains unpriced and the customer invoice remains pending review.
 
-### Full booking website (future)
+### Customer booking website (preview implemented, not live)
 
-Replace the WhatsApp step with a **customer location picker** on the website: geolocate/search → move the map pin to the specific collection gate → explicitly confirm address and contact phone. Store numeric coordinates and original text separately. Staff can correct pins; routes never silently trust a geocoded address. Do not retrofit a fake map question into the existing Google Form in the middle of a live intake workflow.
+The replacement customer form uses a one-tap device-location option or Google Maps Share → Copy link. The Worker extracts an exact pin without running another place-search API. The mobile acceptance check is [issue #37](https://github.com/MuazShafiq/apex-kennels/issues/37); submissions stay disabled until the other release checks pass. The original Google Form remains live. Staff must still confirm vehicle access before transport pricing.
 
 ### Provider choice
 
 - **Geoapify Routing** free plan permits commercial use with attribution and currently lists **3,000 daily credits, up to 5 requests/sec**, no card required. 2-waypoint route legs cost credits; a kennel/customer/kennel route uses two waypoint pairs. `https://www.geoapify.com/pricing/`, `https://apidocs.geoapify.com/docs/routing/`.
 - **Google Routes Essentials** lists **10,000 requests/month free usage cap**, but requires Google Cloud billing enabled and controlled quotas. Compare actual Islamabad routes once the kennel pin is supplied; if OpenStreetMap-based road routing around gated societies is unreliable, swap the route provider rather than shipping wrong distances. `https://developers.google.com/maps/billing-and-pricing/pricing`.
-- No map provider has been configured. `src/transport-route.ts` and `src/transport-quote-from-pins.ts` are **server-side candidate implementations**, tested with synthetic pins and mocked HTTP, not live route lookups. API key must be kept in Cloudflare secrets, not sent to the browser or Google Form.
+- `src/transport-route.ts` and `src/transport-quote-from-pins.ts` are **server-side review-only routing candidates**, tested with synthetic pins and mocked HTTP, not approved customer charges. API key must be kept in Cloudflare secrets, not sent to the browser or Google Form.
 - Location coordinates can be sensitive. Customer disclosure and staff access controls must cover transmission to the mapping provider.
 
 ## Immediate open input

@@ -4,7 +4,7 @@
  */
 export type PlaceSuggestion={label:string;latitude:number;longitude:number};
 export function parsePlaceQuery(url:URL):string{
-  if([...url.searchParams.keys()].some(x=>x!=='q')||url.searchParams.getAll('q').length!==1)
+  if([...url.searchParams.keys()].some(x=>x!=='q'&&x!=='area')||url.searchParams.getAll('q').length!==1||url.searchParams.getAll('area').length>1)
     throw new Error('Invalid search');
   const query=(url.searchParams.get('q')??'').trim().replace(/\s+/g,' ');
   if(query.length<3||query.length>90||/[\u0000-\u001f\u007f]/.test(query))

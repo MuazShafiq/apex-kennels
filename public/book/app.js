@@ -2,20 +2,16 @@
   'use strict';
   const form=document.getElementById('booking');
   const transport=document.getElementById('transport');
-  const placeSearch=document.getElementById('place-search');
-  const placeResults=document.getElementById('place-results');
-  const searchStatus=document.getElementById('search-status');
-  const locationStatus=document.getElementById('coordinate-status');
+  const mapsLink=document.getElementById('maps-link');
+  const status=document.getElementById('coordinate-status');
+  const selectedLink=document.getElementById('selected-location-link');
   const message=document.getElementById('message');
   const submit=document.getElementById('submit');
   const preview=document.getElementById('preview');
-  let map=null,marker=null,point=null,challenge=null,turnstileId=null;
-  let searchTimer=null,searchAbort=null,searchVersion=0;
-  const searchCache=new Map();
   const SERVICE_BOUNDS=[[72.81,33.43],[73.30,33.84]];
-  const cleanQuery=value=>value.replace(/\bU\s*\.\s*S\s*\./gi,'US').replace(/\bU\s*\.\s*S\b/gi,'US').replace(/\s+/g,' ').trim();
   const requestId=crypto.randomUUID();
   const traitNames=['friendly','fears','climber','foodSensitivities','barksExcessively','allergies','biteHistory','medicalConditions'];
+  let point=null,challenge=null,turnstileId=null,lookupVersion=0,lookupTimer=null;
 
   function showMessage(text,bad){
     message.textContent=text;
@@ -26,184 +22,87 @@
     return form.querySelector('input[name="transportChoice"]:checked')?.value||'none';
   }
   function selectedTransport(){return transportChoice()!=='none';}
-  function putPoint(latitude,longitude){
-    if(!Number.isFinite(latitude)||!Number.isFinite(longitude)||
-       latitude<SERVICE_BOUNDS[0][1]||latitude>SERVICE_BOUNDS[1][1]||
-       longitude<SERVICE_BOUNDS[0][0]||longitude>SERVICE_BOUNDS[1][0]){
-      searchStatus.textContent='Pickup and drop-off are available only in Islamabad and Rawalpindi.';
-      return;
+  function inServiceArea(latitude,longitude){
+    return Number.isFinite(latitude)&&Number.isFinite(longitude)&&
+      latitude>=SERVICE_BOUNDS[0][1]&&latitude<=SERVICE_BOUNDS[1][1]&&
+      longitude>=SERVICE_BOUNDS[0][0]&&longitude<=SERVICE_BOUNDS[1][0];
+  }
+  function unsetPoint(text){
+    point=null;
+    selectedLink.hidden=true;
+    selectedLink.removeAttribute('href');
+    status.textContent=text||'No location selected';
+  }
+  function putPoint(latitude,longitude,source){
+    if(!inServiceArea(latitude,longitude)){
+      unsetPoint('Pickup and drop-off are available only in Islamabad and Rawalpindi.');
+      return false;
     }
-    point={latitude:Math.round(latitude*1e7)/1e7,longitude:Math.round(longitude*1e7)/1e7};
-    if(!marker && map){
-      marker=new maplibregl.Marker({draggable:true,color:'#b86c45'})
-        .setLngLat([point.longitude,point.latitude]).addTo(map);
-      marker.on('dragend',function(){
-        const p=marker.getLngLat();putPoint(p.lat,p.lng);
-      });
-    }else if(marker){
-      marker.setLngLat([point.longitude,point.latitude]);
-    }
-    locationStatus.textContent='Location chosen · Drag the pin to adjust';
+    point={latitude:Math.round(latitude*1e7)/1e7,
+      longitude:Math.round(longitude*1e7)/1e7};
+    status.textContent=source+' location added';
+    selectedLink.href='https://www.google.com/maps/search/?api=1&query='+
+      encodeURIComponent(point.latitude+','+point.longitude);
+    selectedLink.hidden=false;
+    return true;
   }
   function displayTransport(){
-    const required=selectedTransport();
-    transport.hidden=!required;
-    if(!required){
-      closeSuggestions();
-      if(searchAbort)searchAbort.abort();
-    }
-    if(required&&!map){
-      if(!window.maplibregl){
-        showMessage('Map could not load. Please try again when connected.',true);
-        return;
-      }
-      map=new maplibregl.Map({
-        container:'map',
-        style:'https://tiles.openfreemap.org/styles/liberty',
-        center:[73.0479,33.6844],
-        maxBounds:SERVICE_BOUNDS,
-        zoom:10
-      });
-      map.addControl(new maplibregl.NavigationControl({showCompass:false}),'top-right');
-      map.on('click',function(e){
-        putPoint(e.lngLat.lat,e.lngLat.lng);
-        placeSearch.value='';
-        searchStatus.textContent='Pin placed on the map.';
-        closeSuggestions();
-      });
-    }
-    if(map&&required)map.resize();
+    transport.hidden=!selectedTransport();
   }
-  form.querySelectorAll('input[name="transportChoice"]').forEach(function(el){
+  form.querySelectorAll('input[name="transportChoice"]').forEach(el=>{
     el.addEventListener('change',displayTransport);
   });
-  function closeSuggestions(){
-    placeResults.hidden=true;
-    placeResults.replaceChildren();
-    placeSearch.setAttribute('aria-expanded','false');
-  }
-  function renderPlaces(items){
-    closeSuggestions();
-    if(!items.length){
-      searchStatus.textContent='No matching places in Islamabad or Rawalpindi. Try a different name or tap the map.';
-      return;
-    }
-    const list=document.createDocumentFragment();
-    items.forEach(function(place){
-      const button=document.createElement('button');
-      button.type='button';
-      button.setAttribute('role','option');
-      button.textContent=place.label;
-      button.addEventListener('click',async function(){
-        closeSuggestions();
-        searchStatus.textContent='Locating the selected place…';
-        let selected=place;
-        try{
-          if(place.placeId&&place.placeType){
-            const url='/api/book/place?type='+encodeURIComponent(place.placeType)+
-              '&id='+encodeURIComponent(place.placeId);
-            const response=await fetch(url,{credentials:'omit',cache:'no-store'});
-            if(!response.ok){
-              const body=await response.json().catch(()=>null);
-              if(body?.code==='OUT_OF_SERVICE_AREA')
-                throw new Error('Transport is available only in Islamabad and Rawalpindi.');
-              throw new Error('Place lookup failed');
-            }
-            const body=await response.json();
-            selected=body.place;
-          }
-          if(typeof selected.latitude!=='number'||typeof selected.longitude!=='number')
-            throw new Error('Place has no coordinates');
-          putPoint(selected.latitude,selected.longitude);
-          if(map)map.flyTo({center:[selected.longitude,selected.latitude],zoom:16});
-          placeSearch.value=place.label;
-          searchStatus.textContent='Place found. Drag the pin if the entrance is elsewhere.';
-        }catch(error){
-          searchStatus.textContent=error.message==='Transport is available only in Islamabad and Rawalpindi.'
-            ?error.message
-            :'Could not locate that result. Try another place or tap the map.';
-        }
-      });
-      list.append(button);
-    });
-    placeResults.append(list);
-    placeResults.hidden=false;
-    placeSearch.setAttribute('aria-expanded','true');
-    searchStatus.textContent=items.length+' matching place'+(items.length===1?'':'s');
-  }
-  async function queryPlaces(query,version){
-    if(searchAbort)searchAbort.abort();
-    const controller=new AbortController();
-    searchAbort=controller;
+  async function resolveMapsLink(value,version){
+    if(!value)return;
     try{
-      const response=await fetch('/api/book/places?q='+encodeURIComponent(query),{
-        credentials:'omit',signal:controller.signal,cache:'no-store'
+      const response=await fetch('/api/book/location',{
+        method:'POST',credentials:'omit',cache:'no-store',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({link:value})
       });
-      if(version!==searchVersion)return;
+      if(version!==lookupVersion)return;
       const data=await response.json();
-      if(version!==searchVersion)return;
-      if(!response.ok)throw new Error(data?.code==='RATE_LIMITED'?'RATE_LIMITED':'SEARCH_FAILED');
-      if(!Array.isArray(data.items))throw new Error('SEARCH_FAILED');
-      searchCache.set(query,data);
-      if(searchCache.size>20)searchCache.delete(searchCache.keys().next().value);
-      if(data.attribution==='TomTom'){
-        const credit=document.getElementById('place-credit');
-        credit.textContent='TomTom';
-        credit.href='https://www.tomtom.com/';
+      if(version!==lookupVersion)return;
+      if(!response.ok){
+        unsetPoint(data?.error||'That link has no precise location. Share a dropped pin in Google Maps.');
+        return;
       }
-      renderPlaces(data.items);
-    }catch(error){
-      if(version!==searchVersion||error.name==='AbortError')return;
-      closeSuggestions();
-      searchStatus.textContent=error.message==='RATE_LIMITED'
-        ?'Search is busy. Try again in a moment, or tap the map.'
-        :'Search could not load. Try again, or tap the map.';
+      putPoint(data.latitude,data.longitude,'Google Maps');
+    }catch{
+      if(version===lookupVersion)
+        unsetPoint('Could not read that link. Try pasting it again.');
     }
   }
-  placeSearch.addEventListener('input',function(){
-    const query=cleanQuery(placeSearch.value);
-    searchVersion++;
-    clearTimeout(searchTimer);
-    if(searchAbort)searchAbort.abort();
-    closeSuggestions();
-    if(query.length<3){
-      searchStatus.textContent='Type at least 3 characters, or tap the map.';
-      return;
-    }
-    searchStatus.textContent='Searching…';
-    const version=searchVersion;
-    if(searchCache.has(query)){
-      const cached=searchCache.get(query);
-      if(cached.attribution==='TomTom'){
-        const credit=document.getElementById('place-credit');
-        credit.textContent='TomTom';credit.href='https://www.tomtom.com/';
-      }
-      renderPlaces(cached.items);
-      return;
-    }
-    searchTimer=setTimeout(function(){queryPlaces(query,version);},750);
+  function handleLinkInput(){
+    lookupVersion++;
+    clearTimeout(lookupTimer);
+    const value=mapsLink.value.trim();
+    unsetPoint(value?'Reading location link…':'No location selected');
+    if(!value)return;
+    const version=lookupVersion;
+    lookupTimer=setTimeout(()=>resolveMapsLink(value,version),500);
+  }
+  mapsLink.addEventListener('input',handleLinkInput);
+  // Mobile paste sometimes fires an input event asynchronously.
+  mapsLink.addEventListener('change',()=>{
+    if(mapsLink.value.trim() && !point)handleLinkInput();
   });
-  placeSearch.addEventListener('keydown',function(event){
-    if(event.key==='Escape')closeSuggestions();
-    if(event.key==='ArrowDown'&&!placeResults.hidden){
-      const first=placeResults.querySelector('button');
-      if(first){event.preventDefault();first.focus();}
-    }
-  });
-  document.addEventListener('click',function(e){
-    if(!e.target.closest('.place-search'))closeSuggestions();
-  });
-
   document.getElementById('locate').addEventListener('click',function(){
+    lookupVersion++;
+    clearTimeout(lookupTimer);
+    mapsLink.value='';
     if(!navigator.geolocation){
-      showMessage('Location services are unavailable. Tap the map instead.',true);return;
+      unsetPoint('Device location is unavailable. Use a Google Maps link.');
+      return;
     }
+    const version=lookupVersion;
+    unsetPoint('Finding your location…');
     navigator.geolocation.getCurrentPosition(function(result){
-      const {latitude,longitude}=result.coords;
-      putPoint(latitude,longitude);
-      if(map&&point)map.flyTo({center:[point.longitude,point.latitude],zoom:16});
+      if(version!==lookupVersion)return;
+      putPoint(result.coords.latitude,result.coords.longitude,'Current');
     },function(){
-      showMessage('Location permission was not granted. Tap the map to place your pin.',true);
+      if(version===lookupVersion)
+        unsetPoint('Location permission was not granted. Use a Google Maps link instead.');
     },{enableHighAccuracy:true,timeout:12000,maximumAge:0});
   });
 
@@ -220,8 +119,8 @@
     const choice=transportChoice();
     const needsTransport=choice!=='none';
     if(needsTransport&&!point){
-      placeSearch.focus();
-      throw new Error('Search for a location or drop a pin on the map.');
+      mapsLink.focus();
+      throw new Error('Use your current location or paste a Google Maps location link.');
     }
     const details={
       ownerAddress:field(data,'ownerAddress'),

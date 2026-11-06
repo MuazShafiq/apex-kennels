@@ -47,6 +47,6 @@ test('staff page displays numeric pin but never repeats pasted raw link',()=>{
 });
 test('failed pin shows a human instruction without guessing location',()=>{
   const page=renderStaffPinChecker({ok:false,reason:'NOT_EXACT_PIN'});
-  assert.match(page,/Couldn't read that location link/);
+  assert.match(page,/Unable to read that location link/);
   assert.doesNotMatch(page,/<script/);
 });

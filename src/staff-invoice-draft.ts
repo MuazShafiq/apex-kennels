@@ -1,6 +1,7 @@
 import {Client} from '@neondatabase/serverless';
 import {buildApexInvoiceDraft,type ApexDraftQuote} from './apex-invoice-draft.ts';
 import {countBilledDays} from './pricing.ts';
+import {renderInvoiceHtml} from './invoice.ts';
 
 export type StaffInvoiceSource={
   bookingId:string;
@@ -128,6 +129,27 @@ export function prepareStaffDraftReview(
   return {booking:source,packageChoice,draft,issues,previewOnly:true,canSend:false,canApprove:false};
 }
 
+/**
+ * Staff-only printable review copy. This has no official invoice number,
+ * bank details, approval or sending action. Deliberately refuse incomplete
+ * transport pricing and unapproved monthly package eligibility.
+ */
+export function renderPrintableStaffReview(review:StaffDraftReview,reviewDate:string):string{
+  if(!review.draft||review.booking.transportRequested||review.packageChoice!=='daily')
+    throw new Error('A complete daily boarding-only estimate is required');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(reviewDate))
+    throw new Error('Invalid review date');
+  return renderInvoiceHtml({
+    number:'REVIEW-'+review.booking.bookingId.slice(0,8).toUpperCase(),
+    issuedOn:reviewDate,
+    billedTo:review.booking.customerName,
+    petName:review.booking.petNames,
+    status:'DRAFT',
+    reviewOnly:true,
+    demo:review.booking.synthetic
+  },review.draft.quote);
+}
+
 function esc(v:string):string{
   return v.replace(/[&<>"']/g,c=>({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -179,7 +201,11 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
         +'<th class="number">Rate</th><th class="number">Subtotal</th></tr></thead><tbody>'
         +rows+'</tbody></table><div class="sum"><span>'
         +(source.transportRequested?'Boarding-only estimate · transport excluded':'Provisional subtotal')
-        +'</span><span>'+pkr(review.draft.quote.totalPkr)+'</span></div></div>'
+        +'</span><span>'+pkr(review.draft.quote.totalPkr)+'</span></div>'
+        +(site==='staff'&&!source.transportRequested&&review.packageChoice==='daily'
+          ?'<p><a href="/staff/draft?id='+encodeURIComponent(source.bookingId)
+            +'&amp;package=daily&amp;format=print">View printable review copy</a></p>':'')
+        +'</div>'
       : '<div class="panel"><strong>Estimate unavailable.</strong><p>Resolve the issues below.</p></div>')
     +'<div class="panel"><div class="tag">Needs attention</div><ul>'
     +issueHtml+'</ul><p class="muted">Invoice creation and payment are not available here.</p></div>'

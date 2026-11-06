@@ -1,3 +1,5 @@
+import {isTransportServiceLocation} from './transport-service-area.ts';
+
 /**
  * Route planning ONLY from operator-verified coordinates.
  * Never geocode an unstructured text address into a billable distance.
@@ -31,7 +33,7 @@ export type RouteEstimate={
 };
 export type RouteResult=
   | {ok:true;estimate:RouteEstimate}
-  | {ok:false;reason:'PINS_NOT_VERIFIED'|'ACCESS_WAYPOINT_NOT_VERIFIED'|'ROUTE_NOT_AVAILABLE'|'INVALID_VISITS';detail:string};
+  | {ok:false;reason:'PINS_NOT_VERIFIED'|'OUT_OF_SERVICE_AREA'|'ACCESS_WAYPOINT_NOT_VERIFIED'|'ROUTE_NOT_AVAILABLE'|'INVALID_VISITS';detail:string};
 
 type Fetcher=typeof fetch;
 function validPakistanCoordinate(p:GeoPin|undefined):p is GeoPin{
@@ -77,6 +79,12 @@ export async function routeApexTransport(
      !validPakistanCoordinate(input.kennelPin)||!validPakistanCoordinate(input.customerPin)){
     return {ok:false,reason:'PINS_NOT_VERIFIED',
       detail:'Get the exact kennel entrance pin and a customer-approved pickup/drop-off pin before routing'};
+  }
+  // The legacy Form may contain unverified out-of-area transport requests.
+  // Never turn one into a priced route, even if staff can inspect its pin.
+  if(!isTransportServiceLocation(input.customerPin.lat,input.customerPin.lon)){
+    return {ok:false,reason:'OUT_OF_SERVICE_AREA',
+      detail:'Pickup and drop-off are available only within Islamabad and Rawalpindi'};
   }
   if(!input.kennelAccessWaypointConfirmed || !validPakistanCoordinate(input.kennelAccessWaypoint)) {
     return {ok:false,reason:'ACCESS_WAYPOINT_NOT_VERIFIED',

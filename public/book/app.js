@@ -115,6 +115,11 @@
       const data=await response.json();
       if(version!==searchVersion)return;
       if(!Array.isArray(data.items))throw new Error('Invalid search results');
+      if(data.attribution==='TomTom'){
+        const credit=document.getElementById('place-credit');
+        credit.textContent='TomTom';
+        credit.href='https://www.tomtom.com/';
+      }
       renderPlaces(data.items);
     }catch(error){
       if(version!==searchVersion||error.name==='AbortError')return;

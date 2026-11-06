@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { IntakeError, parseIntake, type IntakeRequest } from './intake.ts';
 import {parsePublicBookingEnvelope,verifyBookingChallenge} from './public-booking.ts';
 import {parsePlaceQuery,searchPakistaniPlaces,type PlaceSuggestion} from './location-suggestions.ts';
-import {suggestTomTomPlaces,resolveTomTomPlace,TomTomPlacesError,type TomTomSuggestion} from './tomtom-places.ts';
+import {suggestTomTomPlaces,resolveTomTomPlace,TomTomPlacesError,validPlaceSearchArea,type PlaceSearchArea,type TomTomSuggestion} from './tomtom-places.ts';
 import { persistBookingWithNeon } from './neon-worker-db.ts';
 import type { SavedBooking } from './booking-store.ts';
 import {listStaffBookings,parseStaffFilter,syntheticBookings, type StaffBooking, type StaffFilter} from './staff-bookings.ts';
@@ -31,7 +31,7 @@ export type StaffList = (databaseUrl: string, filter: StaffFilter) => Promise<St
 export type StaffContext = {access?: {aud: string; getIdentity(): Promise<{email?:string}|null>}};
 export type StaffDraftReader=(databaseUrl:string,bookingId:string)=>Promise<StaffInvoiceSource|null>;
 export type StaffDetailReader=(databaseUrl:string,bookingId:string)=>Promise<StaffBookingDetail|null>;
-export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; searchPlaces?:(query:string,key:string)=>Promise<PlaceSuggestion[]>; suggestPlaces?:(query:string,key:string)=>Promise<TomTomSuggestion[]>; resolvePlace?:(type:TomTomSuggestion['placeType'],id:string,key:string)=>Promise<PlaceSuggestion>};
+export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; searchPlaces?:(query:string,key:string)=>Promise<PlaceSuggestion[]>; suggestPlaces?:(query:string,key:string,area:PlaceSearchArea)=>Promise<TomTomSuggestion[]>; resolvePlace?:(type:TomTomSuggestion['placeType'],id:string,key:string)=>Promise<PlaceSuggestion>};
 
 async function authorizedStaff(env: WorkerEnv, context?: StaffContext): Promise<string|null> {
   if (!env.STAFF_ACCESS_AUD || !env.STAFF_ALLOWED_EMAILS || context?.access?.aud!==env.STAFF_ACCESS_AUD) return null;
@@ -139,18 +139,35 @@ export async function handleWorkerRequest(
     if(request.method!=='GET')return json({error:'Method not allowed'},405,{Allow:'GET'});
     if(!env.TOMTOM_API_KEY&&!env.GEOAPIFY_API_KEY)return json({error:'Location search unavailable'},503);
     let query:string;
-    try{query=parsePlaceQuery(new URL(request.url));}
-    catch{return json({error:'Enter at least three characters'},400);}
+    let area:PlaceSearchArea;
+    try{
+      const url=new URL(request.url);
+      query=parsePlaceQuery(url);
+      const requestedArea=url.searchParams.get('area')??'islamabad';
+      if(!validPlaceSearchArea(requestedArea))throw new Error('Invalid search area');
+      area=requestedArea;
+    }catch{return json({error:'Check your search and area',code:'BAD_QUERY'},400);}
     try{
       const usingTomTom=!!env.TOMTOM_API_KEY;
       const items=usingTomTom
-        ?await (staff.suggestPlaces??suggestTomTomPlaces)(query,env.TOMTOM_API_KEY!)
+        ?await (staff.suggestPlaces??((q,k,a)=>suggestTomTomPlaces(q,k,fetch,a)))(
+            query,env.TOMTOM_API_KEY!,area)
         :await (staff.searchPlaces??searchPakistaniPlaces)(query,env.GEOAPIFY_API_KEY!);
-      return json({items,attribution:usingTomTom?'TomTom':'Geoapify · OpenStreetMap contributors'});
+      return json({items,attribution:usingTomTom?'TomTom':'Geoapify · OpenStreetMap contributors',area});
     }catch(error){
-      if(error instanceof TomTomPlacesError&&error.status===429)
-        return json({error:'Search is busy. Please try again shortly.',code:'RATE_LIMITED'},429,{'Retry-After':'2'});
-      return json({error:'Location search unavailable',code:error instanceof TomTomPlacesError&&error.status===403?'PROVIDER_ACCESS':'PROVIDER_ERROR'},502);
+      if(error instanceof TomTomPlacesError){
+        // Do not log location queries, response bodies or credentials.
+        console.warn('Apex place search provider status',error.status);
+        if(error.status===429)
+          return json({error:'Search is busy. Please try again shortly.',code:'RATE_LIMITED'},429,{'Retry-After':'2'});
+        if(error.status===403)
+          return json({error:'Place search service is not authorized',code:'PROVIDER_ACCESS'},502);
+        if(error.status===400)
+          return json({error:'Place search provider rejected the request',code:'PROVIDER_REJECTED'},502);
+        return json({error:'Place search provider unavailable',code:'PROVIDER_ERROR'},502);
+      }
+      console.warn('Apex place search request failed');
+      return json({error:'Place search could not connect',code:'NETWORK_ERROR'},502);
     }
   }
   if(path==='/api/book/place'){

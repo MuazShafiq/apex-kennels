@@ -23,7 +23,7 @@
         <span class="eyebrow">A stay worth planning properly</span>
         <h1>Tell us about<br><em>your dog.</em></h1>
       </div>
-      <p>Choose the dates, share their needs, and, if you need transport, mark your pickup point on the map. We'll review everything before confirming.</p>
+      <div class="intro"><p>Safe, comfortable boarding from <strong>Rs. 2,500/day.</strong> Tell us about your dog and we’ll take care of the details.</p><ul class="benefits"><li>Two meals every day</li><li>Morning and evening playtime, matched to your dog</li><li>Weekly vet check-ups</li><li>Optional camera cage with 24/7 CCTV</li></ul></div>
     </div>
     <div class="preview" id="preview">This form is being prepared. Booking submissions are not enabled here yet. Please use the existing booking Form.</div>
     <form id="booking">
@@ -35,7 +35,7 @@
           <label>Email (optional) <input name="email" type="email" autocomplete="email" maxlength="254"></label>
           <label>Home address <input name="ownerAddress" autocomplete="street-address" maxlength="600" required></label>
           <label>Boarding start date <input name="startDate" type="date" required></label>
-          <label>Boarding end date <input name="endDate" type="date" required></label>
+          <label>Last boarding day <input name="endDate" type="date" required></label>
           <label>Emergency contact number <input name="emergencyContactPhone" type="tel" maxlength="120" required></label>
         </div>
       </section>
@@ -53,53 +53,56 @@
               <option>Partially vaccinated</option><option>None</option>
             </select>
           </label>
-          <label>Has your dog ever been diagnosed with canine distemper?
-            <select name="distemperHistory" required><option value="">Choose one</option><option>Yes</option><option>No</option><option>Not Sure</option></select>
-          </label>
+          <fieldset class="field-choice"><legend>Has your dog ever had canine distemper?</legend><div class="choice-row">
+            <label class="option"><input type="radio" name="distemperHistory" value="Yes" required><span>Yes</span></label>
+            <label class="option"><input type="radio" name="distemperHistory" value="No"><span>No</span></label>
+            <label class="option"><input type="radio" name="distemperHistory" value="Not Sure"><span>Not sure</span></label>
+          </div></fieldset>
           <label>Vet phone (optional) <input name="veterinarianPhone" type="tel" maxlength="120"></label>
-          <fieldset class="choice"><legend>Camera cage requested?</legend>
-            <label><input type="radio" name="cameraCageRequested" value="yes" required> Yes</label>
-            <label><input type="radio" name="cameraCageRequested" value="no"> No</label>
-          </fieldset>
+          <fieldset class="field-choice wide"><legend>Choose your boarding space</legend><div class="choice-cards">
+            <label class="option option-card"><input type="radio" name="cameraCageRequested" value="no" required><span><strong>Standard boarding</strong><small>Daily care and playtime</small></span></label>
+            <label class="option option-card"><input type="radio" name="cameraCageRequested" value="yes"><span><strong>Camera cage</strong><small>24/7 CCTV access</small></span></label>
+          </div></fieldset>
         </div>
       </section>
       <section class="panel">
-        <div class="step-heading"><span class="step">03</span><div><h2>Transport</h2><p>We can plan the drive if you need pickup or drop-off.</p></div></div>
-        <fieldset class="choice"><legend>Do you need pickup or drop-off?</legend>
-          <label><input type="radio" name="pickupDropoffRequested" value="yes" required> Yes</label>
-          <label><input type="radio" name="pickupDropoffRequested" value="no"> No</label>
-        </fieldset>
+        <div class="step-heading"><span class="step">03</span><div><h2>Transport</h2><p>We can collect or bring your dog home.</p></div></div>
+        <fieldset class="field-choice"><legend>What would you like?</legend><div class="choice-cards transport-choices">
+          <label class="option option-card"><input type="radio" name="transportChoice" value="none" required><span><strong>No transport</strong></span></label>
+          <label class="option option-card"><input type="radio" name="transportChoice" value="pickup"><span><strong>Pickup</strong></span></label>
+          <label class="option option-card"><input type="radio" name="transportChoice" value="dropoff"><span><strong>Drop-off</strong></span></label>
+          <label class="option option-card"><input type="radio" name="transportChoice" value="both"><span><strong>Both</strong><small>Same address</small></span></label>
+        </div></fieldset>
         <div id="transport" class="transport" hidden>
-          <label>What do you need?
-            <select name="service" id="service">
-              <option value="">Choose one</option>
-              <option value="pickup">Pickup only</option>
-              <option value="dropoff">Drop-off only</option>
-              <option value="both">Pickup and drop-off, same location</option>
-            </select>
-          </label>
-          <h3>Where should our driver arrive?</h3>
-          <p>Tap the map to drop your pin on the exact entrance. Drag it to make adjustments. If you're at that location, use your device's location instead.</p>
-          <div id="map" role="application" aria-label="Choose pickup or drop-off entrance on a map"></div>
-          <div class="mapbar">
-            <button type="button" class="secondary" id="locate">Use my current location</button>
-            <span id="coordinate-status" aria-live="polite">No location chosen</span>
+          <h3>Where should we come?</h3>
+          <p>Search for a street, area, or landmark. Choose a result, then move the pin to your gate.</p>
+          <div class="place-search">
+            <label for="place-search">Search for an address or place</label>
+            <input id="place-search" type="search" autocomplete="off" spellcheck="false"
+              placeholder="Street, landmark or neighbourhood" role="combobox"
+              aria-autocomplete="list" aria-expanded="false" aria-controls="place-results">
+            <div id="place-results" class="suggestions" role="listbox" hidden></div>
+            <p id="search-status" class="search-status" aria-live="polite">Or tap anywhere on the map.</p>
           </div>
-          <label class="confirm"><input type="checkbox" id="confirm-gate"> This pin is the correct entrance for pickup or drop-off.</label>
-          <p class="fineprint">The location helps us calculate a driving route. Transport cost is confirmed separately. If pickup and drop-off use different addresses, tell Apex when we contact you.</p>
+          <div id="map" role="application" aria-label="Map to adjust the exact pickup or drop-off location"></div>
+          <div class="mapbar">
+            <button type="button" class="secondary" id="locate">Use my location</button>
+            <span id="coordinate-status" aria-live="polite">No location selected</span>
+          </div>
+          <p class="fineprint">If the gate differs from the search result, drag the pin to the right spot. Transport charges will be confirmed separately.</p>
         </div>
       </section>
       <section class="panel">
-        <div class="step-heading"><span class="step">04</span><div><h2>Care details</h2><p>These answers help the team prepare for your dog.</p></div></div>
+        <div class="step-heading"><span class="step">04</span><div><h2>Care details</h2><p>Tell us about their behaviour and health.</p></div></div>
         <div class="traits">
-          <label>Friendly <select name="trait_friendly" required><option value="">Choose</option><option>Yes</option><option>No</option></select></label>
-          <label>Fears / anxiety <select name="trait_fears" required><option value="">Choose</option><option>Yes</option><option>No</option></select></label>
-          <label>Climbs or escapes enclosures <select name="trait_climber" required><option value="">Choose</option><option>Yes</option><option>No</option></select></label>
-          <label>Food sensitivities <select name="trait_foodSensitivities" required><option value="">Choose</option><option>Yes</option><option>No</option></select></label>
-          <label>Excessive barking <select name="trait_barksExcessively" required><option value="">Choose</option><option>Yes</option><option>No</option></select></label>
-          <label>Allergies <select name="trait_allergies" required><option value="">Choose</option><option>Yes</option><option>No</option></select></label>
-          <label>Bite history <select name="trait_biteHistory" required><option value="">Choose</option><option>Yes</option><option>No</option></select></label>
-          <label>Medical conditions <select name="trait_medicalConditions" required><option value="">Choose</option><option>Yes</option><option>No</option></select></label>
+          <fieldset class="trait"><legend>Friendly</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_friendly" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_friendly" value="No"><span>No</span></label></div></fieldset>
+          <fieldset class="trait"><legend>Fears / anxiety</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_fears" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_fears" value="No"><span>No</span></label></div></fieldset>
+          <fieldset class="trait"><legend>Climbs or escapes enclosures</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_climber" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_climber" value="No"><span>No</span></label></div></fieldset>
+          <fieldset class="trait"><legend>Food sensitivities</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_foodSensitivities" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_foodSensitivities" value="No"><span>No</span></label></div></fieldset>
+          <fieldset class="trait"><legend>Excessive barking</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_barksExcessively" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_barksExcessively" value="No"><span>No</span></label></div></fieldset>
+          <fieldset class="trait"><legend>Allergies</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_allergies" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_allergies" value="No"><span>No</span></label></div></fieldset>
+          <fieldset class="trait"><legend>Bite history</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_biteHistory" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_biteHistory" value="No"><span>No</span></label></div></fieldset>
+          <fieldset class="trait"><legend>Medical conditions</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_medicalConditions" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_medicalConditions" value="No"><span>No</span></label></div></fieldset>
         </div>
         <div class="notes">
           <label>Medication and feeding instructions (optional) <textarea name="medicationFeedingInstructions" maxlength="3000"></textarea></label>
@@ -107,10 +110,20 @@
         </div>
       </section>
       <div class="finish">
-        <label class="confirm"><input name="termsAccepted" type="checkbox" required> I confirm the information is accurate and agree to Apex Kennels' boarding terms.</label>
+        <details class="terms" id="boarding-terms"><summary>Read boarding terms</summary>
+  <ol>
+    <li>I will allow Apex Kennel staff to choose an appropriate supervised playgroup or playmate for my dog while in the exercise yard. If I give my permission for my dog to have a playmate, I understand that there is a minimal risk of injury to my dog. I hold Apex Kennels harmless in case of such injury.</li>
+    <li>I authorize Apex Kennels to do whatever is deemed necessary for the health and well-being of my pet and I will pay for any and all expenses relating to my pet. I understand that if my pet needs medical attention, my emergency contacts will be called. I also understand that my emergency contacts will not be called for minor incidents that do not require immediate medical attention.</li>
+    <li>Boarding may be stressful for some dogs. A change in environment, water, and possibly different food, as well as a noisy dog next door can sometimes cause a stress-related colitis resulting in soft stools. There is no known prevention for this condition. Apex Kennels will monitor your pet and if soft stools occur, your pet will be given medication according to the vet's prescription.</li>
+    <li>I understand that Apex Kennels is going to act in the best interest of my pet. A daily inspection of my pet's physical condition will be done. If my pet needs any care which will enable it to be more comfortable during its stay, that service will be performed. Some examples: bath, pedicure, ear cleaning, daily eye cleaning, etc.</li>
+    <li>I hold Apex Kennels and staff completely harmless in the event of sickness, loss or injury of my dog.</li>
+    <li>I will be completely financially responsible if my dog causes any property damage while boarding at Apex Kennels.</li>
+  </ol>
+</details>
+        <label class="confirm"><input name="termsAccepted" type="checkbox" required> I have read and agree to the boarding terms below.</label>
         <p class="fineprint">This is a booking request, not a confirmed reservation. We will contact you about availability, care needs and any additional charges.</p>
         <div id="turnstile"></div>
-        <div class="sendrow"><span>Your details go directly to Apex Kennels.</span>
+        <div class="sendrow"><span>Your request goes to Apex Kennels.</span>
           <button id="submit" type="submit" disabled>Send booking request</button></div>
         <div id="message" class="message" role="status" aria-live="polite" hidden></div>
       </div>

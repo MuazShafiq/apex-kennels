@@ -97,3 +97,18 @@ test('routing API key missing or unusable/unreachable road response fails closed
   });
   assert.equal(down.ok,false);
 });
+
+test('out-of-area customer pin cannot generate transport quote, including legacy Form bookings',async()=>{
+  let calls=0;
+  const result=await routeApexTransport({
+    ...confirmed,
+    customerPin:{lat:31.52,lon:74.35}, // Lahore
+    visit:'pickup'
+  },{
+    apiKey:key,
+    fetcher:async()=>{calls++;return new Response('{}');}
+  });
+  assert.equal(result.ok,false);
+  if(!result.ok)assert.equal(result.reason,'OUT_OF_SERVICE_AREA');
+  assert.equal(calls,0);
+});

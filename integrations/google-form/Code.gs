@@ -1,6 +1,7 @@
 /**
  * Apex Kennels: Form-bound Google Apps Script adapter.
- * Disabled until Fatima reviews every form field, pricing interpretation and permissions.
+ * Owner-gated shadow intake is active; do not change its cutoff, trigger or secrets
+ * when syncing source. Billing, customer messages and auto-approvals remain OFF.
  * Map stable Form item IDs, never question titles or Sheet column numbers.
  *
  * Required Script Properties (never commit values):

@@ -12,6 +12,7 @@
   let map=null,marker=null,point=null,challenge=null,turnstileId=null;
   let searchTimer=null,searchAbort=null,searchVersion=0;
   const searchCache=new Map();
+  const SERVICE_BOUNDS=[[72.81,33.43],[73.30,33.84]];
   const cleanQuery=value=>value.replace(/\bU\s*\.\s*S\s*\./gi,'US').replace(/\bU\s*\.\s*S\b/gi,'US').replace(/\s+/g,' ').trim();
   const requestId=crypto.randomUUID();
   const traitNames=['friendly','fears','climber','foodSensitivities','barksExcessively','allergies','biteHistory','medicalConditions'];
@@ -27,8 +28,10 @@
   function selectedTransport(){return transportChoice()!=='none';}
   function putPoint(latitude,longitude){
     if(!Number.isFinite(latitude)||!Number.isFinite(longitude)||
-       latitude<23||latitude>38||longitude<60||longitude>78){
-      showMessage('Please choose a location in Pakistan.',true);return;
+       latitude<SERVICE_BOUNDS[0][1]||latitude>SERVICE_BOUNDS[1][1]||
+       longitude<SERVICE_BOUNDS[0][0]||longitude>SERVICE_BOUNDS[1][0]){
+      searchStatus.textContent='Pickup and drop-off are available only in Islamabad and Rawalpindi.';
+      return;
     }
     point={latitude:Math.round(latitude*1e7)/1e7,longitude:Math.round(longitude*1e7)/1e7};
     if(!marker && map){
@@ -58,6 +61,7 @@
         container:'map',
         style:'https://tiles.openfreemap.org/styles/liberty',
         center:[73.0479,33.6844],
+        maxBounds:SERVICE_BOUNDS,
         zoom:10
       });
       map.addControl(new maplibregl.NavigationControl({showCompass:false}),'top-right');
@@ -81,7 +85,7 @@
   function renderPlaces(items){
     closeSuggestions();
     if(!items.length){
-      searchStatus.textContent='No matching places. Try another name or choose a point on the map.';
+      searchStatus.textContent='No matching places in Islamabad or Rawalpindi. Try a different name or tap the map.';
       return;
     }
     const list=document.createDocumentFragment();
@@ -99,7 +103,12 @@
             const url='/api/book/place?type='+encodeURIComponent(place.placeType)+
               '&id='+encodeURIComponent(place.placeId);
             const response=await fetch(url,{credentials:'omit',cache:'no-store'});
-            if(!response.ok)throw new Error('Place lookup failed');
+            if(!response.ok){
+              const body=await response.json().catch(()=>null);
+              if(body?.code==='OUT_OF_SERVICE_AREA')
+                throw new Error('Transport is available only in Islamabad and Rawalpindi.');
+              throw new Error('Place lookup failed');
+            }
             const body=await response.json();
             selected=body.place;
           }
@@ -109,8 +118,10 @@
           if(map)map.flyTo({center:[selected.longitude,selected.latitude],zoom:16});
           placeSearch.value=place.label;
           searchStatus.textContent='Place found. Drag the pin if the entrance is elsewhere.';
-        }catch{
-          searchStatus.textContent='Could not locate that result. Try another place or tap the map.';
+        }catch(error){
+          searchStatus.textContent=error.message==='Transport is available only in Islamabad and Rawalpindi.'
+            ?error.message
+            :'Could not locate that result. Try another place or tap the map.';
         }
       });
       list.append(button);

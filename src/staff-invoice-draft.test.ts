@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  prepareStaffDraftReview,parseStaffDraftRequest,renderStaffDraftReview,
+  prepareStaffDraftReview,parseStaffDraftRequest,renderStaffDraftReview,renderPrintableStaffReview,
   type StaffInvoiceSource
 } from './staff-invoice-draft.ts';
 
@@ -96,4 +96,37 @@ test('staff draft ID and package must be validated before any database query',()
   ]){
     assert.throws(()=>parseStaffDraftRequest(new URL('https://example.com'+url)));
   }
+});
+
+test('printable owner-review copy uses existing A4 invoice renderer but cannot be sent or paid',()=>{
+  const standardReview=prepareStaffDraftReview({...standard,synthetic:false},'daily');
+  const html=renderPrintableStaffReview(standardReview,'2026-11-06');
+  assert.match(html,/INTERNAL PREVIEW · NOT FOR CUSTOMER DELIVERY/);
+  assert.match(html,/REVIEW-123E4567/);
+  assert.match(html,/PKR 7,500/);
+  assert.match(html,/@page\{size:A4/);
+  assert.doesNotMatch(html,/Payment details|IBAN|Pay now|Send invoice/);
+  assert.doesNotMatch(html,/vaccination|medication|Emergency contact/i);
+  const staffHtml=renderStaffDraftReview(standardReview);
+  assert.match(staffHtml,/View printable review copy/);
+});
+test('incomplete transport, uncertain monthly packages and missing rates cannot generate printable copies',()=>{
+  for(const review of [
+    prepareStaffDraftReview({...standard,transportRequested:true},'daily'),
+    prepareStaffDraftReview({...standard,startDate:'2026-11-01',endDate:'2026-11-30'},'monthly'),
+    prepareStaffDraftReview({...standard,transportRequested:null},'daily')
+  ]){
+    assert.throws(()=>renderPrintableStaffReview(review,'2026-11-06'),/complete daily boarding-only estimate/i);
+    assert.doesNotMatch(renderStaffDraftReview(review),/View printable review copy/);
+  }
+});
+test('printable preview is always internal, synthetic is labeled and names are HTML-escaped',()=>{
+  const review=prepareStaffDraftReview({
+    ...standard,customerName:'<svg onload=alert(1)> & Owner'
+  },'daily');
+  const html=renderPrintableStaffReview(review,'2026-11-06');
+  assert.match(html,/SYNTHETIC EXAMPLE/);
+  assert.match(html,/&lt;svg onload=alert\(1\)&gt; &amp; Owner/);
+  assert.doesNotMatch(html,/<svg/);
+  assert.throws(()=>renderPrintableStaffReview(review,'tomorrow'),/Invalid review date/);
 });

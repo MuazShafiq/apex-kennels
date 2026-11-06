@@ -290,3 +290,42 @@ test('staff booking queue links to Access-gated pin checker; demo does not',asyn
   assert.equal(demo.status,200);
   assert.doesNotMatch(await demo.text(),/href="\/staff\/location"/);
 });
+
+test('printable staff review is Access-protected and never opens for unpriced transport',async()=>{
+  const url=origin+'/staff/draft?id='+invoiceBookingId+'&format=print';
+  let reads=0;
+  const opts={draft:async()=>{reads++;return {...invoiceBooking,transportRequested:false};}};
+  const missingAccess=await handleWorkerRequest(new Request(url),env,undefined,opts);
+  assert.equal(missingAccess.status,403);
+  assert.equal(reads,0);
+  const authorized=await handleWorkerRequest(new Request(url),env,undefined,{
+    ...opts,context:valid
+  });
+  assert.equal(authorized.status,200);
+  const page=await authorized.text();
+  assert.match(page,/REVIEW-123E4567/);
+  assert.match(page,/INTERNAL PREVIEW/);
+  assert.match(page,/NOT FOR CUSTOMER DELIVERY/);
+  assert.doesNotMatch(page,/Payment details|IBAN|Send invoice/);
+  assert.equal(authorized.headers.get('cache-control'),'private, no-store');
+  assert.equal(reads,1);
+  const unpriced=await handleWorkerRequest(new Request(url),env,undefined,{
+    context:valid,draft:async()=>invoiceBooking
+  });
+  assert.equal(unpriced.status,409);
+  const monthly=await handleWorkerRequest(new Request(url+'&package=monthly'),env,undefined,{
+    context:valid,draft:async()=>({...invoiceBooking,transportRequested:false})
+  });
+  assert.equal(monthly.status,409);
+});
+test('print format validation rejects duplicate and unknown query formats before SQL',async()=>{
+  let reads=0;
+  const url=origin+'/staff/draft?id='+invoiceBookingId;
+  for(const suffix of ['&format=customer','&format=print&format=print']){
+    const response=await handleWorkerRequest(new Request(url+suffix),env,undefined,{
+      context:valid,draft:async()=>{reads++;return invoiceBooking;}
+    });
+    assert.equal(response.status,400);
+  }
+  assert.equal(reads,0);
+});

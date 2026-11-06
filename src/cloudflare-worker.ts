@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
+import {verifiedAccessEmail} from './staff-access-jwt.ts';
 import {isTransportServiceLocation} from './transport-service-area.ts';
 import { IntakeError, parseIntake, type IntakeRequest } from './intake.ts';
 import {parsePublicBookingEnvelope,verifyBookingChallenge} from './public-booking.ts';
@@ -16,6 +17,7 @@ export type WorkerEnv = {
   DATABASE_URL?: string;
   INTAKE_API_SECRET?: string;
   STAFF_ACCESS_AUD?: string;
+  STAFF_ACCESS_ISSUER?: string;
   STAFF_ALLOWED_EMAILS?: string;
   APEX_PUBLIC_BOOKING_ENABLED?: string;
   TURNSTILE_SITE_KEY?: string;
@@ -30,14 +32,24 @@ export type StaffDraftReader=(databaseUrl:string,bookingId:string)=>Promise<Staf
 export type StaffDetailReader=(databaseUrl:string,bookingId:string)=>Promise<StaffBookingDetail|null>;
 export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>};
 
-async function authorizedStaff(env: WorkerEnv, context?: StaffContext): Promise<string|null> {
-  if (!env.STAFF_ACCESS_AUD || !env.STAFF_ALLOWED_EMAILS || context?.access?.aud!==env.STAFF_ACCESS_AUD) return null;
+async function authorizedStaff(env: WorkerEnv, context: StaffContext|undefined, request:Request): Promise<string|null> {
+  if (!env.STAFF_ACCESS_AUD || !env.STAFF_ALLOWED_EMAILS) return null;
   const allow = env.STAFF_ALLOWED_EMAILS.split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
   if (!allow.length) return null;
-  try {
-    const email=(await context.access.getIdentity())?.email?.trim().toLowerCase();
-    return email && allow.includes(email) ? email : null;
-  } catch { return null; }
+  let email:string|null=null;
+  if(context?.access){
+    // Cloudflare already validated the identity. Never fall back to a header if
+    // an Access identity is present but its audience or claims are invalid.
+    if(context.access.aud!==env.STAFF_ACCESS_AUD)return null;
+    try{email=(await context.access.getIdentity())?.email?.trim().toLowerCase()??null;}
+    catch{return null;}
+  }else{
+    // Workers Static Assets' internal router can drop ctx.access. Validate
+    // the signed Access JWT against the configured trusted issuer instead.
+    email=await verifiedAccessEmail(request.headers.get('Cf-Access-Jwt-Assertion'),
+      env.STAFF_ACCESS_ISSUER,env.STAFF_ACCESS_AUD);
+  }
+  return email&&allow.includes(email)?email:null;
 }
 
 function html(body: string):Response {
@@ -223,7 +235,7 @@ export async function handleWorkerRequest(
     if(!env.STAFF_ACCESS_AUD||!env.STAFF_ALLOWED_EMAILS){
       return json({error:'Staff access not configured'},503);
     }
-    const email=await authorizedStaff(env,staff.context);
+    const email=await authorizedStaff(env,staff.context,request);
     if(!email)return json({error:'Forbidden'},403);
     if(request.method==='GET')return html(renderStaffPinChecker());
     // Same-origin HTML forms only: no CORS, no cross-site POST, no hidden writes.
@@ -243,7 +255,7 @@ export async function handleWorkerRequest(
     if(!env.STAFF_ACCESS_AUD||!env.STAFF_ALLOWED_EMAILS||!env.DATABASE_URL){
       return json({error:'Staff access not configured'},503);
     }
-    const email=await authorizedStaff(env,staff.context);
+    const email=await authorizedStaff(env,staff.context,request);
     if(!email)return json({error:'Forbidden'},403);
     let id:string;
     try{id=parseStaffBookingId(new URL(request.url));}
@@ -260,7 +272,7 @@ export async function handleWorkerRequest(
     if(!env.STAFF_ACCESS_AUD || !env.STAFF_ALLOWED_EMAILS || !env.DATABASE_URL){
       return json({error:'Staff access not configured'},503);
     }
-    const email=await authorizedStaff(env,staff.context);
+    const email=await authorizedStaff(env,staff.context,request);
     if(!email)return json({error:'Forbidden'},403);
     let parsed:ReturnType<typeof parseStaffDraftRequest>;
     const url=new URL(request.url);
@@ -287,7 +299,7 @@ export async function handleWorkerRequest(
     if (!env.STAFF_ACCESS_AUD || !env.STAFF_ALLOWED_EMAILS || !env.DATABASE_URL) {
       return json({error:'Staff access not configured'},503);
     }
-    const email=await authorizedStaff(env,staff.context);
+    const email=await authorizedStaff(env,staff.context,request);
     if (!email) return json({error:'Forbidden'},403);
     let filter:StaffFilter;
     try { filter=parseStaffFilter(new URL(request.url)); }

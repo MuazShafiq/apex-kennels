@@ -1,15 +1,18 @@
-# Free search provider migration (TomTom)
+# Apex place search (TomTom, no Google billing)
 
-Apex keeps **OpenFreeMap + MapLibre** for map display and **Geoapify routing** for quotes. We do not add Google billing.
+The customer booking page uses **TomTom Orbis Places Suggest** while someone types, then **Details** after they choose a place. This avoids repeatedly calling TomTom Discover, which its documentation explicitly says is not suitable for as-you-type use.
 
-The old address-only Geoapify autocomplete is a fallback. When `TOMTOM_API_KEY` is available on the Cloudflare Worker, `/api/book/places` uses the **TomTom Orbis Places Discover API** with an Islamabad location bias and Pakistan-only results. This is a full place search (not continuous autocomplete): it returns named POIs and their coordinates in one call. No changes to booking records, prices, or the Google Form.
+- `TOMTOM_API_KEY` remains an encrypted Cloudflare Worker secret, never embedded in the page.
+- TomTom suggestions are Pakistan-constrained and Islamabad-biased. Results include a named place and ID, **not coordinates**. The selected place ID is resolved through `/api/book/place` for coordinates, and customers can drag the marker to their exact entrance.
+- Searches are debounced at 750 ms and recent results are cached in the current page session (up to 20 queries).
+- `U.S. Embassy` and `US Embassy` normalize to the same provider text without overwriting the original text box.
+- Provider rate limits (429) show a specific retry message. Failed provider lookups never guess a location.
+- Geoapify remains the fallback address search if `TOMTOM_API_KEY` is removed and the route provider for staff-only pricing.
+- Free-tier quotas and endpoint allowances are set by TomTom; check actual Suggest and Details usage in the TomTom dashboard. No Google billing is involved.
 
-At the time of implementation, TomTom advertises a **no-card free tier** with **5,000 Discover calls/month** and states that requests above the free usage limit receive HTTP 429, not a charge. Its older Fuzzy Search API has a different allowance; don't confuse the two.
+## Deployment and verification
 
-Required next steps:
-1. Sign up at https://developer.tomtom.com/ without a card; generate an API key and verify Places Search API permissions. Do not put the key in GitHub, a chat or source code.
-2. Set the key as the existing Cloudflare Worker's encrypted variable `TOMTOM_API_KEY`.
-3. Redeploy the main branch, then test `US Embassy Islamabad`, `Raya`, `Bahria Town Phase 8`, and street addresses on `/book`. Confirm map markers are in the right locations. Results have not yet been benchmarked with a real key.
-4. If search quality is poor, remove/disable `TOMTOM_API_KEY` to revert to Geoapify without code changes. Do not enable customer submissions without separate Turnstile/DB/terms gates.
-
-Implementation keeps the key server-only. The browser only receives bounded labels and coordinates. No payment method, spending authorization or subscription is needed for the test.
+1. With the existing `TOMTOM_API_KEY` secret configured, pull latest `main` and run `npm.cmd run cf:deploy`.
+2. Refresh `/book`. Search `U.S. Embassy`, `US Embassy Islamabad`, `Raya`, `Bahria Town Phase 8`. Check that suggestions appear, and clicking one places the marker in Pakistan.
+3. If the first query returns **Search is busy**, the upstream provider is rate limiting. A recurring **Search could not load** on all queries requires checking the provider access/response in Cloudflare logs. Neither can be diagnosed from a key existing alone.
+4. Keep customer booking submissions disabled until the separately documented Turnstile, terms and production database migration gates are verified. The original Google Form is still the customer channel.

@@ -11,6 +11,8 @@
   const preview=document.getElementById('preview');
   let map=null,marker=null,point=null,challenge=null,turnstileId=null;
   let searchTimer=null,searchAbort=null,searchVersion=0;
+  const searchCache=new Map();
+  const cleanQuery=value=>value.replace(/\bU\s*\.\s*S\s*\./gi,'US').replace(/\bU\s*\.\s*S\b/gi,'US').replace(/\s+/g,' ').trim();
   const requestId=crypto.randomUUID();
   const traitNames=['friendly','fears','climber','foodSensitivities','barksExcessively','allergies','biteHistory','medicalConditions'];
 
@@ -88,12 +90,28 @@
       button.type='button';
       button.setAttribute('role','option');
       button.textContent=place.label;
-      button.addEventListener('click',function(){
-        putPoint(place.latitude,place.longitude);
-        if(map)map.flyTo({center:[place.longitude,place.latitude],zoom:16});
-        placeSearch.value=place.label;
-        searchStatus.textContent='Found your area. Move the pin to your gate if needed.';
+      button.addEventListener('click',async function(){
         closeSuggestions();
+        searchStatus.textContent='Locating the selected place…';
+        let selected=place;
+        try{
+          if(place.placeId&&place.placeType){
+            const url='/api/book/place?type='+encodeURIComponent(place.placeType)+
+              '&id='+encodeURIComponent(place.placeId);
+            const response=await fetch(url,{credentials:'omit',cache:'no-store'});
+            if(!response.ok)throw new Error('Place lookup failed');
+            const body=await response.json();
+            selected=body.place;
+          }
+          if(typeof selected.latitude!=='number'||typeof selected.longitude!=='number')
+            throw new Error('Place has no coordinates');
+          putPoint(selected.latitude,selected.longitude);
+          if(map)map.flyTo({center:[selected.longitude,selected.latitude],zoom:16});
+          placeSearch.value=place.label;
+          searchStatus.textContent='Place found. Drag the pin if the entrance is elsewhere.';
+        }catch{
+          searchStatus.textContent='Could not locate that result. Try another place or tap the map.';
+        }
       });
       list.append(button);
     });
@@ -111,10 +129,12 @@
         credentials:'omit',signal:controller.signal,cache:'no-store'
       });
       if(version!==searchVersion)return;
-      if(!response.ok)throw new Error('Search unavailable');
       const data=await response.json();
       if(version!==searchVersion)return;
-      if(!Array.isArray(data.items))throw new Error('Invalid search results');
+      if(!response.ok)throw new Error(data?.code==='RATE_LIMITED'?'RATE_LIMITED':'SEARCH_FAILED');
+      if(!Array.isArray(data.items))throw new Error('SEARCH_FAILED');
+      searchCache.set(query,data);
+      if(searchCache.size>20)searchCache.delete(searchCache.keys().next().value);
       if(data.attribution==='TomTom'){
         const credit=document.getElementById('place-credit');
         credit.textContent='TomTom';
@@ -124,11 +144,13 @@
     }catch(error){
       if(version!==searchVersion||error.name==='AbortError')return;
       closeSuggestions();
-      searchStatus.textContent='Search is unavailable. You can still tap the map to choose your location.';
+      searchStatus.textContent=error.message==='RATE_LIMITED'
+        ?'Search is busy. Try again in a moment, or tap the map.'
+        :'Search could not load. Try again, or tap the map.';
     }
   }
   placeSearch.addEventListener('input',function(){
-    const query=placeSearch.value.trim();
+    const query=cleanQuery(placeSearch.value);
     searchVersion++;
     clearTimeout(searchTimer);
     if(searchAbort)searchAbort.abort();
@@ -139,7 +161,16 @@
     }
     searchStatus.textContent='Searching…';
     const version=searchVersion;
-    searchTimer=setTimeout(function(){queryPlaces(query,version);},400);
+    if(searchCache.has(query)){
+      const cached=searchCache.get(query);
+      if(cached.attribution==='TomTom'){
+        const credit=document.getElementById('place-credit');
+        credit.textContent='TomTom';credit.href='https://www.tomtom.com/';
+      }
+      renderPlaces(cached.items);
+      return;
+    }
+    searchTimer=setTimeout(function(){queryPlaces(query,version);},750);
   });
   placeSearch.addEventListener('keydown',function(event){
     if(event.key==='Escape')closeSuggestions();

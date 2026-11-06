@@ -1,4 +1,5 @@
 import type {PlaceSuggestion} from './location-suggestions.ts';
+import {TRANSPORT_SERVICE_BOUNDS,isTransportServiceLocation} from './transport-service-area.ts';
 
 /**
  * TomTom Orbis Places Discover: resolved POIs and addresses, not road-name
@@ -88,14 +89,6 @@ export function normalizeTomTomQuery(query:string):string{
   return query.normalize('NFKC').replace(/\bU\s*\.\s*S\s*\./gi,'US')
     .replace(/\bU\s*\.\s*S\b/gi,'US').replace(/\s+/g,' ').trim();
 }
-export type PlaceSearchArea='islamabad'|'lahore'|'pakistan';
-const areas:Record<Exclude<PlaceSearchArea,'pakistan'>,{longitude:number;latitude:number;radius:number}>={
-  islamabad:{longitude:73.0479,latitude:33.6844,radius:90000},
-  lahore:{longitude:74.35,latitude:31.52,radius:75000}
-};
-export function validPlaceSearchArea(value:unknown):value is PlaceSearchArea{
-  return value==='islamabad'||value==='lahore'||value==='pakistan';
-}
 const terms=(text:string)=>normalizeTomTomQuery(text).toLowerCase()
   .replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(Boolean);
 export function matchesPlaceQuery(query:string,label:string):boolean{
@@ -111,13 +104,11 @@ export function matchesPlaceQuery(query:string,label:string):boolean{
   );
 }
 export async function suggestTomTomPlaces(
-  query:string,key:string,fetcher:typeof fetch=fetch,area:PlaceSearchArea='islamabad'
+  query:string,key:string,fetcher:typeof fetch=fetch
 ):Promise<TomTomSuggestion[]>{
   tomTomKey(key);
   query=normalizeTomTomQuery(query);
-  if(query.length<3||query.length>90||!validPlaceSearchArea(area))
-    throw new TomTomPlacesError(400);
-  const region=area==='pakistan'?null:areas[area];
+  if(query.length<3||query.length>90)throw new TomTomPlacesError(400);
   const response=await fetcher('https://api.tomtom.com/maps/orbis/places/suggest',{
     method:'POST',
     headers:{
@@ -131,12 +122,9 @@ export async function suggestTomTomPlaces(
       filters:{
         types:['poi','address','street','intersection','area'],
         countryCodesIso2:['PK'],
-        ...(region?{geometry:{type:'circle',
-          center:[region.longitude,region.latitude],
-          radiusInMeters:region.radius}}:{})
+        geometry:{type:'rectangle',coordinates:[...TRANSPORT_SERVICE_BOUNDS]}
       },
-      ...(region?{preferences:{geometry:{type:'point',
-        coordinates:[region.longitude,region.latitude]}}}:{})
+      preferences:{geometry:{type:'point',coordinates:[73.0479,33.6844]}}
     })
   });
   const parsed=await boundedJson(response);
@@ -185,7 +173,7 @@ export async function resolveTomTomPlace(
   if(pos?.type!=='Point'||!Array.isArray(coords)||coords.length!==2||
      !coords.every(x=>typeof x==='number'&&Number.isFinite(x)))throw new TomTomPlacesError(502);
   const [longitude,latitude]=coords;
-  if(latitude<23||latitude>38||longitude<60||longitude>78)throw new TomTomPlacesError(422);
+  if(!isTransportServiceLocation(latitude,longitude))throw new TomTomPlacesError(422);
   const addr=r.address&&typeof r.address==='object'?(r.address as Record<string,unknown>):null;
   if(addr?.countryCodeIso2!==undefined&&addr.countryCodeIso2!=='PK')throw new TomTomPlacesError(422);
   return {

@@ -128,10 +128,9 @@ export async function handleWorkerRequest(
       headers.set('X-Content-Type-Options','nosniff');
       headers.set('X-Robots-Tag','noindex, nofollow');
       headers.set('Content-Security-Policy',
-        "default-src 'none'; script-src 'self' https://unpkg.com https://challenges.cloudflare.com; "+
-        "style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob: https://tiles.openfreemap.org; "+
-        "connect-src 'self' https://tiles.openfreemap.org; font-src 'self' data: https://tiles.openfreemap.org; "+
-        "worker-src blob:; frame-src https://challenges.cloudflare.com; form-action 'self'; "+
+        "default-src 'none'; script-src 'self' https://challenges.cloudflare.com; "+
+        "style-src 'self' 'unsafe-inline'; connect-src 'self'; "+
+        "frame-src https://challenges.cloudflare.com; form-action 'self'; "+
         "base-uri 'none'; frame-ancestors 'none'");
       return new Response(response.body,{status:response.status,headers});
     }catch{return json({error:'Booking page unavailable'},503);}

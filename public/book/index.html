@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#18392d">
+  <title>Request boarding | Apex Kennels</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="/book/styles.css">
+  <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js" defer></script>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" defer></script>
+  <script src="/book/app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="/book"><strong>APEX</strong><span>KENNELS</span></a>
+      <p>ISLAMABAD · BOARDING REQUESTS</p>
+    </header>
+    <div class="lead-grid">
+      <div>
+        <span class="eyebrow">A stay worth planning properly</span>
+        <h1>Tell us about<br><em>your dog.</em></h1>
+      </div>
+      <p>Choose the dates, share their needs, and, if you need transport, mark your pickup point on the map. We'll review everything before confirming.</p>
+    </div>
+    <div class="preview" id="preview">This form is being prepared. Booking submissions are not enabled here yet. Please use the existing booking Form.</div>
+    <form id="booking">
+      <section class="panel">
+        <div class="step-heading"><span class="step">01</span><div><h2>Your details</h2><p>Where to reach you and when your dog will stay.</p></div></div>
+        <div class="fields">
+          <label>Full name <input name="customerName" autocomplete="name" maxlength="200" required></label>
+          <label>Phone or WhatsApp number <input name="phone" type="tel" autocomplete="tel" maxlength="40" required></label>
+          <label>Email (optional) <input name="email" type="email" autocomplete="email" maxlength="254"></label>
+          <label>Home address <input name="ownerAddress" autocomplete="street-address" maxlength="600" required></label>
+          <label>Check-in date <input name="startDate" type="date" required></label>
+          <label>Check-out date <input name="endDate" type="date" required></label>
+          <label>Emergency contact number <input name="emergencyContactPhone" type="tel" maxlength="120" required></label>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="step-heading"><span class="step">02</span><div><h2>Your dog</h2><p>The essentials for a safe, comfortable stay.</p></div></div>
+        <div class="fields">
+          <label>Dog's name <input name="petName" maxlength="200" required></label>
+          <label>Breed <input name="breed" maxlength="140" required></label>
+          <label>Gender <input name="gender" maxlength="80" required></label>
+          <label>Age <input name="age" maxlength="100" required></label>
+          <label>Vaccination status
+            <select name="vaccinationStatus" required><option value="">Choose one</option>
+              <option>Fully vaccinated and booster is up to date</option>
+              <option>Fully vaccinated without boosters</option>
+              <option>Partially vaccinated</option><option>None</option>
+            </select>
+          </label>
+          <label>Has your dog ever been diagnosed with canine distemper?
+            <select name="distemperHistory" required><option value="">Choose one</option><option>Yes</option><option>No</option><option>Not Sure</option></select>
+          </label>
+          <label>Vet phone (optional) <input name="veterinarianPhone" type="tel" maxlength="120"></label>
+          <fieldset class="choice"><legend>Camera cage requested?</legend>
+            <label><input type="radio" name="cameraCageRequested" value="yes" required> Yes</label>
+            <label><input type="radio" name="cameraCageRequested" value="no"> No</label>
+          </fieldset>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="step-heading"><span class="step">03</span><div><h2>Transport</h2><p>We can plan the drive if you need pickup or drop-off.</p></div></div>
+        <fieldset class="choice"><legend>Do you need pickup or drop-off?</legend>
+          <label><input type="radio" name="pickupDropoffRequested" value="yes" required> Yes</label>
+          <label><input type="radio" name="pickupDropoffRequested" value="no"> No</label>
+        </fieldset>
+        <div id="transport" class="transport" hidden>
+          <label>What do you need?
+            <select name="service" id="service">
+              <option value="">Choose one</option>
+              <option value="pickup">Pickup only</option>
+              <option value="dropoff">Drop-off only</option>
+              <option value="both">Pickup and drop-off, same location</option>
+            </select>
+          </label>
+          <h3>Where should our driver arrive?</h3>
+          <p>Tap the map to drop your pin on the exact entrance. Drag it to make adjustments. If you're at that location, use your device's location instead.</p>
+          <div id="map" role="application" aria-label="Choose pickup or drop-off entrance on a map"></div>
+          <div class="mapbar">
+            <button type="button" class="secondary" id="locate">Use my current location</button>
+            <span id="coordinate-status" aria-live="polite">No location chosen</span>
+          </div>
+          <label class="confirm"><input type="checkbox" id="confirm-gate"> This pin is the correct entrance for pickup or drop-off.</label>
+          <p class="fineprint">The location helps us calculate a driving route. Transport cost is confirmed separately. If pickup and drop-off use different addresses, tell Apex when we contact you.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="step-heading"><span class="step">04</span><div><h2>Care details</h2><p>These answers help the team prepare for your dog.</p></div></div>
+        <div class="traits">
+          <label>Friendly <select name="trait_friendly" required><option value="">Choose</option><option>Yes</option><option>No</option></select></label>
+          <label>Fears / anxiety <select name="trait_fears" required><option value="">Choose</option><option>Yes</option><option>No</option></select></label>
+          <label>Climbs or escapes enclosures <select name="trait_climber" required><option value="">Choose</option><option>Yes</option><option>No</option></select></label>
+          <label>Food sensitivities <select name="trait_foodSensitivities" required><option value="">Choose</option><option>Yes</option><option>No</option></select></label>
+          <label>Excessive barking <select name="trait_barksExcessively" required><option value="">Choose</option><option>Yes</option><option>No</option></select></label>
+          <label>Allergies <select name="trait_allergies" required><option value="">Choose</option><option>Yes</option><option>No</option></select></label>
+          <label>Bite history <select name="trait_biteHistory" required><option value="">Choose</option><option>Yes</option><option>No</option></select></label>
+          <label>Medical conditions <select name="trait_medicalConditions" required><option value="">Choose</option><option>Yes</option><option>No</option></select></label>
+        </div>
+        <div class="notes">
+          <label>Medication and feeding instructions (optional) <textarea name="medicationFeedingInstructions" maxlength="3000"></textarea></label>
+          <label>Anything else we should know? (optional) <textarea name="specialInstructions" maxlength="3000"></textarea></label>
+        </div>
+      </section>
+      <div class="finish">
+        <label class="confirm"><input name="termsAccepted" type="checkbox" required> I confirm the information is accurate and agree to Apex Kennels' boarding terms.</label>
+        <p class="fineprint">This is a booking request, not a confirmed reservation. We will contact you about availability, care needs and any additional charges.</p>
+        <div id="turnstile"></div>
+        <div class="sendrow"><span>Your details go directly to Apex Kennels.</span>
+          <button id="submit" type="submit" disabled>Send booking request</button></div>
+        <div id="message" class="message" role="status" aria-live="polite" hidden></div>
+      </div>
+    </form>
+    <section class="complete panel" id="complete" hidden>
+      <span class="eyebrow">REQUEST RECEIVED</span><h2>Thanks. We'll be in touch.</h2>
+      <p>Your request is with Apex Kennels. We'll review the details and contact you to confirm the next steps.</p>
+      <p class="fineprint">Reference: <span id="reference"></span></p>
+    </section>
+    <footer>APEX KENNELS · Islamabad · Map © OpenFreeMap, OpenMapTiles and OpenStreetMap contributors</footer>
+  </div>
+</body>
+</html>

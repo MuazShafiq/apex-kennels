@@ -183,6 +183,6 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
         +'</span><span>'+pkr(review.draft.quote.totalPkr)+'</span></div></div>'
       : '<div class="panel"><strong>Estimate unavailable.</strong><p>Resolve the issues below.</p></div>')
     +'<div class="panel"><div class="tag">Needs attention</div><ul>'
-    +issueHtml+'</ul><p class="muted">An invoice is created only after staff approval.</p></div>'
+    +issueHtml+'</ul><p class="muted">Invoice creation and payment are not available here.</p></div>'
     +'</main></body></html>';
 }

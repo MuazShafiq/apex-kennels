@@ -29,7 +29,7 @@ export type BookingQuoteInput = {
   manualDiscount?: Discount;
 };
 export type QuoteLine = { label: string; quantity: number; unitPricePkr: number; totalPkr: number };
-export type AppliedDiscount = { source: 'promo' | 'manual'; label: string; amountPkr: number };
+export type AppliedDiscount = { source: 'promo' | 'manual' | 'package'; label: string; amountPkr: number };
 export type Quote = {
   startDate: string;
   endDate: string;

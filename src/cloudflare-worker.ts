@@ -128,13 +128,41 @@ export async function handleWorkerRequest(
       headers.set('X-Content-Type-Options','nosniff');
       headers.set('X-Robots-Tag','noindex, nofollow');
       headers.set('Content-Security-Policy',
-        "default-src 'none'; script-src 'self' https://unpkg.com https://challenges.cloudflare.com; "+
-        "style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob: https://tiles.openfreemap.org; "+
-        "connect-src 'self' https://tiles.openfreemap.org; font-src 'self' data: https://tiles.openfreemap.org; "+
-        "worker-src blob:; frame-src https://challenges.cloudflare.com; form-action 'self'; "+
+        "default-src 'none'; script-src 'self' https://challenges.cloudflare.com; "+
+        "style-src 'self' 'unsafe-inline'; connect-src 'self'; "+
+        "frame-src https://challenges.cloudflare.com; form-action 'self'; "+
         "base-uri 'none'; frame-ancestors 'none'");
       return new Response(response.body,{status:response.status,headers});
     }catch{return json({error:'Booking page unavailable'},503);}
+  }
+  // Customers can choose a precise point in the Google Maps app and paste
+  // its share link. Resolve only allowlisted Google URLs, never arbitrary pages.
+  if(path==='/api/book/location'){
+    if(request.method!=='POST')return json({error:'Method not allowed'},405,{Allow:'POST'});
+    if(request.headers.get('origin')!==new URL(request.url).origin)
+      return json({error:'Forbidden'},403);
+    if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json'))
+      return json({error:'JSON required'},415);
+    let raw:string;
+    try{
+      const body=await limitedJson(request);
+      if(!body||typeof body!=='object'||Array.isArray(body)||
+         Object.keys(body).join(',')!=='link'||
+         typeof (body as {link?:unknown}).link!=='string')throw new Error();
+      raw=(body as {link:string}).link.trim();
+      if(raw.length<3||raw.length>2048)throw new Error();
+    }catch{return json({error:'Paste a Google Maps location link',code:'INVALID_LINK'},400);}
+    const resolved=await (staff.resolvePin??resolveSharedGoogleMapsPin)(raw);
+    if(!resolved.ok){
+      if(resolved.reason==='REDIRECT_UNAVAILABLE')
+        return json({error:'Could not open that Maps link. Try copying the exact pin again.',code:'LINK_UNAVAILABLE'},422);
+      return json({error:'Share a specific pin or place from Google Maps, not a search or directions link.',code:'NOT_EXACT_PIN'},422);
+    }
+    if(!isTransportServiceLocation(resolved.pin.lat,resolved.pin.lon))
+      return json({error:'Pickup and drop-off are available only within Islamabad and Rawalpindi',code:'OUT_OF_SERVICE_AREA'},422);
+    return json({latitude:resolved.pin.lat,longitude:resolved.pin.lon,
+      mapsUrl:'https://www.google.com/maps/search/?api=1&query='+
+        encodeURIComponent(resolved.pin.lat+','+resolved.pin.lon)});
   }
   if(path==='/api/book/places'){
     if(request.method!=='GET')return json({error:'Method not allowed'},405,{Allow:'GET'});

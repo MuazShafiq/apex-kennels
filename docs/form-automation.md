@@ -1,4 +1,6 @@
-# Apps Script automation for Apex (staging only)
+# Apps Script automation for Apex (historical setup)
+
+**Live-state override (2026-11-06):** Shadow intake is ACTIVE. Do not run `apexPreflight`, `stageApexFieldMapDisabled`, `apexArmRealFormCanary` or `apexActivateShadowIntake` on the live Form. This guide below records the original staging setup, not current go-live steps. For safe controlled source sync, use `npm.cmd run form:sync -- --check-only` first and then `npm.cmd run form:sync` only after review. New optional recovery steps are in [shadow intake recovery](shadow-intake-recovery.md). Existing trigger and Script Properties must remain unchanged.
 
 **Single source of truth:** `integrations/google-form/Code.gs` in this repo, synced to the **existing** form-bound `ApexIntake.gs` file. The other remote script files (including `Code.gs`) and manifest are preserved from a fresh remote backup.
 

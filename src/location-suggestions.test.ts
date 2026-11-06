@@ -13,6 +13,7 @@ const exampleResults={
     {country_code:'pk',formatted:'Gulberg Greens, Islamabad, Pakistan',lat:33.606,lon:73.207},
     {country_code:'us',formatted:'Springfield, USA',lat:33.6,lon:73.2},
     {country_code:'pk',formatted:'Outside',lat:51,lon:73.2},
+    {country_code:'pk',formatted:'Lahore, Pakistan',lat:31.52,lon:74.35},
     {country_code:'pk',formatted:'Bahria Town duplicate',lat:33.529,lon:73.108}
   ]
 };
@@ -22,7 +23,7 @@ test('Geoapify autocomplete is constrained to Pakistan and returns safe, dedupli
     assert.equal(u.origin,'https://api.geoapify.com');
     assert.equal(u.pathname,'/v1/geocode/autocomplete');
     assert.equal(u.searchParams.get('text'),'Bahria');
-    assert.equal(u.searchParams.get('filter'),'countrycode:pk');
+    assert.equal(u.searchParams.get('filter'),'rect:72.81,33.43,73.30,33.84');
     assert.equal(u.searchParams.get('limit'),'5');
     assert.equal(u.searchParams.get('apiKey'),env.GEOAPIFY_API_KEY);
     assert.equal(options?.redirect,'manual');
@@ -87,4 +88,12 @@ test('customer booking has no duplicate pin confirmation or internal jargon',()=
   assert.match(js,/customerConfirmed:true/);
   assert.doesNotMatch(js,/gate\.checked|confirm-gate/);
   assert.doesNotMatch(js,/GEOAPIFY_API_KEY|TURNSTILE_SECRET_KEY/);
+});
+
+test('public location search only permits the q parameter, not a city override',async()=>{
+  const response=await handleWorkerRequest(
+    new Request(origin+'/api/book/places?q=Raya&area=lahore'),env,undefined,{
+      searchPlaces:async()=>{throw new Error('Should not search outside Islamabad–Rawalpindi');}
+    });
+  assert.equal(response.status,400);
 });

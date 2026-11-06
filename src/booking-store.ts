@@ -48,7 +48,7 @@ export async function saveBooking(pool: DbPool, input: IntakeRequest): Promise<S
       `, [input.source, input.externalResponseId]), 'existing booking');
       // An edited upstream response must not silently rewrite a reviewed booking.
       const original: IntakeRequest = {
-        source:'google_form', externalResponseId:existing.external_response_id,
+        source:input.source, externalResponseId:existing.external_response_id,
         customerName:existing.customer_name, email:existing.email ?? undefined,
         phone:existing.phone ?? undefined, petName:existing.pet_name,
         startDate:existing.start_date, endDate:existing.end_date,
@@ -98,6 +98,13 @@ export async function saveBooking(pool: DbPool, input: IntakeRequest): Promise<S
          d.personalityTraits?JSON.stringify(d.personalityTraits):null,
          d.specialInstructions??null,d.medicationFeedingInstructions??null,
          d.termsAccepted??null]
+      );
+    }
+    if (input.source === 'website' && input.transportLocation) {
+      const point = input.transportLocation;
+      await tx.query(
+        'INSERT INTO public.booking_transport_locations (booking_id, latitude, longitude, service, customer_confirmed) VALUES ($1, $2, $3, $4, $5)',
+        [booking.id, point.latitude, point.longitude, point.service, true]
       );
     }
     await tx.query(

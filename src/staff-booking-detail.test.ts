@@ -118,3 +118,16 @@ test('synthetic booking remains marked as fake, not contactable',()=>{
   assert.match(html,/TEST RECORD/);
   assert.match(html,/DO NOT CONTACT/);
 });
+
+test('customer-confirmed pickup pin appears only in staff booking details, not in the public demo',()=>{
+  const withPin=renderStaffBookingDetail({...detail,transportLocation:{
+    latitude:33.7123,longitude:73.1076,service:'both',customerConfirmed:true
+  }});
+  assert.match(withPin,/Pickup \/ drop-off location/);
+  assert.match(withPin,/Customer-selected pin/);
+  assert.match(withPin,/33\.712300, 73\.107600/);
+  assert.match(withPin,/Open Google Maps/);
+  assert.match(withPin,/Confirm drivable gate access/);
+  const noPin=renderStaffBookingDetail({...detail,transportLocation:null});
+  assert.doesNotMatch(noPin,/Open Google Maps/);
+});

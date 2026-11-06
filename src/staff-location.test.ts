@@ -39,7 +39,7 @@ test('staff page displays numeric pin but never repeats pasted raw link',()=>{
   };
   const page=renderStaffPinChecker(resolved);
   assert.match(page,/33.2992325, 73.2534561/);
-  assert.match(page,/NOT confirmed as the property gate/);
+  assert.match(page,/Check that the pin marks a drivable entrance/);
   assert.match(page,/method="post"/);
   assert.match(page,/staff\/location/);
   assert.doesNotMatch(page,/x7KMJZuXFG74HqQg8/);
@@ -47,6 +47,6 @@ test('staff page displays numeric pin but never repeats pasted raw link',()=>{
 });
 test('failed pin shows a human instruction without guessing location',()=>{
   const page=renderStaffPinChecker({ok:false,reason:'NOT_EXACT_PIN'});
-  assert.match(page,/Could not verify an exact pin/);
+  assert.match(page,/Couldn't read that location link/);
   assert.doesNotMatch(page,/<script/);
 });

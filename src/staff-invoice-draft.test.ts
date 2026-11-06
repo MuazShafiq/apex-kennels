@@ -21,7 +21,7 @@ test('read-only staff estimate: confirmed daily normal rate, no payable invoice'
   assert.equal(r.canSend,false);
   assert.ok(r.issues.some(x=>x.includes('Booking is not approved')));
   const html=renderStaffDraftReview(r);
-  assert.match(html,/INTERNAL ONLY/);
+  assert.match(html,/STAFF ESTIMATE/);
   assert.match(html,/NOT PAYABLE/);
   assert.match(html,/PKR 7,500/);
   assert.doesNotMatch(html,/Pay now|Download approved invoice|Send email|WhatsApp customer/i);
@@ -58,7 +58,7 @@ test('pickup requested: boarding estimate is clearly incomplete, transport never
   const r=prepareStaffDraftReview({...standard,transportRequested:true},'daily');
   assert.equal(r.draft?.quote.totalPkr,7500);
   assert.equal(r.draft?.quote.lines.some(l=>l.label.includes('transport')),false);
-  assert.ok(r.issues.some(x=>x.includes('transport amount excluded')));
+  assert.ok(r.issues.some(x=>x.toLowerCase().includes('transport amount excluded')));
   const html=renderStaffDraftReview(r);
   assert.match(html,/transport excluded/);
   assert.doesNotMatch(html,/Transport\s+PKR/);

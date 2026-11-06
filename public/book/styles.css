@@ -58,3 +58,40 @@ button{font:inherit;cursor:pointer}
 .complete p{max-width:540px;color:#64816d;margin:15px auto}
 footer{border-top:1px solid #e4e7df;padding:24px 0;font-size:11px;letter-spacing:.02em;color:#9aa69c}
 @media(max-width:700px){.topbar p{font-size:9px;max-width:130px;text-align:right}.lead-grid{grid-template-columns:1fr;gap:15px;padding-top:45px}.lead-grid>p{font-size:15px}.fields,.traits{grid-template-columns:1fr}.panel{padding:21px}.step-heading{gap:12px}.step-heading h2{font-size:22px}#map{height:335px}}
+
+/* Shared controls: customer-facing choices with visible selected and focus states. */
+.intro{max-width:530px}.intro>p{margin:0 0 18px;font-size:16px;line-height:1.65;color:#5c7664;max-width:540px}.benefits{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;color:#607765;font-size:12px}
+.benefits li:before{content:'✓';color:#396849;font-weight:800;margin-right:8px}
+.field-choice,.trait{min-width:0;min-inline-size:0;margin:0;padding:0;border:0}
+.field-choice legend,.trait legend{font-size:12px;font-weight:750;color:#45614e;padding:0;margin-bottom:9px}
+.wide{grid-column:1/-1}
+.choice-row,.choice-cards{display:flex;gap:9px;flex-wrap:wrap}
+.choice-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.transport-choices{grid-template-columns:repeat(4,minmax(0,1fr))}
+.option{position:relative;display:block;cursor:pointer;min-width:0}
+.option input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.option>span{display:flex;align-items:center;justify-content:center;min-height:38px;border:1px solid #d6e1d7;border-radius:8px;background:#fbfcfa;padding:8px 15px;font-size:12px;color:#425c49;font-weight:700;transition:border-color .15s,background-color .15s}
+.option input:checked+span{border-color:#336c4c;background:#eaf4eb;color:#1d5132;box-shadow:inset 0 0 0 1px #336c4c}
+.option input:focus-visible+span{outline:3px solid #9dbca7;outline-offset:3px}
+.option-card>span{min-height:74px;flex-direction:column;align-items:flex-start;padding:15px;gap:3px}
+.option-card strong{font-weight:770;font-size:14px}.option-card small{font-size:11px;color:#789082;font-weight:500}
+.traits{gap:14px}.trait{border:1px solid #e2e8e0;border-radius:9px;background:#fafcf9;padding:13px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.trait legend{display:contents}.trait .choice-row{margin-left:auto;flex-shrink:0}
+.trait .option>span{min-height:32px;padding:6px 12px}
+.place-search{position:relative;margin-top:17px}
+.place-search>label{display:block;font-size:12px;font-weight:730;color:#45614e;margin-bottom:8px}
+.place-search input{width:100%}
+.suggestions{position:absolute;z-index:20;top:calc(100% - 16px);left:0;right:0;border:1px solid #cadbcb;border-radius:9px;background:white;box-shadow:0 17px 35px rgba(20,57,32,.13);max-height:260px;overflow:auto}
+.suggestions[hidden]{display:none}
+.suggestions button{display:block;width:100%;text-align:left;border:0;background:white;padding:13px 15px;border-bottom:1px solid #edf1eb;color:#31513d;font-weight:650;font-size:12px}
+.suggestions button:hover,.suggestions button:focus-visible{background:#ecf5ec}
+.search-status{min-height:21px!important;font-size:11px!important;color:#738c7b!important;margin:9px 0 0!important}
+.terms{border:1px solid #dde7dc;background:#fff;border-radius:11px;padding:15px 18px;margin-bottom:22px;font-size:12px;color:#3f5648}
+.terms summary{cursor:pointer;font-weight:800;font-size:13px}
+.terms ol{padding-left:22px;line-height:1.8}.terms li{margin:10px 0}
+.search-credit{font-size:10px!important;color:#8a988e!important;margin:3px 0 0!important}
+.search-credit a{color:#4f735d;text-underline-offset:2px}
+.finish>.confirm{border:1px solid #dfe7dd;border-radius:10px;background:#fff;padding:14px 16px;font-weight:700}
+.finish>.confirm input{width:18px;height:18px;accent-color:#285e3e}
+@media(max-width:760px){.transport-choices{grid-template-columns:repeat(2,minmax(0,1fr))}.benefits{grid-template-columns:1fr 1fr}}
+@media(max-width:430px){.benefits{grid-template-columns:1fr}.choice-cards{grid-template-columns:1fr 1fr}.trait{flex-wrap:wrap}.trait .choice-row{margin-left:0;width:100%}}

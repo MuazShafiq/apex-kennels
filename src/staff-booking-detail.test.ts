@@ -45,7 +45,6 @@ test('private booking details show essential animal-care answers, escaped and no
   assert.match(html,/Bite history: <strong>Yes<\/strong>/);
   assert.match(html,/Friendly: <strong>No<\/strong>/);
   assert.match(html,/Canine distemper history/);
-  assert.match(html,/Yes \/ No reflects answers given on the form/);
   assert.match(html,/Review price estimate/);
   assert.match(html,/Rover &amp; &lt;script&gt;/);
   assert.match(html,/&lt;img/);
@@ -125,9 +124,10 @@ test('customer-confirmed pickup pin appears only in staff booking details, not i
   }});
   assert.match(withPin,/Pickup \/ drop-off location/);
   assert.match(withPin,/Customer-selected pin/);
+  assert.doesNotMatch(withPin,/Confirmed by customer/);
   assert.match(withPin,/33\.712300, 73\.107600/);
-  assert.match(withPin,/Open Google Maps/);
-  assert.match(withPin,/Confirm drivable gate access/);
+  assert.match(withPin,/Open in Google Maps/);
+  assert.match(withPin,/Check road access/);
   const noPin=renderStaffBookingDetail({...detail,transportLocation:null});
-  assert.doesNotMatch(noPin,/Open Google Maps/);
+  assert.doesNotMatch(noPin,/Open in Google Maps/);
 });

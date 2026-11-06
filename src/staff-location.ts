@@ -40,13 +40,13 @@ export function renderStaffPinChecker(result?:SharedPinResolution):string{
   const valid=result?.ok===true;
   const outcome=result
     ? valid
-      ? '<div class="result"><strong>Map pin located.</strong>'
+      ? '<div class="result"><strong>Location found</strong>'
         +'<p class="coords">'+result.pin.lat.toFixed(7)+', '+result.pin.lon.toFixed(7)+'</p>'
-        +'<p>This pin is NOT confirmed as the property gate. Ask the customer to confirm it before transport pricing.</p>'
+        +'<p>Check that the pin marks a drivable entrance before quoting transport.</p>'
         +'<a target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps?q='
         +result.pin.lat+','+result.pin.lon+'">Inspect pin in Google Maps</a></div>'
-      : '<div class="notice"><strong>Could not verify an exact pin.</strong>'
-        +'<p>Ask for a static dropped Google Maps pin, not a map screenshot, typed address or live-location stream.</p></div>'
+      : '<div class="notice"><strong>Unable to read that location link.</strong>'
+        +'<p>Try an exact Google Maps pin or latitude, longitude.</p></div>'
     : '';
   return '<!doctype html><html lang="en"><head><meta charset="utf-8">'
     +'<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -64,13 +64,13 @@ export function renderStaffPinChecker(result?:SharedPinResolution):string{
     +'.fine{font-size:11px;color:#718577}</style></head><body><main class="shell">'
     +'<a href="/staff">← Booking queue</a>'
     +'<div class="kicker" style="margin-top:35px">APEX KENNELS / STAFF ONLY</div>'
-    +'<h1>Check a customer location.</h1>'
-    +'<p>Paste a customer-shared Google Maps pin or exact coordinates. The system will identify the selected location, not the map viewport.</p>'
+    +'<h1>Check an older booking’s location</h1>'
+    +'<p>Already have a location link for an older booking? Check it here. New bookings collect the pin automatically.</p>'
     +'<div class="panel"><form action="/staff/location" method="post" accept-charset="utf-8">'
-    +'<label for="pinUrl">Static location pin</label>'
+    +'<label for="pinUrl">Google Maps link or coordinates</label>'
     +'<textarea id="pinUrl" name="pinUrl" required maxlength="2048" placeholder="https://maps.app.goo.gl/..."></textarea>'
-    +'<button type="submit">Check location</button></form></div>'
+    +'<button type="submit">Find location</button></form></div>'
     +outcome
-    +'<p class="fine">Internal tool. No booking record, location or invoice is saved. '
-    +'The route and exact gate still require separate confirmation.</p></main></body></html>';
+    +'<p class="fine">This check does not change the booking. '
+    +'Check the actual driveway before using the distance.</p></main></body></html>';
 }

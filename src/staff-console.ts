@@ -58,26 +58,25 @@ export function renderStaffConsoleHtml(rows:StaffBooking[], page:StaffPage):stri
     + '<td><div>'+escapeHtml(row.startDate)+'</div><div class="secondary">to '+escapeHtml(row.endDate)+'</div></td>'
     + '<td><span class="state '+row.status+'">'+title(row.status)+'</span></td>'
     + '<td><div class="secondary">'+escapeHtml(row.email||row.phone||(page.demo?'Demo record':'No contact'))+'</div></td>'
-    + '<td>'+(page.demo?'':'<a class="action" href="/staff/booking?id='+encodeURIComponent(row.id)+'">View details</a><br>')
-    + '<a class="action" href="'+(page.demo?'/demo/draft':'/staff/draft?id='+encodeURIComponent(row.id))+'">Review estimate</a></td></tr>').join('');
+    + '<td>'
+    + '<a class="action" href="'+(page.demo?'/demo/draft':'/staff/booking?id='+encodeURIComponent(row.id))+'">'+(page.demo?'View example':'Review booking')+'</a></td></tr>').join('');
   const c = (status:string)=>visible.filter(row=>row.status===status).length;
   const metric=(label:string,value:number,note:string)=>'<article class="metric"><div class="metriclabel">'+label+'</div><div class="number">'+value+'</div><div class="fine">'+note+'</div></article>';
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
     + '<meta name="robots" content="noindex,nofollow"><title>Apex Kennels | Booking operations</title><style>'+styles+'</style></head><body>'
     + '<div class="shell"><aside class="sidebar"><a href="'+base+'"><div class="brand">APEX</div><div class="under">KENNELS</div></a>'
     + '<div class="navlabel">Workspace</div><a class="nav" href="'+base+'">▦ &nbsp; Bookings</a>'
-    +(page.demo?'':'<a class="secondarynav" href="/staff/location">⌖ &nbsp; Check pickup pin</a>')
-    + '<div class="sidebarfoot">Operations console<br>Read-only foundation.<br>Pricing and invoices pending.</div></aside>'
+    + '<div class="sidebarfoot">Staff bookings</div></aside>'
     + '<main><div class="top"><span>Apex Kennels &nbsp; / &nbsp; Operations &nbsp; / &nbsp; Bookings</span><span class="tag">'+(page.demo?'SYNTHETIC DEMO':'STAFF · READ ONLY')+'</span></div>'
     + (page.demo?'<div class="notice"><strong>DEMO ONLY.</strong> All bookings and names below are synthetic. This preview uses no customer records, database, or automated invoicing.</div>':'')
-    + '<div class="kicker">OPERATIONS / 01</div><div class="heading"><div><h1>Booking overview.</h1><p class="sub">Everything that came in, ready for review.<br>Submission does not mean acceptance.</p></div>'
+    + '<div class="kicker">BOOKINGS</div><div class="heading"><div><h1>Booking requests</h1><p class="sub">Open a request to review the dog’s details and care needs.</p></div>'
     + '<div class="hint">'+(page.demo?'Illustrative preview':'Signed in: '+escapeHtml(page.email||'Staff'))+'</div></div>'
     + '<section class="cards">'+metric('Visible bookings',visible.length,'Latest 50 maximum')+metric('New requests',c('requested'),'Awaiting review')+metric('Under review',c('reviewing'),'Staff decision pending')+'</section>'
-    + '<section class="panel"><div class="panelhead"><div><h2>Booking queue</h2><p class="sub">Read-only until staff approvals are configured.</p></div>'
+    + '<section class="panel"><div class="panelhead"><div><h2>Recent requests</h2></div>'
     + '<form action="'+base+'" method="get"><input aria-label="Search by customer or pet" name="q" type="search" maxlength="80" placeholder="Search owner or pet" value="'+escapeHtml(page.filter.query)+'">'
     + '<select aria-label="Filter booking status" name="status">'+statuses+'</select><button type="submit">Filter</button></form></div>'
-    + '<div class="overflow"><table><thead><tr><th>Customer / ID</th><th>Pet / type</th><th>Stay dates</th><th>Status</th><th>Contact</th><th>Draft</th></tr></thead><tbody>'
+    + '<div class="overflow"><table><thead><tr><th>Owner / reference</th><th>Dog / space</th><th>Boarding dates</th><th>Status</th><th>Contact</th><th>Action</th></tr></thead><tbody>'
     + (tr || '<tr><td colspan="6" style="padding:45px;text-align:center;color:#8d9d91">No matching bookings.</td></tr>')
-    + '</tbody></table></div><div class="panelbottom"><span>Showing '+visible.length+' entries, newest first</span><span>Read-only</span></div></section>'
-    + '<p class="foot">Boarding draft estimates are internal only. Approval, payment, PDFs and customer sending remain disabled.</p></main></div></body></html>';
+    + '</tbody></table></div><div class="panelbottom"><span>'+visible.length+' requests · newest first</span></div></section>'
+    + '<p class="foot">Estimates are for staff review, not payment. '+(page.demo?'':'<a href="/staff/location">Check a location from the old Google Form</a>')+'</p></main></div></body></html>';
 }

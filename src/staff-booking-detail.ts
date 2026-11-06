@@ -141,7 +141,7 @@ export function renderStaffBookingDetail(b:StaffBookingDetail):string {
           +': <strong>'+(b.personalityTraits?.[key as PersonalityTrait]===true?'Yes':
             b.personalityTraits?.[key as PersonalityTrait]===false?'No':'Not recorded')
           +'</strong></div>').join('')
-          +'<p class="fine">Yes / No reflects answers given on the form, not a medical assessment.</p>'))
+          ))
     : '<section class="notice">Full boarding details are missing. Check the original Google Form before confirming this stay.</section>';
   const location=b.transportLocation;
   const transport=location&&Number.isFinite(location.latitude)&&Number.isFinite(location.longitude)
@@ -150,10 +150,9 @@ export function renderStaffBookingDetail(b:StaffBookingDetail):string {
         value('Requested service',esc(location.service==='both'?'Pickup and drop-off':
           location.service==='pickup'?'Pickup only':location.service==='dropoff'?'Drop-off only':'Unknown'))
         +value('Customer-selected pin',esc(location.latitude.toFixed(6)+', '+location.longitude.toFixed(6)))
-        +value('Confirmed by customer',yesNo(location.customerConfirmed))
-        +value('View on map','<a target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps?q='
-          +encodeURIComponent(location.latitude+','+location.longitude)+'">Open Google Maps</a>')
-      )+'<p class="fine">The customer selected this point. Confirm drivable gate access before transport pricing.</p>'
+        +value('View location','<a target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps?q='
+          +encodeURIComponent(location.latitude+','+location.longitude)+'">Open in Google Maps</a>')
+      )+'<p class="fine">Check road access before confirming the transport price.</p>'
     : '';
   return '<!doctype html><html lang="en"><head><meta charset="utf-8">'
    +'<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -172,7 +171,7 @@ export function renderStaffBookingDetail(b:StaffBookingDetail):string {
    +'<main class="wrap"><a href="/staff">← Booking queue</a>'
    +'<p class="tag" style="margin-top:30px">Apex Kennels / Staff</p>'
    +'<h1>Booking details</h1>'
-   +'<div class="banner">'+(b.isSynthetic?'TEST RECORD · DO NOT CONTACT':'STAFF VIEW · READ ONLY')+'</div>'
+   +(b.isSynthetic?'<div class="banner">TEST RECORD · DO NOT CONTACT</div>':'')
    +'<section class="panel"><h2>'+esc(b.customerName)+'</h2><dl class="detail-grid">'
    +value('Booking ID',esc(b.id))+value('Booking status',esc(b.status))
    +value('Requested dates',esc(b.startDate)+' → '+esc(b.endDate))
@@ -184,6 +183,6 @@ export function renderStaffBookingDetail(b:StaffBookingDetail):string {
    +'</dl></section>'+transport+form
    +'<div class="actions"><a class="action" href="/staff/draft?id='+encodeURIComponent(b.id)+'">Review price estimate</a>'
    +'<a href="/staff">Back to bookings</a></div>'
-   +'<p class="fine">Owner-reported details. Confirm health and safety information before accepting a booking. Nothing is approved or sent from this page.</p>'
+   +'<p class="fine">Health and care details came from the owner. Confirm anything unclear before accepting the booking.</p>'
    +'</main></body></html>';
 }

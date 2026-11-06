@@ -2,13 +2,15 @@
   'use strict';
   const form=document.getElementById('booking');
   const transport=document.getElementById('transport');
-  const service=form.elements.namedItem('service');
-  const gate=document.getElementById('confirm-gate');
+  const placeSearch=document.getElementById('place-search');
+  const placeResults=document.getElementById('place-results');
+  const searchStatus=document.getElementById('search-status');
   const locationStatus=document.getElementById('coordinate-status');
   const message=document.getElementById('message');
   const submit=document.getElementById('submit');
   const preview=document.getElementById('preview');
   let map=null,marker=null,point=null,challenge=null,turnstileId=null;
+  let searchTimer=null,searchAbort=null,searchVersion=0;
   const requestId=crypto.randomUUID();
   const traitNames=['friendly','fears','climber','foodSensitivities','barksExcessively','allergies','biteHistory','medicalConditions'];
 
@@ -17,9 +19,10 @@
     message.className=bad?'message error':'message';
     message.hidden=false;
   }
-  function selectedTransport(){
-    return form.querySelector('input[name="pickupDropoffRequested"]:checked')?.value==='yes';
+  function transportChoice(){
+    return form.querySelector('input[name="transportChoice"]:checked')?.value||'none';
   }
+  function selectedTransport(){return transportChoice()!=='none';}
   function putPoint(latitude,longitude){
     if(!Number.isFinite(latitude)||!Number.isFinite(longitude)||
        latitude<23||latitude>38||longitude<60||longitude>78){
@@ -35,14 +38,15 @@
     }else if(marker){
       marker.setLngLat([point.longitude,point.latitude]);
     }
-    locationStatus.textContent='Pin: '+point.latitude.toFixed(6)+', '+point.longitude.toFixed(6);
-    gate.checked=false;
+    locationStatus.textContent='Location chosen · Drag the pin to adjust';
   }
   function displayTransport(){
     const required=selectedTransport();
     transport.hidden=!required;
-    service.required=required;
-    gate.required=required;
+    if(!required){
+      closeSuggestions();
+      if(searchAbort)searchAbort.abort();
+    }
     if(required&&!map){
       if(!window.maplibregl){
         showMessage('Map could not load. Please try again when connected.',true);
@@ -55,13 +59,94 @@
         zoom:10
       });
       map.addControl(new maplibregl.NavigationControl({showCompass:false}),'top-right');
-      map.on('click',function(e){putPoint(e.lngLat.lat,e.lngLat.lng);});
+      map.on('click',function(e){
+        putPoint(e.lngLat.lat,e.lngLat.lng);
+        placeSearch.value='';
+        searchStatus.textContent='Pin placed on the map.';
+        closeSuggestions();
+      });
     }
     if(map&&required)map.resize();
   }
-  form.querySelectorAll('input[name="pickupDropoffRequested"]').forEach(function(el){
+  form.querySelectorAll('input[name="transportChoice"]').forEach(function(el){
     el.addEventListener('change',displayTransport);
   });
+  function closeSuggestions(){
+    placeResults.hidden=true;
+    placeResults.replaceChildren();
+    placeSearch.setAttribute('aria-expanded','false');
+  }
+  function renderPlaces(items){
+    closeSuggestions();
+    if(!items.length){
+      searchStatus.textContent='No matching places. Try another name or choose a point on the map.';
+      return;
+    }
+    const list=document.createDocumentFragment();
+    items.forEach(function(place){
+      const button=document.createElement('button');
+      button.type='button';
+      button.setAttribute('role','option');
+      button.textContent=place.label;
+      button.addEventListener('click',function(){
+        putPoint(place.latitude,place.longitude);
+        if(map)map.flyTo({center:[place.longitude,place.latitude],zoom:16});
+        placeSearch.value=place.label;
+        searchStatus.textContent='Found your area. Move the pin to your gate if needed.';
+        closeSuggestions();
+      });
+      list.append(button);
+    });
+    placeResults.append(list);
+    placeResults.hidden=false;
+    placeSearch.setAttribute('aria-expanded','true');
+    searchStatus.textContent=items.length+' matching place'+(items.length===1?'':'s');
+  }
+  async function queryPlaces(query,version){
+    if(searchAbort)searchAbort.abort();
+    const controller=new AbortController();
+    searchAbort=controller;
+    try{
+      const response=await fetch('/api/book/places?q='+encodeURIComponent(query),{
+        credentials:'omit',signal:controller.signal,cache:'no-store'
+      });
+      if(version!==searchVersion)return;
+      if(!response.ok)throw new Error('Search unavailable');
+      const data=await response.json();
+      if(version!==searchVersion)return;
+      if(!Array.isArray(data.items))throw new Error('Invalid search results');
+      renderPlaces(data.items);
+    }catch(error){
+      if(version!==searchVersion||error.name==='AbortError')return;
+      closeSuggestions();
+      searchStatus.textContent='Search is unavailable. You can still tap the map to choose your location.';
+    }
+  }
+  placeSearch.addEventListener('input',function(){
+    const query=placeSearch.value.trim();
+    searchVersion++;
+    clearTimeout(searchTimer);
+    if(searchAbort)searchAbort.abort();
+    closeSuggestions();
+    if(query.length<3){
+      searchStatus.textContent='Type at least 3 characters, or tap the map.';
+      return;
+    }
+    searchStatus.textContent='Searching…';
+    const version=searchVersion;
+    searchTimer=setTimeout(function(){queryPlaces(query,version);},400);
+  });
+  placeSearch.addEventListener('keydown',function(event){
+    if(event.key==='Escape')closeSuggestions();
+    if(event.key==='ArrowDown'&&!placeResults.hidden){
+      const first=placeResults.querySelector('button');
+      if(first){event.preventDefault();first.focus();}
+    }
+  });
+  document.addEventListener('click',function(e){
+    if(!e.target.closest('.place-search'))closeSuggestions();
+  });
+
   document.getElementById('locate').addEventListener('click',function(){
     if(!navigator.geolocation){
       showMessage('Location services are unavailable. Tap the map instead.',true);return;
@@ -85,9 +170,11 @@
       if(answer!=='Yes'&&answer!=='No')throw new Error('Complete the care questions.');
       personalityTraits[key]=answer==='Yes';
     }
-    const needsTransport=field(data,'pickupDropoffRequested')==='yes';
-    if(needsTransport&&(!point||!gate.checked)){
-      throw new Error('Tap the map and confirm the correct pickup or drop-off entrance.');
+    const choice=transportChoice();
+    const needsTransport=choice!=='none';
+    if(needsTransport&&!point){
+      placeSearch.focus();
+      throw new Error('Search for a location or drop a pin on the map.');
     }
     const details={
       ownerAddress:field(data,'ownerAddress'),
@@ -112,7 +199,7 @@
     };
     if(needsTransport){
       booking.transportLocation={
-        ...point,service:field(data,'service'),customerConfirmed:true
+        ...point,service:choice,customerConfirmed:true
       };
     }
     return booking;

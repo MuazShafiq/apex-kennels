@@ -70,8 +70,9 @@ test('customer booking has no duplicate pin confirmation or internal jargon',()=
   const html=readFileSync('public/book/index.html','utf8');
   const js=readFileSync('public/book/app.js','utf8');
   assert.doesNotThrow(()=>new Script(js));
-  assert.match(html,/id="place-search"/);
-  assert.match(html,/id="place-results"/);
+  assert.match(html,/id="maps-link"/);
+  assert.match(html,/Open Google Maps/);
+  assert.doesNotMatch(html,/id="place-search"|id="place-results"|id="map"/);
   assert.match(html,/Read boarding terms/);
   assert.match(html,/Two meals every day/);
   assert.match(html,/Weekly vet check-ups/);
@@ -83,8 +84,8 @@ test('customer booking has no duplicate pin confirmation or internal jargon',()=
   for(const choice of ['none','pickup','dropoff','both']){
     assert.match(html,new RegExp('name="transportChoice" value="'+choice+'"'));
   }
-  assert.match(js,/api\/book\/places\?q=/);
-  assert.match(js,/750\)/);
+  assert.match(js,/api\/book\/location/);
+  assert.doesNotMatch(js,/api\/book\/places|maplibregl/);
   assert.match(js,/customerConfirmed:true/);
   assert.doesNotMatch(js,/gate\.checked|confirm-gate/);
   assert.doesNotMatch(js,/GEOAPIFY_API_KEY|TURNSTILE_SECRET_KEY/);

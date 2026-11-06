@@ -88,24 +88,55 @@ export function normalizeTomTomQuery(query:string):string{
   return query.normalize('NFKC').replace(/\bU\s*\.\s*S\s*\./gi,'US')
     .replace(/\bU\s*\.\s*S\b/gi,'US').replace(/\s+/g,' ').trim();
 }
+export type PlaceSearchArea='islamabad'|'lahore'|'pakistan';
+const areas:Record<Exclude<PlaceSearchArea,'pakistan'>,{longitude:number;latitude:number;radius:number}>={
+  islamabad:{longitude:73.0479,latitude:33.6844,radius:90000},
+  lahore:{longitude:74.35,latitude:31.52,radius:75000}
+};
+export function validPlaceSearchArea(value:unknown):value is PlaceSearchArea{
+  return value==='islamabad'||value==='lahore'||value==='pakistan';
+}
+const terms=(text:string)=>normalizeTomTomQuery(text).toLowerCase()
+  .replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(Boolean);
+export function matchesPlaceQuery(query:string,label:string):boolean{
+  const words=terms(query),candidate=terms(label);
+  if(!words.length||!candidate.length)return false;
+  // Normalize the common embassy naming variants, without allowing unrelated
+  // spellings such as "Rayaz" to match the word "Raya".
+  const isUS=(word:string)=>['us','usa','american'].includes(word);
+  return words.every(word=>
+    word==='us'
+      ?candidate.some(isUS)||candidate.includes('united')&&candidate.includes('states')
+      :candidate.includes(word)
+  );
+}
 export async function suggestTomTomPlaces(
-  query:string,key:string,fetcher:typeof fetch=fetch
+  query:string,key:string,fetcher:typeof fetch=fetch,area:PlaceSearchArea='islamabad'
 ):Promise<TomTomSuggestion[]>{
   tomTomKey(key);
   query=normalizeTomTomQuery(query);
-  if(query.length<3||query.length>90)throw new TomTomPlacesError(400);
+  if(query.length<3||query.length>90||!validPlaceSearchArea(area))
+    throw new TomTomPlacesError(400);
+  const region=area==='pakistan'?null:areas[area];
   const response=await fetcher('https://api.tomtom.com/maps/orbis/places/suggest',{
     method:'POST',
     headers:{
       'TomTom-Api-Key':key,'TomTom-Api-Version':'3',
-      'Attributes':'results(id,type,title,subtitles)',
+      'Attributes':'results(id,type,title,subtitles,address.countryCodeIso2)',
       'Accept':'application/json','Content-Type':'application/json','Accept-Language':'en-PK,en'
     },
     redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(5000),
     body:JSON.stringify({
-      query,maxResults:5,geopoliticalView:'PK',
-      filters:{types:['poi','address','street','intersection','area'],countryCodesIso2:['PK']},
-      preferences:{geometry:{type:'point',coordinates:[73.0479,33.6844]}}
+      query,maxResults:10,geopoliticalView:'PK',
+      filters:{
+        types:['poi','address','street','intersection','area'],
+        countryCodesIso2:['PK'],
+        ...(region?{geometry:{type:'circle',
+          center:[region.longitude,region.latitude],
+          radiusInMeters:region.radius}}:{})
+      },
+      ...(region?{preferences:{geometry:{type:'point',
+        coordinates:[region.longitude,region.latitude]}}}:{})
     })
   });
   const parsed=await boundedJson(response);
@@ -120,6 +151,9 @@ export async function suggestTomTomPlaces(
     const subt=Array.isArray(r.subtitles)
       ?r.subtitles.filter((x):x is string=>typeof x==='string'&&!!x.trim()).slice(0,2):[];
     const label=[r.title,...subt].join(', ').slice(0,180);
+    const address=r.address&&typeof r.address==='object' ?r.address as Record<string,unknown>:null;
+    if(address?.countryCodeIso2 && address.countryCodeIso2!=='PK')continue;
+    if(!matchesPlaceQuery(query,label))continue;
     const unique=type+':'+r.id;
     if(seen.has(unique))continue;
     seen.add(unique);out.push({label,placeId:r.id,placeType:type});

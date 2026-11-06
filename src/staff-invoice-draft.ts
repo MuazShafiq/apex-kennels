@@ -16,6 +16,7 @@ export type StaffInvoiceSource={
   synthetic:boolean;
 };
 export type StaffPackageChoice='daily'|'monthly';
+export type StaffPackageSelection=StaffPackageChoice|'auto';
 export type StaffDraftReview={
   booking:StaffInvoiceSource;
   packageChoice:StaffPackageChoice;
@@ -26,13 +27,13 @@ export type StaffDraftReview={
   canApprove:false;
 };
 
-export function parseStaffDraftRequest(url:URL):{bookingId:string;packageChoice:StaffPackageChoice}{
+export function parseStaffDraftRequest(url:URL):{bookingId:string;packageChoice:StaffPackageSelection}{
   const bookingId=url.searchParams.get('id')??'';
   if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(bookingId)){
     throw new Error('Invalid booking id');
   }
-  const choice=url.searchParams.get('package')??'daily';
-  if(choice!=='daily'&&choice!=='monthly')throw new Error('Invalid package choice');
+  const choice=url.searchParams.get('package')??'auto';
+  if(choice!=='auto'&&choice!=='daily'&&choice!=='monthly')throw new Error('Invalid package choice');
   return {bookingId,packageChoice:choice};
 }
 type Row={
@@ -91,8 +92,11 @@ export async function readStaffInvoiceSource(databaseUrl:string,bookingId:string
  */
 export function prepareStaffDraftReview(
   source:StaffInvoiceSource,
-  packageChoice:StaffPackageChoice
+  selection:StaffPackageSelection
 ):StaffDraftReview{
+  const packageChoice:StaffPackageChoice=selection==='auto'
+    ?countBilledDays(source.startDate,source.endDate,'inclusive_days')===30?'monthly':'daily'
+    :selection;
   const issues:string[]=[];
   if(source.status!=='approved')issues.push('Booking is not approved for boarding.');
   if(source.cameraCageRequested===null){
@@ -130,11 +134,11 @@ export function prepareStaffDraftReview(
 /**
  * Staff-only printable review copy. This has no official invoice number,
  * bank details, approval or sending action. Deliberately refuse incomplete
- * transport pricing and unapproved monthly package eligibility.
+ * transport pricing or incomplete boarding rates.
  */
 export function renderPrintableStaffReview(review:StaffDraftReview,reviewDate:string):string{
-  if(!review.draft||review.booking.transportRequested||review.packageChoice!=='daily')
-    throw new Error('A complete daily boarding-only estimate is required');
+  if(!review.draft||review.booking.transportRequested)
+    throw new Error('A complete boarding-only estimate is required');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(reviewDate))
     throw new Error('Invalid review date');
   return renderInvoiceHtml({
@@ -202,9 +206,10 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
         +rows+'</tbody></table>'+discounts+'<div class="sum"><span>'
         +(source.transportRequested?'Boarding-only estimate · transport excluded':'Provisional subtotal')
         +'</span><span>'+pkr(review.draft.quote.totalPkr)+'</span></div>'
-        +(site==='staff'&&!source.transportRequested&&review.packageChoice==='daily'
+        +(site==='staff'&&!source.transportRequested
           ?'<p><a href="/staff/draft?id='+encodeURIComponent(source.bookingId)
-            +'&amp;package=daily&amp;format=print">View printable review copy</a></p>':'')
+            +'&amp;package='+encodeURIComponent(review.packageChoice)
+            +'&amp;format=print">View printable review copy</a></p>':'')
         +'</div>'
       : '<div class="panel"><strong>Estimate unavailable.</strong><p>Resolve the issues below.</p></div>')
     +'<div class="panel"><div class="tag">Needs attention</div><ul>'

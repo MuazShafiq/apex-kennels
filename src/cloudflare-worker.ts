@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { IntakeError, parseIntake, type IntakeRequest } from './intake.ts';
 import {parsePublicBookingEnvelope,verifyBookingChallenge} from './public-booking.ts';
 import {parsePlaceQuery,searchPakistaniPlaces,type PlaceSuggestion} from './location-suggestions.ts';
+import {searchTomTomPlaces} from './tomtom-places.ts';
 import { persistBookingWithNeon } from './neon-worker-db.ts';
 import type { SavedBooking } from './booking-store.ts';
 import {listStaffBookings,parseStaffFilter,syntheticBookings, type StaffBooking, type StaffFilter} from './staff-bookings.ts';
@@ -21,6 +22,7 @@ export type WorkerEnv = {
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
   GEOAPIFY_API_KEY?: string;
+  TOMTOM_API_KEY?: string;
   ASSETS?: {fetch(request:Request):Promise<Response>};
 };
 
@@ -135,13 +137,16 @@ export async function handleWorkerRequest(
   }
   if(path==='/api/book/places'){
     if(request.method!=='GET')return json({error:'Method not allowed'},405,{Allow:'GET'});
-    if(!env.GEOAPIFY_API_KEY)return json({error:'Location search unavailable'},503);
+    if(!env.TOMTOM_API_KEY&&!env.GEOAPIFY_API_KEY)return json({error:'Location search unavailable'},503);
     let query:string;
     try{query=parsePlaceQuery(new URL(request.url));}
     catch{return json({error:'Enter at least three characters'},400);}
     try{
-      const items=await (staff.searchPlaces??searchPakistaniPlaces)(query,env.GEOAPIFY_API_KEY);
-      return json({items,attribution:'Geoapify · OpenStreetMap contributors'});
+      const usingTomTom=!!env.TOMTOM_API_KEY;
+      const items=usingTomTom
+        ?await (staff.searchPlaces??searchTomTomPlaces)(query,env.TOMTOM_API_KEY!)
+        :await (staff.searchPlaces??searchPakistaniPlaces)(query,env.GEOAPIFY_API_KEY!);
+      return json({items,attribution:usingTomTom?'TomTom':'Geoapify · OpenStreetMap contributors'});
     }catch{return json({error:'Location search unavailable'},502);}
   }
   if(path==='/api/book/config'){

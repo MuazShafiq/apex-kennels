@@ -39,19 +39,23 @@ test('one-month normal package per dog requires explicit package choice and huma
   assert.equal(daily.draft?.quote.totalPkr,150000);
   const monthly=prepareStaffDraftReview(b,'monthly');
   assert.equal(monthly.draft?.quote.totalPkr,130000);
-  assert.ok(monthly.issues.some(x=>x.includes('eligibility')));
+  assert.ok(monthly.issues.some(x=>x.includes('confirm dates')));
+  assert.match(renderStaffDraftReview(monthly),/30-day boarding discount/);
   assert.equal(monthly.canApprove,false);
   assert.equal(monthly.canSend,false);
 });
 
-test('monthly discount never silently applies to 3-day stay, 32-day stay or camera cage',()=>{
+test('30-day package supports both cage types; outside-30-day stays cannot receive it',()=>{
   assert.equal(prepareStaffDraftReview(standard,'monthly').draft,null);
   assert.equal(prepareStaffDraftReview({
     ...standard,startDate:'2026-12-01',endDate:'2027-01-01'
   },'monthly').draft,null);
-  assert.equal(prepareStaffDraftReview({
+  const camera=prepareStaffDraftReview({
     ...standard,startDate:'2026-12-01',endDate:'2026-12-30',cameraCageRequested:true
-  },'monthly').draft,null);
+  },'monthly');
+  assert.equal(camera.draft?.quote.subtotalPkr,90000);
+  assert.equal(camera.draft?.quote.totalPkr,80000);
+  assert.match(renderStaffDraftReview(camera),/PKR 10,000/);
 });
 
 test('pickup requested: boarding estimate is clearly incomplete, transport never invented',()=>{

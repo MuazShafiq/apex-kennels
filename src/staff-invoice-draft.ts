@@ -92,14 +92,9 @@ export function prepareStaffDraftReview(
   source:StaffInvoiceSource,
   packageChoice:StaffPackageChoice
 ):StaffDraftReview{
-  const issues:string[]=[
-    'Owner must verify actual cage allocation, dates, prices and booking acceptance.',
-    'The billed-day policy has not been universally confirmed for exceptions.',
-    'Invoice number, payment instructions and discounts require owner approval.',
-    'Drafts are not payable and cannot be sent from this screen.'
-  ];
+  const issues:string[]=[];
   if(source.status!=='approved')issues.push('Booking is not approved for boarding.');
-  if(source.synthetic)issues.push('SYNTHETIC TEST BOOKING: never send to a customer.');
+  if(source.synthetic)issues.push('TEST RECORD. Do not contact the customer.');
   if(source.cameraCageRequested===null){
     issues.push('Cage preference missing; do not assume normal cage.');
     return {booking:source,packageChoice,draft:null,issues,previewOnly:true,canSend:false,canApprove:false};
@@ -120,10 +115,10 @@ export function prepareStaffDraftReview(
       : 'Requested monthly package is outside a 28–31-inclusive-day candidate window; staff must resolve.');
     return {booking:source,packageChoice,draft:null,issues,previewOnly:true,canSend:false,canApprove:false};
   }
-  if(monthly)issues.push('Full-month package eligibility is not finalized; verify before approving.');
-  if(source.cameraCageRequested)issues.push('Camera cage REQUESTED, not confirmed as available.');
+  if(monthly)issues.push('Confirm monthly package eligibility before quoting this rate.');
+  if(source.cameraCageRequested)issues.push('Camera cage REQUESTED: check availability.');
   if(source.transportRequested)issues.push(
-    'Transport requested: no verified customer gate pin and approved driven route; transport amount excluded.'
+    'Transport amount excluded. Check pickup location and driving route before quoting.'
   );
   const draft=buildApexInvoiceDraft({
     startDate:source.startDate,endDate:source.endDate,
@@ -145,11 +140,11 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
   const formAction=site==='staff'?'/staff/draft':'/demo/draft';
   const select='<form method="get" action="'+formAction+'">'
     +'<input type="hidden" name="id" value="'+esc(source.bookingId)+'">'
-    +'<label for="package">Provisional rate model</label>'
+    +'<label for="package">Boarding rate</label>'
     +'<select id="package" name="package">'
     +'<option value="daily"'+(review.packageChoice==='daily'?' selected':'')+'>Daily boarding</option>'
-    +'<option value="monthly"'+(review.packageChoice==='monthly'?' selected':'')+'>One-month package (candidate)</option>'
-    +'</select><button type="submit">Recalculate preview</button></form>';
+    +'<option value="monthly"'+(review.packageChoice==='monthly'?' selected':'')+'>Monthly package (requires review)</option>'
+    +'</select><button type="submit">Update estimate</button></form>';
   const rows=review.draft?.quote.lines.map(x=>'<tr><td>'+esc(x.label)+'</td>'
     +'<td class="number">'+x.quantity+'</td><td class="number">'+pkr(x.unitPricePkr)
     +'</td><td class="number">'+pkr(x.totalPkr)+'</td></tr>').join('')??'';
@@ -173,8 +168,8 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
     +'@media(max-width:620px){.panel{padding:15px}table{font-size:11px}}</style></head><body>'
     +'<main class="wrap"><a href="'+(site==='staff'?'/staff':'/demo/staff')+'">← Booking queue</a>'
     +'<div class="tag" style="margin-top:30px">Apex Kennels / Owner review</div>'
-    +'<h1>Invoice draft estimate.</h1>'
-    +'<div class="banner">INTERNAL ONLY · NOT PAYABLE · NOT READY TO SEND'
+    +'<h1>Boarding price estimate</h1>'
+    +'<div class="banner">STAFF ESTIMATE · NOT PAYABLE'
     +(source.synthetic||site==='demo'?' · SYNTHETIC DATA':'')+'</div>'
     +'<div class="panel"><p><strong>'+esc(source.customerName)+'</strong> · '+esc(source.petNames)
     +'</p><p class="muted">'+esc(source.startDate)+' to '+esc(source.endDate)
@@ -187,7 +182,7 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
         +(source.transportRequested?'Boarding-only estimate · transport excluded':'Provisional subtotal')
         +'</span><span>'+pkr(review.draft.quote.totalPkr)+'</span></div></div>'
       : '<div class="panel"><strong>Estimate unavailable.</strong><p>Resolve the issues below.</p></div>')
-    +'<div class="panel"><div class="tag">Before issuing any invoice</div><ul>'
-    +issueHtml+'</ul><p class="muted">No invoice record, email, PDF, payment request or approval action is created here.</p></div>'
+    +'<div class="panel"><div class="tag">Needs attention</div><ul>'
+    +issueHtml+'</ul><p class="muted">An invoice is created only after staff approval.</p></div>'
     +'</main></body></html>';
 }

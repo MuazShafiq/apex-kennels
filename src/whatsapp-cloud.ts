@@ -47,7 +47,7 @@ export async function sendApprovedTemplate(
   const payload={
     messaging_product:'whatsapp',to:phone,type:'template',
     template:{
-      name:template,language:{code:'en'},
+      name:template,language:{code:'en_US'},
       components:[{type:'body',parameters:bodyValues.map(param)}]
     }
   };

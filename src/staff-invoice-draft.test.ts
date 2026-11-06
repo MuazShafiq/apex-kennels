@@ -114,15 +114,30 @@ test('printable owner-review copy uses existing A4 invoice renderer but cannot b
   const staffHtml=renderStaffDraftReview(standardReview);
   assert.match(staffHtml,/View printable review copy/);
 });
-test('incomplete transport, uncertain monthly packages and missing rates cannot generate printable copies',()=>{
+test('printable review supports confirmed 30-day packages but blocks incomplete transport',()=>{
+  const monthly=prepareStaffDraftReview({...standard,
+    startDate:'2026-11-01',endDate:'2026-11-30'},'monthly');
+  assert.match(renderPrintableStaffReview(monthly,'2026-11-06'),/30-day boarding discount/);
+  assert.match(renderStaffDraftReview(monthly),/View printable review copy/);
   for(const review of [
     prepareStaffDraftReview({...standard,transportRequested:true},'daily'),
-    prepareStaffDraftReview({...standard,startDate:'2026-11-01',endDate:'2026-11-30'},'monthly'),
     prepareStaffDraftReview({...standard,transportRequested:null},'daily')
   ]){
-    assert.throws(()=>renderPrintableStaffReview(review,'2026-11-06'),/complete daily boarding-only estimate/i);
+    assert.throws(()=>renderPrintableStaffReview(review,'2026-11-06'),/complete boarding-only estimate/i);
     assert.doesNotMatch(renderStaffDraftReview(review),/View printable review copy/);
   }
+});
+test('30-day package is suggested automatically but staff may explicitly choose daily',()=>{
+  const booking={...standard,startDate:'2026-11-01',endDate:'2026-11-30',cameraCageRequested:true};
+  const automatic=prepareStaffDraftReview(booking,'auto');
+  assert.equal(automatic.packageChoice,'monthly');
+  assert.equal(automatic.draft?.quote.totalPkr,80000);
+  const daily=prepareStaffDraftReview(booking,'daily');
+  assert.equal(daily.packageChoice,'daily');
+  assert.equal(daily.draft?.quote.totalPkr,90000);
+  assert.equal(prepareStaffDraftReview(standard,'auto').packageChoice,'daily');
+  assert.deepEqual(parseStaffDraftRequest(new URL('https://example.com/staff/draft?id='+id)),
+    {bookingId:id,packageChoice:'auto'});
 });
 test('printable preview is always internal, synthetic is labeled and names are HTML-escaped',()=>{
   const review=prepareStaffDraftReview({

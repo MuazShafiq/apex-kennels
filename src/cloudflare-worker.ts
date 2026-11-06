@@ -325,8 +325,8 @@ export async function handleWorkerRequest(
       if(!source)return json({error:'Booking not found'},404);
       const review=prepareStaffDraftReview(source,parsed.packageChoice);
       if(format[0]==='print'){
-        if(!review.draft||review.packageChoice!=='daily'||source.transportRequested)
-          return json({error:'Complete daily boarding estimate required for printing'},409);
+        if(!review.draft||source.transportRequested)
+          return json({error:'Complete boarding estimate required for printing'},409);
         return html(renderPrintableStaffReview(review,new Date().toISOString().slice(0,10)));
       }
       return html(renderStaffDraftReview(review));

@@ -67,7 +67,8 @@ export async function searchTomTomPlaces(
 /** TomTom's Suggest API is meant for typing; Discover (above) is for complete queries. */
 export type TomTomSuggestion={label:string;placeId:string;placeType:'pois'|'addresses'|'streets'|'intersections'|'areas'};
 export class TomTomPlacesError extends Error{
-  constructor(readonly status:number){super('Place search provider failed');}
+  readonly status:number;
+  constructor(status:number){super('Place search provider failed');this.status=status;}
 }
 const typeMap:Record<string,TomTomSuggestion['placeType']>={
   poi:'pois',address:'addresses',street:'streets',intersection:'intersections',area:'areas'

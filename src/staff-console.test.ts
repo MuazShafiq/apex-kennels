@@ -277,7 +277,7 @@ test('external redirect failure gives safe unresolved result, not a fake locatio
     context:valid,resolvePin:async()=>({ok:false,reason:'REDIRECT_UNAVAILABLE'})
   });
   assert.equal(response.status,200);
-  assert.match(await response.text(),/Couldn't read that location link/);
+  assert.match(await response.text(),/Unable to read that location link/);
 });
 
 test('staff booking queue links to Access-gated pin checker; demo does not',async()=>{

@@ -86,6 +86,6 @@ export function fingerprintIntake(input: IntakeRequest): string {
     startDate: input.startDate, endDate: input.endDate,
     accommodationType: input.accommodationType ?? null,
     details: input.details ?? null,
-    transportLocation: input.transportLocation ?? null
+    ...(input.source==='website' ? {transportLocation:input.transportLocation??null} : {})
   })).digest('hex');
 }

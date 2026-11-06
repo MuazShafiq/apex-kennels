@@ -45,6 +45,7 @@ test('one kennel > customer > kennel route counts 1 full round trip for pickup',
   const f:typeof fetch=async(input,init)=>{
     seen.push(String(input));
     assert.equal(init?.method,'GET');
+    assert.equal(init?.redirect,'manual');
     return new Response(JSON.stringify({
       type:'FeatureCollection',
       features:[{type:'Feature',properties:{distance:19450},geometry:{type:'MultiLineString',coordinates:[]}}]

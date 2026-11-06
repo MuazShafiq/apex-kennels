@@ -75,14 +75,14 @@ test('customer-facing booking retains service details, exact six terms and no re
   for(const benefit of ['Two meals every day','Weekly vet check-ups','Rs. 2,500/day']){
     assert.ok(html.includes(benefit),benefit);
   }
-  const terms=html.match(/<details class="terms"[\\s\\S]*?<\\/details>/)?.[0]??'';
+  const terms=html.match(/<details class="terms"[\s\S]*?<\/details>/)?.[0]??'';
   assert.equal((terms.match(/<li>/g)||[]).length,6);
   assert.match(terms,/I hold Apex Kennels and staff completely harmless/);
   for(const choice of ['none','pickup','dropoff','both']){
     assert.match(html,new RegExp('name="transportChoice" value="'+choice+'"'));
   }
-  assert.doesNotMatch(html,/confirm-gate|Camera cage requested\\?|id="place-search"|id="map"|id="place-results"/);
-  assert.doesNotMatch(js,/gate\\.checked|maplibregl|api\\/book\\/places/);
+  assert.doesNotMatch(html,/confirm-gate|Camera cage requested\?|id="place-search"|id="map"|id="place-results"/);
+  assert.doesNotMatch(js,/gate\.checked|maplibregl|api\/book\/places/);
   assert.match(js,/customerConfirmed:true/);
 });
 test('retired search endpoints no longer expose providers or consume API credits',async()=>{

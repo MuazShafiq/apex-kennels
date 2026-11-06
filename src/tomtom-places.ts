@@ -63,3 +63,98 @@ export async function searchTomTomPlaces(
   }
   return items;
 }
+
+/** TomTom's Suggest API is meant for typing; Discover (above) is for complete queries. */
+export type TomTomSuggestion={label:string;placeId:string;placeType:'pois'|'addresses'|'streets'|'intersections'|'areas'};
+export class TomTomPlacesError extends Error{
+  constructor(readonly status:number){super('Place search provider failed');}
+}
+const typeMap:Record<string,TomTomSuggestion['placeType']>={
+  poi:'pois',address:'addresses',street:'streets',intersection:'intersections',area:'areas'
+};
+const validId=(id:unknown):id is string=>typeof id==='string'&&/^[A-Za-z0-9_-]{1,160}$/.test(id);
+function tomTomKey(key:string):void{
+  if(!key||key.length<12)throw new TomTomPlacesError(503);
+}
+async function boundedJson(response:Response):Promise<unknown>{
+  if(!response.ok)throw new TomTomPlacesError(response.status);
+  const raw=await response.text();
+  if(raw.length>64000)throw new TomTomPlacesError(502);
+  try{return JSON.parse(raw) as unknown;}
+  catch{throw new TomTomPlacesError(502);}
+}
+export function normalizeTomTomQuery(query:string):string{
+  return query.normalize('NFKC').replace(/\bU\s*\.\s*S\s*\./gi,'US')
+    .replace(/\bU\s*\.\s*S\b/gi,'US').replace(/\s+/g,' ').trim();
+}
+export async function suggestTomTomPlaces(
+  query:string,key:string,fetcher:typeof fetch=fetch
+):Promise<TomTomSuggestion[]>{
+  tomTomKey(key);
+  query=normalizeTomTomQuery(query);
+  if(query.length<3||query.length>90)throw new TomTomPlacesError(400);
+  const response=await fetcher('https://api.tomtom.com/maps/orbis/places/suggest',{
+    method:'POST',
+    headers:{
+      'TomTom-Api-Key':key,'TomTom-Api-Version':'3',
+      'Attributes':'results(id,type,title,subtitles)',
+      'Accept':'application/json','Content-Type':'application/json','Accept-Language':'en-PK,en'
+    },
+    redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(5000),
+    body:JSON.stringify({
+      query,maxResults:5,geopoliticalView:'PK',
+      filters:{types:['poi','address','street','intersection','area'],countryCodesIso2:['PK']},
+      preferences:{geometry:{type:'point',coordinates:[73.0479,33.6844]}}
+    })
+  });
+  const parsed=await boundedJson(response);
+  if(!parsed||typeof parsed!=='object'||!('results' in parsed)||
+     !Array.isArray(parsed.results))throw new TomTomPlacesError(502);
+  const out:TomTomSuggestion[]=[],seen=new Set<string>();
+  for(const raw of parsed.results){
+    if(!raw||typeof raw!=='object')continue;
+    const r=raw as Record<string,unknown>;
+    const type=typeof r.type==='string'?typeMap[r.type]:undefined;
+    if(!type||!validId(r.id)||typeof r.title!=='string'||!r.title.trim())continue;
+    const subt=Array.isArray(r.subtitles)
+      ?r.subtitles.filter((x):x is string=>typeof x==='string'&&!!x.trim()).slice(0,2):[];
+    const label=[r.title,...subt].join(', ').slice(0,180);
+    const unique=type+':'+r.id;
+    if(seen.has(unique))continue;
+    seen.add(unique);out.push({label,placeId:r.id,placeType:type});
+    if(out.length>=5)break;
+  }
+  return out;
+}
+export async function resolveTomTomPlace(
+  type:TomTomSuggestion['placeType'],id:string,key:string,fetcher:typeof fetch=fetch
+):Promise<PlaceSuggestion>{
+  tomTomKey(key);
+  if(!(['pois','addresses','streets','intersections','areas'] as string[]).includes(type)||!validId(id))
+    throw new TomTomPlacesError(400);
+  const url='https://api.tomtom.com/maps/orbis/places/details/'+type+'/'+encodeURIComponent(id);
+  const response=await fetcher(url,{
+    method:'GET',headers:{
+      'TomTom-Api-Key':key,'TomTom-Api-Version':'3',
+      'Attributes':'id,type,title,position,address(countryCodeIso2)',
+      Accept:'application/json'
+    },
+    redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(5000)
+  });
+  const parsed=await boundedJson(response);
+  if(!parsed||typeof parsed!=='object')throw new TomTomPlacesError(502);
+  const r=parsed as Record<string,unknown>;
+  const pos=r.position&&typeof r.position==='object'
+    ?r.position as Record<string,unknown>:null;
+  const coords=pos?.coordinates;
+  if(pos?.type!=='Point'||!Array.isArray(coords)||coords.length!==2||
+     !coords.every(x=>typeof x==='number'&&Number.isFinite(x)))throw new TomTomPlacesError(502);
+  const [longitude,latitude]=coords;
+  if(latitude<23||latitude>38||longitude<60||longitude>78)throw new TomTomPlacesError(422);
+  const addr=r.address&&typeof r.address==='object'?(r.address as Record<string,unknown>):null;
+  if(addr?.countryCodeIso2!==undefined&&addr.countryCodeIso2!=='PK')throw new TomTomPlacesError(422);
+  return {
+    label:typeof r.title==='string'&&r.title.trim()?r.title.trim().slice(0,180):'Selected location',
+    latitude,longitude
+  };
+}

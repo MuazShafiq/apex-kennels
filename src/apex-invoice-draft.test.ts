@@ -74,7 +74,7 @@ test('transport 20 percent on fuel COST: 12 km/litre, 400 PKR/litre',()=>{
     requested:true,totalDrivenKm:24,profitBasis:'markup_on_fuel_cost',fuelRate:verified400
   }});
   assert.equal(q.quote.totalPkr,8460);
-  assert.ok(q.unresolved.some(s=>s.includes('markup versus margin')));
+  assert.ok(q.unresolved.some(s=>s.includes('provisional fuel cost + 20% markup')));
   assert.equal(q.fuelRateSnapshot?.pricePkrPerLitre,400);
 });
 

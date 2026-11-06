@@ -103,7 +103,7 @@ export async function routeApexTransport(
   url.searchParams.set('apiKey',key);
   try {
     const response=await (options.fetcher??fetch)(url.toString(),{
-      method:'GET',redirect:'error',cache:'no-store',
+      method:'GET',redirect:'manual',cache:'no-store',
       signal:AbortSignal.timeout(5000),
       headers:{Accept:'application/json'},
     });

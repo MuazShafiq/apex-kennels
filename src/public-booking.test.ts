@@ -113,7 +113,10 @@ test('invalid website payload and unconfirmed gate blocked before verification',
 });
 
 test('siteverify requires matching hostname and action; fake or reused challenge rejected',async()=>{
-  const mock=(body:unknown,status=200):typeof fetch=>async()=>new Response(JSON.stringify(body),{status});
+  const mock=(body:unknown,status=200):typeof fetch=>async(_url,options)=>{
+    assert.equal(options?.redirect,'manual');
+    return new Response(JSON.stringify(body),{status});
+  };
   assert.equal(await verifyBookingChallenge('sample','secret','example.workers.dev',mock({
     success:true,hostname:'example.workers.dev',action:'apex-booking'})),true);
   for(const result of [

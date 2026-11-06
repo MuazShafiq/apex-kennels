@@ -25,7 +25,7 @@ export async function searchPakistaniPlaces(
   url.searchParams.set('lang','en');
   url.searchParams.set('apiKey',apiKey);
   const res=await fetcher(url.toString(),{
-    method:'GET',headers:{Accept:'application/json'},redirect:'error',cache:'no-store',
+    method:'GET',headers:{Accept:'application/json'},redirect:'manual',cache:'no-store',
     signal:AbortSignal.timeout(4800)
   });
   if(!res.ok)throw new Error('Location search unavailable');

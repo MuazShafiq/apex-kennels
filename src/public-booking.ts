@@ -28,7 +28,7 @@ export async function verifyBookingChallenge(
       method:'POST',
       headers:{'content-type':'application/x-www-form-urlencoded'},
       body:body.toString(),
-      redirect:'error',cache:'no-store',signal:AbortSignal.timeout(6500)
+      redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(6500)
     });
     if(!result.ok)return false;
     const data=await result.json() as Record<string,unknown>;

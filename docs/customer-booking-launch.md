@@ -7,7 +7,7 @@ The customer booking site lives at `/book` on the **existing** Apex Cloudflare W
 
 ## User journey
 1. Customer enters owner, dates, dog, health, emergency, and care details, matching the current mapped Form.
-2. Chooses whether camera cage and transport are requested. If transport: picks pickup, drop-off, or both at the same gate; searches a location with Geoapify autocomplete or uses opt-in device location, then taps/drags the map pin to the intended gate. No second confirmation checkbox.
+2. Chooses whether camera cage and transport are requested. If transport: picks pickup, drop-off, or both at the same gate; searches for a location within Islamabad and Rawalpindi using TomTom Suggest + Details, or uses opt-in device location, then taps/drags the pin to the intended gate. No second confirmation checkbox.
 3. Completes the Cloudflare Turnstile challenge and submits.
 4. The Worker verifies the exact origin, JSON/body size, all booking answers and confirmed coordinates, and calls Turnstile Siteverify. Turnstile **hostname** and **action** must match.
 5. A single Neon transaction saves the booking, original care information, and private confirmed pin. Existing staff booking queue and `/staff/booking` show it under Cloudflare Access. No amount is charged automatically.
@@ -23,7 +23,7 @@ The customer booking site lives at `/book` on the **existing** Apex Cloudflare W
 
 ## Operational boundaries
 - OpenFreeMap supplies the interactive map tiles without another account or API key. It is free for commercial usage with required OpenStreetMap/OpenMapTiles attribution, but has no service-level guarantee. Device geolocation is **optional** and explicitly permissioned.
-- This is a **customer-selected location**, not independently proven vehicle access. Geoapify route and petrol baseline calculation are already separate, review-only modules. Do not quote transport until the kennel entrance, Bawli access waypoint, correct pickup/drop-off legs, and Fatima's profit interpretation are confirmed.
+- Pickup and drop-off are restricted to the Islamabad–Rawalpindi urban service envelope defined in `src/transport-service-area.ts`. Search suggestions, selected place details, manual pins, device location and server intake all enforce it; the envelope is approximate, not an official administrative boundary. Boarding without transport remains available regardless of customer address. This is a **customer-selected location**, not independently proven vehicle access. Geoapify route and petrol baseline calculation are already separate, review-only modules. Do not quote transport until the kennel entrance, Bawli access waypoint, correct pickup/drop-off legs, and Fatima's profit interpretation are confirmed.
 - Public `/api/book` cannot accept Google Form webhook requests; `/api/ingest` still requires its existing bearer token and only accepts `source='google_form'`.
 - No public endpoint exposes individual bookings or animal-care records. /staff* remains protected behind Cloudflare Access.
 - If the new table hasn't been created yet, existing staff booking details still work and simply omit the new location section. The public submission endpoint must remain disabled.
@@ -31,4 +31,4 @@ The customer booking site lives at `/book` on the **existing** Apex Cloudflare W
 
 ## Known release gaps
 - Confirm owner-facing terms copy/link, existing Form's consent semantics, and whether pickup/drop-off can use different addresses in the same booking. The MVP supports one gate, clearly described.
-- Review the responsive form in a real browser and test address suggestions, map refinement, no-transport, location permissions, and Turnstile before enabling. Add GEOAPIFY_API_KEY as a Worker secret for autocomplete; without it, map tapping still works but search does not.
+- Review the responsive form in a real browser and test address suggestions, map refinement, no-transport, location permissions, and Turnstile before enabling. TomTom Suggest needs `TOMTOM_API_KEY`; Geoapify remains a fallback when that key is absent. Test the Islamabad–Rawalpindi scope on both search and manual pins.

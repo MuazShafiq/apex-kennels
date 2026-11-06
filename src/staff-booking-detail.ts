@@ -12,6 +12,7 @@ export type StaffBookingDetail={
   id:string;status:string;createdAt:string;startDate:string;endDate:string;
   customerName:string;email:string|null;phone:string|null;accommodationType:string|null;
   pets:StaffPet[];isSynthetic:boolean;hasFormDetails:boolean;
+  transportLocation?:{latitude:number;longitude:number;service:string;customerConfirmed:boolean}|null;
   ownerAddress:string|null;pickupDropoffRequested:boolean|null;cameraCageRequested:boolean|null;
   emergencyContactPhone:string|null;petGender:string|null;petAgeDescription:string|null;
   vaccinationStatus:string|null;distemperHistory:string|null;veterinarianPhone:string|null;
@@ -63,11 +64,29 @@ export async function readStaffBookingDetail(databaseUrl:string,id:string):Promi
       WHERE bp.booking_id=$1
       ORDER BY p.name
       LIMIT 100`,[id]);
+    let transportLocation:StaffBookingDetail['transportLocation']=null;
+    try{
+      const location=await db.query<{
+        latitude:number;longitude:number;service:string;customer_confirmed:boolean
+      }>(
+        'SELECT latitude,longitude,service,customer_confirmed FROM public.booking_transport_locations WHERE booking_id=$1',
+        [id]
+      );
+      if(location.rows[0]){
+        const l=location.rows[0];
+        transportLocation={latitude:l.latitude,longitude:l.longitude,
+          service:l.service,customerConfirmed:l.customer_confirmed};
+      }
+    }catch(error){
+      // Existing production still runs the original Google Form until this
+      // additive table is migrated. An absent table is not a failed booking.
+      if(!error||typeof error!=='object'||!('code' in error)||error.code!=='42P01')throw error;
+    }
     return {
       id:row.id,status:row.status,createdAt:row.created_at,
       startDate:row.start_date,endDate:row.end_date,
       customerName:row.customer_name,email:row.email,phone:row.phone,
-      accommodationType:row.accommodation_type,pets:petRows.rows,
+      accommodationType:row.accommodation_type,pets:petRows.rows,transportLocation,
       isSynthetic:row.is_synthetic,hasFormDetails:row.has_form_details,
       ownerAddress:row.owner_address,pickupDropoffRequested:row.pickup_dropoff_requested,
       cameraCageRequested:row.camera_cage_requested,emergencyContactPhone:row.emergency_contact_phone,
@@ -124,6 +143,18 @@ export function renderStaffBookingDetail(b:StaffBookingDetail):string {
           +'</strong></div>').join('')
           +'<p class="fine">Yes / No reflects answers given on the form, not a medical assessment.</p>'))
     : '<section class="notice">Full boarding details are missing. Check the original Google Form before confirming this stay.</section>';
+  const location=b.transportLocation;
+  const transport=location&&Number.isFinite(location.latitude)&&Number.isFinite(location.longitude)
+    &&location.latitude>=23&&location.latitude<=38&&location.longitude>=60&&location.longitude<=78
+    ? section('Pickup / drop-off location',
+        value('Requested service',esc(location.service==='both'?'Pickup and drop-off':
+          location.service==='pickup'?'Pickup only':location.service==='dropoff'?'Drop-off only':'Unknown'))
+        +value('Customer-selected pin',esc(location.latitude.toFixed(6)+', '+location.longitude.toFixed(6)))
+        +value('Confirmed by customer',yesNo(location.customerConfirmed))
+        +value('View on map','<a target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps?q='
+          +encodeURIComponent(location.latitude+','+location.longitude)+'">Open Google Maps</a>')
+      )+'<p class="fine">The customer selected this point. Confirm drivable gate access before transport pricing.</p>'
+    : '';
   return '<!doctype html><html lang="en"><head><meta charset="utf-8">'
    +'<meta name="viewport" content="width=device-width,initial-scale=1">'
    +'<meta name="robots" content="noindex,nofollow"><title>Apex | Booking details</title>'
@@ -150,7 +181,7 @@ export function renderStaffBookingDetail(b:StaffBookingDetail):string {
    +value('Assigned accommodation',present(b.accommodationType))
    +value('Owner phone',present(b.phone))
    +value('Owner email',present(b.email))
-   +'</dl></section>'+form
+   +'</dl></section>'+transport+form
    +'<div class="actions"><a class="action" href="/staff/draft?id='+encodeURIComponent(b.id)+'">Review price estimate</a>'
    +'<a href="/staff">Back to bookings</a></div>'
    +'<p class="fine">Owner-reported details. Confirm health and safety information before accepting a booking. Nothing is approved or sent from this page.</p>'

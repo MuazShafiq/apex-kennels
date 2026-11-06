@@ -100,6 +100,13 @@ export async function saveBooking(pool: DbPool, input: IntakeRequest): Promise<S
          d.termsAccepted??null]
       );
     }
+    if (input.source === 'website' && input.transportLocation) {
+      const point = input.transportLocation;
+      await tx.query(
+        'INSERT INTO public.booking_transport_locations (booking_id, latitude, longitude, service, customer_confirmed) VALUES ($1, $2, $3, $4, $5)',
+        [booking.id, point.latitude, point.longitude, point.service, true]
+      );
+    }
     await tx.query(
       'UPDATE public.form_ingestion_events SET booking_id=$1 WHERE id=$2',
       [booking.id,event.rows[0].id]

@@ -28,7 +28,7 @@ test('UI uses Google Maps link and device location, with the same service bounda
   const js=readFileSync('public/book/app.js','utf8');
   assert.match(html,/Islamabad and Rawalpindi only/);
   assert.doesNotMatch(html,/id="place-area"|confirm-gate|Lahore<\/option>/);
-  assert.match(html,/href="https:\/\/www\.google\.com\/maps\/search\//);
+  assert.match(html,/href="https:\/\/www\.google\.com\/maps\/@\?/);
   assert.doesNotMatch(html,/maplibre|openfreemap/i);
   assert.match(js,/\[\[72\.81,33\.43\],\[73\.30,33\.84\]\]/);
   assert.doesNotMatch(js,/gate\.checked|confirm-gate|maplibregl/);

@@ -48,7 +48,7 @@ export async function saveBooking(pool: DbPool, input: IntakeRequest): Promise<S
       `, [input.source, input.externalResponseId]), 'existing booking');
       // An edited upstream response must not silently rewrite a reviewed booking.
       const original: IntakeRequest = {
-        source:'google_form', externalResponseId:existing.external_response_id,
+        source:input.source, externalResponseId:existing.external_response_id,
         customerName:existing.customer_name, email:existing.email ?? undefined,
         phone:existing.phone ?? undefined, petName:existing.pet_name,
         startDate:existing.start_date, endDate:existing.end_date,

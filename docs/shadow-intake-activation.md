@@ -1,6 +1,8 @@
 # Apex: owner-gated shadow intake
 
-**Status: ACTIVATED and independently confirmed in the real Form-bound Apps Script execution log on 2026-11-05 at 01:30:37 PKT.** Activation cutoff: `2026-11-04T20:30:37.411Z`. Production database contained two prior synthetic test bookings, two ingestion events, one full-form details row and zero invoices at the immediate post-activation read. No actual post-activation customer submission had arrived as of that check. The canary was successfully disarmed before launch. **Live Form-to-database delivery of real customer submissions has not yet been independently reverified with a first new customer event.**
+**Status (reviewed 2026-11-06): SHADOW INTAKE ACTIVE.** Activation cutoff: `2026-11-04T20:30:37.411Z`, verified in the original Form-bound Apps Script at 01:30:37 PKT on 2026-11-05. The one-shot synthetic canary was disarmed before activation.
+
+**First post-activation delivery observed:** A 2026-11-06 read-only production Neon check found **three total bookings and three ingestion events**: two earlier synthetic test records and **one new `google_form` booking/event after activation**. The new booking's response ID matched its ingestion event, one corresponding full-form details row and linked pet were present, and **zero invoices** existed. No test/canary identifier markers were found. Muaz identified the new Form response as likely genuine (Form response #20, not created by the engineering team). **Independently confirming it is that exact original Form response remains pending:** privately compare Form response ID / timestamp with Apps Script execution and Neon. No response IDs or customer details are stored in this public document. These checks demonstrate one apparent successful delivery, not that every future submission will succeed.
 
 ## Why shadow mode
 
@@ -37,9 +39,9 @@ Build the minimum staff flow: Cloudflare Access identity/allowlist, new-booking 
 
 **No need for another synthetic submission**: the actual Google Form trigger, Cloudflare production Worker and Neon production persistence were already independently tested in the one-shot canary.
 
-## First genuine submission acceptance check (pending; no new test submission needed)
+## First genuine submission acceptance check (partially verified; no new test submission needed)
 
-After the next genuine customer completes the existing Form, compare **only the Form response ID, booking creation time, and non-sensitive counts** against Neon's production `booking_requests`, `form_ingestion_events`, `booking_pets` and `booking_form_details`. Verify exactly one record per submission and zero invoices, and check the matching Apps Script `onApexFormSubmit` trigger execution shows Completed. Do not paste customer medical/care responses into chat or issue trackers.
+One post-activation delivery has passed the private Neon-side consistency checks (matching source event, details, pet linkage, zero invoices). **Remaining acceptance step:** In the original Form, locate response #20 and privately compare its response ID / submission time with the Neon booking/event and its `onApexFormSubmit` Apps Script execution, which should show Completed. Never expose the response ID, customer contact/address, medical/care notes, or other answers in GitHub or shared screenshots. **Do not rerun activation or replay historical submissions.**
 
 Until verified for the first real submission, the Google Sheet remains Fatima's operational source of truth. **Production health checks do not prove that every Form response was persisted.** A failed Apps Script trigger can leave the Google Form/Sheet successfully updated while Neon is missing that submission.
 

@@ -1,15 +1,21 @@
-# Staff access activation (not yet configured)
+# Apex staff access
 
-The live staff queue under `/staff` requires Cloudflare Access. It is READ-ONLY and returns 503 until configured. Do not put customer data or Neon credentials in browser code.
+Apex's `/staff*` pages are protected by **Cloudflare Zero Trust Access**, plus a Worker-level audience and exact-email allowlist. This does not protect the public `/book` or Google Form `/api/ingest` endpoints.
 
-1. Cloudflare Zero Trust > Access controls > Applications > Add application > **Self-hosted and private**.
-2. Protect hostname `apex-kennels-api.muaz-shafiq18.workers.dev` using the **path pattern `/staff*`**. Do **not** protect the entire Worker, which would block the Google Forms trigger. Verify both `/staff` and `/staff/api/bookings` are covered.
-3. Allow only exact staff email addresses approved by Apex. Do not use a domain-wide policy.
-4. Copy the application's **Application Audience (AUD) Tag**.
-5. Worker Settings > Variables and Secrets: set `STAFF_ACCESS_AUD` to the exact tag and `STAFF_ALLOWED_EMAILS` to a comma-separated exact email allowlist (prefer Secret). Do not commit these values to GitHub.
-6. Deploy settings and verify: unauthenticated `/staff` prompts Access sign-in; unauthorized addresses cannot see data; allowed staff can see the bounded read-only queue; unauthenticated `/staff/api/bookings` never returns customer records.
-7. Verify `/api/health` still returns 200 publicly and unauthorized `POST /api/ingest` still returns 401. The Google Forms bearer token is separate.
+## Required production configuration
 
-Check Cloudflare's [Access application paths](https://developers.cloudflare.com/cloudflare-one/access-controls/policies/app-paths/) if path pattern selection differs.
+1. In **Zero Trust → Access controls → Applications**, retain the existing **Apex Staff** application, protecting `apex-kennels-api.muaz-shafiq18.workers.dev/staff*`. Don't create a second app or protect the whole Worker.
+2. The application allows only the owner's approved staff email addresses. The Worker's `STAFF_ALLOWED_EMAILS` must independently contain those exact comma-separated addresses.
+3. In the Worker **Settings → Variables and Secrets**, keep `STAFF_ACCESS_AUD` set to the existing Apex Staff Application Audience (AUD) Tag.
+4. **New for Workers Static Assets:** Set `STAFF_ACCESS_ISSUER` to the Cloudflare One team domain **including https**: `https://YOUR-TEAM.cloudflareaccess.com`. Find the actual team name in **Zero Trust → Settings → Team name and domain**. Do not guess or use the `workers.dev` hostname.
+5. Deploy updated `main`. When Cloudflare provides `ctx.access`, Worker uses that verified identity. When the Static Assets router omits it, Worker verifies the `Cf-Access-Jwt-Assertion` signature against the team's Cloudflare public keys, exact issuer, application AUD, token expiry, and the email allowlist. Missing/invalid tokens fail closed. No personal email, JWT or key contents are logged.
 
-Defense in depth: the Worker also checks the verified `ctx.access.aud` and signed-in email against the allowlist. It ignores spoofed JWT headers. No booking edits, invoice approvals, payments or messages are implemented.
+## Verify after deployment
+
+- Signed-in, allowlisted staff can load `/staff`, `/staff/booking?id=...` and `/staff/draft?id=...`.
+- Signed-out staff get Cloudflare's login or access denial, not booking data. A forged `Cf-Access-Jwt-Assertion` must not work.
+- An email outside the exact allowlist gets denied.
+- `/api/health` stays public (200) and unauthenticated `POST /api/ingest` stays rejected (401). The Google Form webhook remains separate.
+- Never put `STAFF_ACCESS_ISSUER` or tokens into the customer page. The domain is not a secret, but security relies on an exact trusted issuer and verified cryptographic signature.
+
+**Why:** Cloudflare's static assets internal router can drop `ctx.access`, even after Access has authenticated the person. See official [Cloudflare Workers Access docs](https://developers.cloudflare.com/workers/configuration/cloudflare-access/) and [JWT validation guidance](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/). Existing page controls remain unchanged; no staff delegation or write permissions were added.

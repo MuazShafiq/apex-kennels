@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { IntakeError, parseIntake, type IntakeRequest } from './intake.ts';
 import {parsePublicBookingEnvelope,verifyBookingChallenge} from './public-booking.ts';
 import {parsePlaceQuery,searchPakistaniPlaces,type PlaceSuggestion} from './location-suggestions.ts';
-import {searchTomTomPlaces} from './tomtom-places.ts';
+import {suggestTomTomPlaces,resolveTomTomPlace,TomTomPlacesError,type TomTomSuggestion} from './tomtom-places.ts';
 import { persistBookingWithNeon } from './neon-worker-db.ts';
 import type { SavedBooking } from './booking-store.ts';
 import {listStaffBookings,parseStaffFilter,syntheticBookings, type StaffBooking, type StaffFilter} from './staff-bookings.ts';
@@ -31,7 +31,7 @@ export type StaffList = (databaseUrl: string, filter: StaffFilter) => Promise<St
 export type StaffContext = {access?: {aud: string; getIdentity(): Promise<{email?:string}|null>}};
 export type StaffDraftReader=(databaseUrl:string,bookingId:string)=>Promise<StaffInvoiceSource|null>;
 export type StaffDetailReader=(databaseUrl:string,bookingId:string)=>Promise<StaffBookingDetail|null>;
-export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; searchPlaces?:(query:string,key:string)=>Promise<PlaceSuggestion[]>};
+export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; searchPlaces?:(query:string,key:string)=>Promise<PlaceSuggestion[]>; suggestPlaces?:(query:string,key:string)=>Promise<TomTomSuggestion[]>; resolvePlace?:(type:TomTomSuggestion['placeType'],id:string,key:string)=>Promise<PlaceSuggestion>};
 
 async function authorizedStaff(env: WorkerEnv, context?: StaffContext): Promise<string|null> {
   if (!env.STAFF_ACCESS_AUD || !env.STAFF_ALLOWED_EMAILS || context?.access?.aud!==env.STAFF_ACCESS_AUD) return null;
@@ -144,10 +144,36 @@ export async function handleWorkerRequest(
     try{
       const usingTomTom=!!env.TOMTOM_API_KEY;
       const items=usingTomTom
-        ?await (staff.searchPlaces??searchTomTomPlaces)(query,env.TOMTOM_API_KEY!)
+        ?await (staff.suggestPlaces??suggestTomTomPlaces)(query,env.TOMTOM_API_KEY!)
         :await (staff.searchPlaces??searchPakistaniPlaces)(query,env.GEOAPIFY_API_KEY!);
       return json({items,attribution:usingTomTom?'TomTom':'Geoapify · OpenStreetMap contributors'});
-    }catch{return json({error:'Location search unavailable'},502);}
+    }catch(error){
+      if(error instanceof TomTomPlacesError&&error.status===429)
+        return json({error:'Search is busy. Please try again shortly.',code:'RATE_LIMITED'},429,{'Retry-After':'2'});
+      return json({error:'Location search unavailable',code:error instanceof TomTomPlacesError&&error.status===403?'PROVIDER_ACCESS':'PROVIDER_ERROR'},502);
+    }
+  }
+  if(path==='/api/book/place'){
+    if(request.method!=='GET')return json({error:'Method not allowed'},405,{Allow:'GET'});
+    if(!env.TOMTOM_API_KEY)return json({error:'Place lookup unavailable'},503);
+    const url=new URL(request.url);
+    if([...url.searchParams.keys()].some(k=>k!=='type'&&k!=='id')||
+       url.searchParams.getAll('type').length!==1||url.searchParams.getAll('id').length!==1)
+      return json({error:'Invalid place selection'},400);
+    const type=url.searchParams.get('type')??'';
+    const id=url.searchParams.get('id')??'';
+    if(!['pois','addresses','streets','intersections','areas'].includes(type)||
+       !/^[A-Za-z0-9_-]{1,160}$/.test(id))
+      return json({error:'Invalid place selection'},400);
+    try{
+      const place=await (staff.resolvePlace??resolveTomTomPlace)(
+        type as TomTomSuggestion['placeType'],id,env.TOMTOM_API_KEY);
+      return json({place});
+    }catch(error){
+      if(error instanceof TomTomPlacesError&&error.status===429)
+        return json({error:'Search is busy. Please try again shortly.',code:'RATE_LIMITED'},429,{'Retry-After':'2'});
+      return json({error:'Could not locate that place. Try another suggestion or move the map pin.',code:'PLACE_UNAVAILABLE'},502);
+    }
   }
   if(path==='/api/book/config'){
     if(request.method!=='GET')return json({error:'Method not allowed'},405,{Allow:'GET'});

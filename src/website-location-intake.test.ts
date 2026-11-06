@@ -53,3 +53,23 @@ test('original Google Form handler retains previous source restrictions and miss
   assert.doesNotThrow(()=>parseIntake(unmodified));
   assert.throws(()=>parseIntake({...unmodified,source:'website'}),/Unsupported booking source/);
 });
+
+test('pickup/drop-off coordinates outside Islamabad and Rawalpindi are rejected',()=>{
+  for(const point of [
+    {latitude:31.52,longitude:74.35}, // Lahore
+    {latitude:34.10,longitude:73.39}, // beyond the Islamabad–Rawalpindi coverage area
+    {latitude:33.70,longitude:72.50}  // too far west
+  ]){
+    assert.throws(()=>parseIntake({...base,transportLocation:{
+      ...base.transportLocation,...point
+    }},'website'),/Invalid pickup location/);
+  }
+});
+test('boarding without transport still permits customer addresses outside service area',()=>{
+  const {transportLocation,...noPin}=base;
+  const row=parseIntake({...noPin,details:{...base.details,
+    ownerAddress:'Somewhere outside Islamabad and Rawalpindi',
+    pickupDropoffRequested:false
+  }},'website');
+  assert.equal(row.transportLocation,undefined);
+});

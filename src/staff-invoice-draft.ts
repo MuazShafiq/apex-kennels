@@ -76,7 +76,7 @@ export async function readStaffInvoiceSource(databaseUrl:string,bookingId:string
       status:row.status,
       cameraCageRequested:row.camera_cage_requested,
       transportRequested:row.pickup_dropoff_requested,
-      synthetic:row.is_synthetic,
+      synthetic:row.is_synthetic || row.customer_name.startsWith('APEX CANARY ') || row.pet_names.includes('APEX SYNTHETIC CANARY PET'),
     };
   }finally{
     await db.end();

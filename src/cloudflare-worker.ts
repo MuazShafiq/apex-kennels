@@ -8,6 +8,7 @@ import {syntheticInvoiceHtml} from './demo-invoice.ts';
 import {readStaffInvoiceSource,parseStaffDraftRequest,prepareStaffDraftReview,renderStaffDraftReview,type StaffInvoiceSource} from './staff-invoice-draft.ts';
 import {resolveSharedGoogleMapsPin,type SharedPinResolution} from './shared-map-pin.ts';
 import {readPinForm,renderStaffPinChecker} from './staff-location.ts';
+import {readStaffBookingDetail,renderStaffBookingDetail,parseStaffBookingId,type StaffBookingDetail} from './staff-booking-detail.ts';
 
 export type WorkerEnv = {
   DATABASE_URL?: string;
@@ -20,7 +21,8 @@ export type SaveIntake = (databaseUrl: string, input: IntakeRequest) => Promise<
 export type StaffList = (databaseUrl: string, filter: StaffFilter) => Promise<StaffBooking[]>;
 export type StaffContext = {access?: {aud: string; getIdentity(): Promise<{email?:string}|null>}};
 export type StaffDraftReader=(databaseUrl:string,bookingId:string)=>Promise<StaffInvoiceSource|null>;
-export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>};
+export type StaffDetailReader=(databaseUrl:string,bookingId:string)=>Promise<StaffBookingDetail|null>;
+export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>};
 
 async function authorizedStaff(env: WorkerEnv, context?: StaffContext): Promise<string|null> {
   if (!env.STAFF_ACCESS_AUD || !env.STAFF_ALLOWED_EMAILS || context?.access?.aud!==env.STAFF_ACCESS_AUD) return null;
@@ -150,6 +152,22 @@ export async function handleWorkerRequest(
       const result=await (staff.resolvePin??resolveSharedGoogleMapsPin)(sharedUrl);
       return html(renderStaffPinChecker(result));
     }catch{return json({error:'Location lookup failed'},502);}
+  }
+  if (path === '/staff/booking') {
+    if(request.method!=='GET')return json({error:'Method not allowed'},405,{Allow:'GET'});
+    if(!env.STAFF_ACCESS_AUD||!env.STAFF_ALLOWED_EMAILS||!env.DATABASE_URL){
+      return json({error:'Staff access not configured'},503);
+    }
+    const email=await authorizedStaff(env,staff.context);
+    if(!email)return json({error:'Forbidden'},403);
+    let id:string;
+    try{id=parseStaffBookingId(new URL(request.url));}
+    catch{return json({error:'Invalid booking ID'},400);}
+    try{
+      const detail=await (staff.detail??readStaffBookingDetail)(env.DATABASE_URL,id);
+      if(!detail)return json({error:'Booking not found'},404);
+      return html(renderStaffBookingDetail(detail));
+    }catch{return json({error:'Internal server error'},500);}
   }
   if (path === '/staff/draft') {
     if (request.method !== 'GET') return json({error:'Method not allowed'},405,{Allow:'GET'});

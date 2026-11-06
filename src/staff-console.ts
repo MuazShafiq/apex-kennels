@@ -58,7 +58,8 @@ export function renderStaffConsoleHtml(rows:StaffBooking[], page:StaffPage):stri
     + '<td><div>'+escapeHtml(row.startDate)+'</div><div class="secondary">to '+escapeHtml(row.endDate)+'</div></td>'
     + '<td><span class="state '+row.status+'">'+title(row.status)+'</span></td>'
     + '<td><div class="secondary">'+escapeHtml(row.email||row.phone||(page.demo?'Demo record':'No contact'))+'</div></td>'
-    + '<td><a class="action" href="'+(page.demo?'/demo/draft':'/staff/draft?id='+encodeURIComponent(row.id))+'">Review estimate</a></td></tr>').join('');
+    + '<td>'+(page.demo?'':'<a class="action" href="/staff/booking?id='+encodeURIComponent(row.id)+'">View details</a><br>')
+    + '<a class="action" href="'+(page.demo?'/demo/draft':'/staff/draft?id='+encodeURIComponent(row.id))+'">Review estimate</a></td></tr>').join('');
   const c = (status:string)=>visible.filter(row=>row.status===status).length;
   const metric=(label:string,value:number,note:string)=>'<article class="metric"><div class="metriclabel">'+label+'</div><div class="number">'+value+'</div><div class="fine">'+note+'</div></article>';
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'

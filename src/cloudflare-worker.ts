@@ -7,7 +7,7 @@ import type { SavedBooking } from './booking-store.ts';
 import {listStaffBookings,parseStaffFilter,syntheticBookings, type StaffBooking, type StaffFilter} from './staff-bookings.ts';
 import {renderStaffConsoleHtml} from './staff-console.ts';
 import {syntheticInvoiceHtml} from './demo-invoice.ts';
-import {readStaffInvoiceSource,parseStaffDraftRequest,prepareStaffDraftReview,renderStaffDraftReview,type StaffInvoiceSource} from './staff-invoice-draft.ts';
+import {readStaffInvoiceSource,parseStaffDraftRequest,prepareStaffDraftReview,renderStaffDraftReview,renderPrintableStaffReview,type StaffInvoiceSource} from './staff-invoice-draft.ts';
 import {resolveSharedGoogleMapsPin,type SharedPinResolution} from './shared-map-pin.ts';
 import {readPinForm,renderStaffPinChecker} from './staff-location.ts';
 import {readStaffBookingDetail,renderStaffBookingDetail,parseStaffBookingId,type StaffBookingDetail} from './staff-booking-detail.ts';
@@ -263,12 +263,21 @@ export async function handleWorkerRequest(
     const email=await authorizedStaff(env,staff.context);
     if(!email)return json({error:'Forbidden'},403);
     let parsed:ReturnType<typeof parseStaffDraftRequest>;
-    try{parsed=parseStaffDraftRequest(new URL(request.url));}
+    const url=new URL(request.url);
+    const format=url.searchParams.getAll('format');
+    if(format.length>1||(format.length===1&&format[0]!=='print'))
+      return json({error:'Invalid invoice preview format'},400);
+    try{parsed=parseStaffDraftRequest(url);}
     catch{return json({error:'Invalid invoice draft request'},400);}
     try{
       const source=await (staff.draft??readStaffInvoiceSource)(env.DATABASE_URL,parsed.bookingId);
       if(!source)return json({error:'Booking not found'},404);
       const review=prepareStaffDraftReview(source,parsed.packageChoice);
+      if(format[0]==='print'){
+        if(!review.draft||review.packageChoice!=='daily'||source.transportRequested)
+          return json({error:'Complete daily boarding estimate required for printing'},409);
+        return html(renderPrintableStaffReview(review,new Date().toISOString().slice(0,10)));
+      }
       return html(renderStaffDraftReview(review));
     }catch{return json({error:'Internal server error'},500);}
   }

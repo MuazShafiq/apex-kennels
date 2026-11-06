@@ -1,8 +1,14 @@
 # Apex Kennels — Booking & Invoicing Foundation
 
-**CURRENT STATUS (2026-11-06): SHADOW INTAKE ACTIVE.** The original Google Form submit trigger now forwards **new** responses after `2026-11-04T20:30:37.411Z` to Cloudflare production and Neon production. The live trigger path was verified with one synthetic canary. One later post-activation `google_form` booking and matching ingestion event were observed in production Neon on 2026-11-06 (submitted 2026-11-05 18:58 PKT), with a matching Form details row, one pet and zero invoices. Its identity as original Form response #20 remains to be privately cross-checked. Older submissions were not imported. Customer emails, invoices and pricing automation remain **OFF**. See [current operating status](docs/shadow-intake-activation.md). A [bounded, cursor-based hourly recovery](docs/shadow-intake-recovery.md) is proposed in source but **not installed or deployed**.
+## Current operating status · 6 November 2026
 
-The existing Google Form remains the customer-facing intake until we verify and replace it. The backend is designed to keep the database and pricing logic independent of that temporary input.
+- **Google Form intake:** live, sending only responses submitted after the owner-approved activation cutoff into the existing Cloudflare Worker and Neon. The opt-in hourly recovery trigger has been installed in the original Form-bound Apps Script. Historical responses were not imported.
+- **Staff:** existing Cloudflare Access-protected read-only booking queue, booking care details and provisional invoice estimates. The account owner has configured access for Muaz and Fatima; Fatima's independent sign-in has not been verified in this repository.
+- **Customer booking replacement:** a mobile-first booking Form with exact self-service map pin capture is under development; see [the release runbook](docs/customer-booking-launch.md). It is **preview-only until the owner approves the design, boarding terms and activation**. The original Google Form stays the live booking channel.
+- **Transport pricing:** map routing and fuel-price calculators exist as review-only modules. A customer-selected pin does not establish vehicle access. No payable transport price or invoice is calculated or sent automatically.
+- **Staff self-managed access:** explicitly deferred; [tracked separately](https://github.com/MuazShafiq/apex-kennels/issues/27).
+
+All sections after this line record **historical development checkpoints** and may describe earlier disabled states. They are not current deployment instructions. Prefer the linked current runbooks above.
 
 ## Historical foundation checkpoints (pre-shadow launch)
 

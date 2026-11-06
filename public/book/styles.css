@@ -60,7 +60,7 @@ footer{border-top:1px solid #e4e7df;padding:24px 0;font-size:11px;letter-spacing
 @media(max-width:700px){.topbar p{font-size:9px;max-width:130px;text-align:right}.lead-grid{grid-template-columns:1fr;gap:15px;padding-top:45px}.lead-grid>p{font-size:15px}.fields,.traits{grid-template-columns:1fr}.panel{padding:21px}.step-heading{gap:12px}.step-heading h2{font-size:22px}#map{height:335px}}
 
 /* Shared controls: customer-facing choices with visible selected and focus states. */
-.intro{max-width:530px}.intro>p{margin:0 0 18px}.benefits{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;color:#607765;font-size:12px}
+.intro{max-width:530px}.intro>p{margin:0 0 18px;font-size:16px;line-height:1.65;color:#5c7664;max-width:540px}.benefits{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;color:#607765;font-size:12px}
 .benefits li:before{content:'✓';color:#396849;font-weight:800;margin-right:8px}
 .field-choice,.trait{min-width:0;min-inline-size:0;margin:0;padding:0;border:0}
 .field-choice legend,.trait legend{font-size:12px;font-weight:750;color:#45614e;padding:0;margin-bottom:9px}

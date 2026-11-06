@@ -21,7 +21,7 @@ test('read-only staff estimate: confirmed daily normal rate, no payable invoice'
   assert.equal(r.canSend,false);
   assert.ok(r.issues.some(x=>x.includes('Booking is not approved')));
   const html=renderStaffDraftReview(r);
-  assert.match(html,/INTERNAL ONLY/);
+  assert.match(html,/STAFF ESTIMATE/);
   assert.match(html,/NOT PAYABLE/);
   assert.match(html,/PKR 7,500/);
   assert.doesNotMatch(html,/Pay now|Download approved invoice|Send email|WhatsApp customer/i);

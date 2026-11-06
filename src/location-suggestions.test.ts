@@ -83,7 +83,7 @@ test('customer booking has no duplicate pin confirmation or internal jargon',()=
     assert.match(html,new RegExp('name="transportChoice" value="'+choice+'"'));
   }
   assert.match(js,/api\/book\/places\?q=/);
-  assert.match(js,/400\)/);
+  assert.match(js,/750\)/);
   assert.match(js,/customerConfirmed:true/);
   assert.doesNotMatch(js,/gate\.checked|confirm-gate/);
   assert.doesNotMatch(js,/GEOAPIFY_API_KEY|TURNSTILE_SECRET_KEY/);

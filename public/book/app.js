@@ -122,7 +122,7 @@
     if(!form.reportValidity())return;
     const data=new FormData(form);
     const start=field(data,'startDate'),end=field(data,'endDate');
-    if(end<start){showMessage('Check-out cannot be earlier than check-in.',true);return;}
+    if(end<start){showMessage('Boarding end date cannot be earlier than start date.',true);return;}
     let booking;
     try{booking=payload();}
     catch(e){showMessage(e.message,true);return;}

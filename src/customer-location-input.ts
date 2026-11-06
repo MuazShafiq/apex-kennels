@@ -1,3 +1,5 @@
+import {isTransportServiceLocation} from './transport-service-area.ts';
+
 /** A single owner-selected pickup/dropoff entrance. Not yet a verified drivable road. */
 export type CustomerLocation={
   latitude:number;longitude:number;service:'pickup'|'dropoff'|'both';
@@ -9,9 +11,8 @@ export function validateCustomerLocation(value:unknown):CustomerLocation{
   if(Object.keys(v).sort().join(',')!=='customerConfirmed,latitude,longitude,service')
     throw new Error('Unexpected location fields');
   if(typeof v.latitude!=='number'||typeof v.longitude!=='number'||
-    !Number.isFinite(v.latitude)||!Number.isFinite(v.longitude)||
-    v.latitude<23||v.latitude>38||v.longitude<60||v.longitude>78)
-    throw new Error('Choose a location in Pakistan');
+    !isTransportServiceLocation(v.latitude,v.longitude))
+    throw new Error('Pickup and drop-off are available only within Islamabad and Rawalpindi');
   if(v.service!=='pickup'&&v.service!=='dropoff'&&v.service!=='both')
     throw new Error('Choose pickup, drop-off, or both');
   if(v.customerConfirmed!==true)throw new Error('Confirm the selected location');

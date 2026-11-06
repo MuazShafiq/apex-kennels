@@ -1,10 +1,12 @@
+import {isTransportServiceLocation} from './transport-service-area.ts';
+
 /**
  * Minimal server-side Geoapify autocomplete. Do not disclose the API key in the browser.
  * Search locates a neighbourhood/place, then the customer can move the pin to the gate.
  */
 export type PlaceSuggestion={label:string;latitude:number;longitude:number};
 export function parsePlaceQuery(url:URL):string{
-  if([...url.searchParams.keys()].some(x=>x!=='q'&&x!=='area')||url.searchParams.getAll('q').length!==1||url.searchParams.getAll('area').length>1)
+  if([...url.searchParams.keys()].some(x=>x!=='q')||url.searchParams.getAll('q').length!==1)
     throw new Error('Invalid search');
   const query=(url.searchParams.get('q')??'').trim().replace(/\s+/g,' ');
   if(query.length<3||query.length>90||/[\u0000-\u001f\u007f]/.test(query))
@@ -19,7 +21,7 @@ export async function searchPakistaniPlaces(
   const url=new URL('https://api.geoapify.com/v1/geocode/autocomplete');
   url.searchParams.set('text',query);
   url.searchParams.set('format','json');
-  url.searchParams.set('filter','countrycode:pk');
+  url.searchParams.set('filter','rect:72.81,33.43,73.30,33.84');
   url.searchParams.set('bias','proximity:73.0479,33.6844');
   url.searchParams.set('limit','5');
   url.searchParams.set('lang','en');
@@ -41,7 +43,7 @@ export async function searchPakistaniPlaces(
     const place=item as Record<string,unknown>;
     const latitude=place.lat,longitude=place.lon,formatted=place.formatted;
     if(place.country_code!=='pk'||typeof latitude!=='number'||typeof longitude!=='number'
-       ||latitude<23||latitude>38||longitude<60||longitude>78
+       ||!isTransportServiceLocation(latitude,longitude)
        ||typeof formatted!=='string'||!formatted.trim())continue;
     const label=formatted.trim().slice(0,180),key=latitude.toFixed(5)+':'+longitude.toFixed(5);
     if(seen.has(key))continue;

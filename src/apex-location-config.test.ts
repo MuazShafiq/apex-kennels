@@ -37,11 +37,11 @@ test('route builder enforces actual Bawli waypoint in both directions when staff
   const r=await routeApexTransport({
     kennelPin:APEX_KENNEL_LOCATION.pin,kennelPinConfirmed:true,
     kennelAccessWaypoint:APEX_KENNEL_ACCESS.pin,kennelAccessWaypointConfirmed:true,
-    customerPin:{lat:33.41,lon:73.12},customerPinConfirmed:true,
+    customerPin:{lat:33.61,lon:73.12},customerPinConfirmed:true,
     visit:'pickup'
   },{apiKey:'synthetic-geocode-key',fetcher:f});
   assert.equal(r.ok,true);
   const wp=new URL(observed).searchParams.get('waypoints');
-  assert.equal(wp,'33.2992325,73.2534561|33.31392,73.2581|33.41,73.12|33.31392,73.2581|33.2992325,73.2534561');
+  assert.equal(wp,'33.2992325,73.2534561|33.31392,73.2581|33.61,73.12|33.31392,73.2581|33.2992325,73.2534561');
   if(r.ok)assert.equal(r.estimate.needsStaffConfirmation,true);
 });

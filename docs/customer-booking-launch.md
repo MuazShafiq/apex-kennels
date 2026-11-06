@@ -3,7 +3,7 @@
 ## State
 The customer booking site lives at `/book` on the **existing** Apex Cloudflare Worker. It replaces the repeated request for a Google Maps pin by collecting the exact pickup/drop-off point during booking. The legacy Google Form and its hourly recovery remain operational and separate.
 
-**Default: preview-only, not accepting submissions.** No payment, invoice, booking approval, customer notification, or outbound WhatsApp message runs from this feature. PR #29 is an implementation, not Fatima's approval of the form design or terms.
+**Default: preview-only, not accepting submissions.** Founder reports desktop link-location flow working. Real-phone verification is still pending in [issue #37](https://github.com/MuazShafiq/apex-kennels/issues/37). No payment, invoice, booking approval, customer notification, or outbound WhatsApp message runs from this feature. PR #29 is an implementation, not Fatima's approval of the form design or terms.
 
 ## User journey
 1. Customer enters owner, dates, dog, health, emergency, and care details, matching the current mapped Form.
@@ -31,4 +31,4 @@ The customer booking site lives at `/book` on the **existing** Apex Cloudflare W
 
 ## Known release gaps
 - Confirm owner-facing terms copy/link, existing Form's consent semantics, and whether pickup/drop-off can use different addresses in the same booking. The MVP supports one gate, clearly described.
-- Review the form on actual Android/iPhone browsers; test Google Maps place links and dropped-pin share links (including `maps.app.goo.gl` short links), no-transport, device GPS, outside-area rejection and Turnstile before enabling. No search key is required for the customer location step. If a Maps URL has no exact pin, ask for a dropped pin rather than guessing coordinates.
+- [Mobile release check #37](https://github.com/MuazShafiq/apex-kennels/issues/37): review on an actual phone, test Google Maps place links and dropped-pin share links (including `maps.app.goo.gl` short links), no-transport, device GPS, outside-area rejection and Turnstile before enabling. No search key is required for the customer location step. If a Maps URL has no exact pin, ask for a dropped pin rather than guessing coordinates.

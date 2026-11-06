@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {Script} from 'node:vm';
 import {handleWorkerRequest} from './cloudflare-worker.ts';
 
 const base='https://example.workers.dev';
@@ -65,4 +66,28 @@ test('book page does not load third-party place search, map tiles or Maps API ke
   assert.match(html,/Use my current location/);
   assert.doesNotMatch(html,/unpkg|maplibre|openfreemap|Geoapify|TomTom/);
   assert.doesNotMatch(js,/GEOAPIFY_API_KEY|TOMTOM_API_KEY|google\.maps\.api|api\/book\/places/);
+});
+
+test('customer-facing booking retains service details, exact six terms and no redundant UI',()=>{
+  const html=readFileSync('public/book/index.html','utf8');
+  const js=readFileSync('public/book/app.js','utf8');
+  assert.doesNotThrow(()=>new Script(js));
+  for(const benefit of ['Two meals every day','Weekly vet check-ups','Rs. 2,500/day']){
+    assert.ok(html.includes(benefit),benefit);
+  }
+  const terms=html.match(/<details class="terms"[\\s\\S]*?<\\/details>/)?.[0]??'';
+  assert.equal((terms.match(/<li>/g)||[]).length,6);
+  assert.match(terms,/I hold Apex Kennels and staff completely harmless/);
+  for(const choice of ['none','pickup','dropoff','both']){
+    assert.match(html,new RegExp('name="transportChoice" value="'+choice+'"'));
+  }
+  assert.doesNotMatch(html,/confirm-gate|Camera cage requested\\?|id="place-search"|id="map"|id="place-results"/);
+  assert.doesNotMatch(js,/gate\\.checked|maplibregl|api\\/book\\/places/);
+  assert.match(js,/customerConfirmed:true/);
+});
+test('retired search endpoints no longer expose providers or consume API credits',async()=>{
+  for(const path of ['/api/book/places?q=Raya','/api/book/place?type=pois&id=abc']){
+    const response=await handleWorkerRequest(new Request(base+path),{});
+    assert.equal(response.status,404);
+  }
 });

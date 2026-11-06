@@ -25,11 +25,14 @@ function runner(values:Record<string,string>,responses:ReturnType<typeof respons
   const submitted:{url:string;body:any}[]=[];
   const logs:string[]=[];
   let released=false;
-  const props={getProperty:(key:string)=>values[key]||null};
+  const props={
+    getProperty:(key:string)=>values[key]||null,
+    setProperty:(key:string,value:string)=>{values[key]=value;}
+  };
   const context=createContext({
     PropertiesService:{getScriptProperties:()=>props},
     FormApp:{getActiveForm:()=>({
-      getResponses:()=>responses,
+      getResponses:(after?:Date)=>responses.filter(r=>!after||r.getTimestamp().getTime()>after.getTime()),
       getResponse:(id:string)=>responses.find(r=>r.getId()===id),
       getItems:()=>[]
     })},
@@ -72,7 +75,7 @@ test('enabled form submission maps stable IDs and keeps auth out of payload',()=
 
 test('manual reconciliation refuses to run without approved timestamp',()=>{
   const x=runner(enabled,[response('synthetic-001')]);
-  assert.throws(()=>x.script.reconcileApexRecentResponses(),/APEX_RECONCILE_AFTER/);
+  assert.throws(()=>x.script.reconcileApexRecentResponses(),/Recovery window must start/);
   assert.equal(x.submitted.length,0);
 });
 
@@ -89,11 +92,14 @@ test('manual reconciliation retries only responses after approved timestamp',()=
   assert.doesNotMatch(x.logs[0],/Synthetic Owner|Synthetic Dog|030000/);
 });
 
-test('more than 50 responses requires manual review before replay',()=>{
+test('more than 50 responses are recovered in bounded resumable batches',()=>{
   const x=runner({...enabled,APEX_RECONCILE_AFTER:'2026-11-01T00:00:00Z'},
     Array.from({length:51},(_,i)=>response('test-'+i)));
-  assert.throws(()=>x.script.reconcileApexRecentResponses(),/More than 50/);
-  assert.equal(x.submitted.length,0);
+  x.script.reconcileApexRecentResponses();
+  assert.equal(x.submitted.length,50);
+  x.script.reconcileApexRecentResponses();
+  assert.equal(x.submitted.length,51);
+  assert.equal(new Set(x.submitted.map(r=>r.body.externalResponseId)).size,51);
   assert.equal(x.lockReleased(),true);
 });
 

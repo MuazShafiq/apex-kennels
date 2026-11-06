@@ -25,7 +25,7 @@ test('Geoapify autocomplete is constrained to Pakistan and returns safe, dedupli
     assert.equal(u.searchParams.get('filter'),'countrycode:pk');
     assert.equal(u.searchParams.get('limit'),'5');
     assert.equal(u.searchParams.get('apiKey'),env.GEOAPIFY_API_KEY);
-    assert.equal(options?.redirect,'error');
+    assert.equal(options?.redirect,'manual');
     return new Response(JSON.stringify(exampleResults),{status:200});
   };
   const places=await searchPakistaniPlaces('Bahria',env.GEOAPIFY_API_KEY!,fetcher);

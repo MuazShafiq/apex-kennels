@@ -77,7 +77,14 @@
           <h3>Where should we come?</h3>
           <p>Search for a street, area, or landmark. Choose a result, then move the pin to your gate.</p>
           <div class="place-search">
-            <label for="place-search">Search for an address or place</label>
+            <div class="search-heading"><label for="place-search">Search for an address or place</label>
+              <label class="search-area-label" for="place-area">Area
+                <select id="place-area" aria-label="Search area">
+                  <option value="islamabad">Islamabad &amp; Rawalpindi</option>
+                  <option value="lahore">Lahore</option>
+                  <option value="pakistan">All Pakistan</option>
+                </select>
+              </label></div>
             <input id="place-search" type="search" autocomplete="off" spellcheck="false"
               placeholder="Street, landmark or neighbourhood" role="combobox"
               aria-autocomplete="list" aria-expanded="false" aria-controls="place-results">

@@ -122,7 +122,7 @@ export function renderStaffBookingDetail(b:StaffBookingDetail):string {
           +': <strong>'+(b.personalityTraits?.[key as PersonalityTrait]===true?'Yes':
             b.personalityTraits?.[key as PersonalityTrait]===false?'No':'Not recorded')
           +'</strong></div>').join('')
-          +'<p class="fine">Yes / No reflects the owner's answers, not a medical assessment.</p>'))
+          +'<p class="fine">Yes / No reflects answers given on the form, not a medical assessment.</p>'))
     : '<section class="notice">Full boarding details are missing. Check the original Google Form before confirming this stay.</section>';
   return '<!doctype html><html lang="en"><head><meta charset="utf-8">'
    +'<meta name="viewport" content="width=device-width,initial-scale=1">'

@@ -10,6 +10,9 @@ export const APEX_CONFIRMED_PRICING = Object.freeze({
   normalPerDayPkr: 2500,
   cameraPerDayPkr: 3000,
   normalFullMonthPerDogPkr: 65000,
+  cameraFullMonthPerDogPkr: 80000,
+  fullMonthDiscountPerDogPkr: 10000,
+  fullMonthBilledDays: 30,
   groomingPkr: 0,
   transportKmPerLitre: 12,
   transportDesiredProfitPercent: 20,
@@ -32,7 +35,7 @@ export type ApexDraftInput = {
   petCount: number;
   /** Show free grooming only when it was requested or provided. */
   groomingRequested?: boolean;
-  /** Staff-selected applicability; 28/30/31 days are NOT auto-classified. */
+  /** A full-month package is a 30 billed-day stay, explicitly selected by staff. */
   fullMonthPackageSelected: boolean;
   transport?: TransportDraftInput;
 };
@@ -44,7 +47,7 @@ export type ApexDraftQuote = {
   unresolved: string[];
   requiresStaffReview: true;
   sendAutomatically: false;
-  rateVersion: 'fatima-confirmed-2026-11-05';
+  rateVersion: 'fatima-confirmed-2026-11-06';
   /** Frozen with the draft; never recalculate an issued invoice from a new rate. */
   fuelRateSnapshot?: VerifiedPetrolRate;
 };
@@ -89,32 +92,23 @@ export function buildApexInvoiceDraft(input: ApexDraftInput): ApexDraftQuote {
     throw new Error('Unsupported cage type');
   }
   const billedDays = countBilledDays(input.startDate, input.endDate, 'inclusive_days');
-  if (input.fullMonthPackageSelected && input.cage !== 'normal') {
-    throw new Error('No owner-approved camera-cage monthly price');
-  }
   const monthly = input.fullMonthPackageSelected;
-  const unitPricePkr = monthly ? APEX_CONFIRMED_PRICING.normalFullMonthPerDogPkr
-    : input.cage === 'normal' ? APEX_CONFIRMED_PRICING.normalPerDayPkr
-    : APEX_CONFIRMED_PRICING.cameraPerDayPkr;
-  const quantity = input.petCount * (monthly ? 1 : billedDays);
-  const boardingLine: QuoteLine = {
-    label: monthly ? 'Normal cage - full month, per dog' :
-      input.cage === 'camera' ? 'Camera cage boarding' : 'Normal cage boarding',
-    quantity,
-    unitPricePkr,
-    totalPkr: safeMoney(quantity * unitPricePkr)
+  if(monthly && billedDays !== APEX_CONFIRMED_PRICING.fullMonthBilledDays)
+    throw new Error('Full-month discount requires exactly 30 billed days');
+  const unitPricePkr=input.cage==='normal'
+    ?APEX_CONFIRMED_PRICING.normalPerDayPkr:APEX_CONFIRMED_PRICING.cameraPerDayPkr;
+  const quantity=input.petCount*billedDays;
+  if(!Number.isSafeInteger(quantity))throw new Error('Boarding quantity overflow');
+  const boardingLine:QuoteLine={
+    label:input.cage==='camera'?'Camera cage boarding':'Standard boarding',
+    quantity,unitPricePkr,totalPkr:safeMoney(quantity*unitPricePkr)
   };
   const lines: QuoteLine[] = [boardingLine];
   if (input.groomingRequested === true) {
     lines.push({label:'Grooming (complimentary)',quantity:input.petCount,unitPricePkr:0,totalPkr:0});
   }
-  const unresolved: string[] = [
-    'Fatima reviews and manually sends every customer-facing invoice',
-    'Payment account and invoice layout must be approved',
-  ];
-  if (monthly) {
-    unresolved.push('Staff must confirm this stay qualifies as one full month; do not infer from billed-day count');
-  }
+  const unresolved:string[]=['Fatima must review and approve the final invoice'];
+  if(monthly)unresolved.push('Monthly discount: verify the 30 billed days before approval');
   if (input.transport?.requested) {
     const km = input.transport.totalDrivenKm;
     const basis = input.transport.profitBasis;
@@ -138,15 +132,17 @@ export function buildApexInvoiceDraft(input: ApexDraftInput): ApexDraftQuote {
       unresolved.push('Transport needs total driven distance, 20% profit basis and a fresh source-backed fuel rate');
     }
     unresolved.push('National notified price excludes Islamabad pump freight; staff must verify local fuel price');
-    unresolved.push('Fatima must confirm transport route accounting, tolls and 20% markup versus margin');
+    unresolved.push('Transport uses provisional fuel cost + 20% markup; Fatima reviews the final charge');
   }
   const subtotalPkr = safeMoney(lines.reduce((acc,line)=>acc+line.totalPkr,0));
-  const quote: Quote = {
-    startDate:input.startDate,endDate:input.endDate,billedDays,lines,
-    subtotalPkr,discounts:[],totalPkr:subtotalPkr,currency:'PKR'
+  const discountPkr=monthly?safeMoney(APEX_CONFIRMED_PRICING.fullMonthDiscountPerDogPkr*input.petCount):0;
+  const quote:Quote={
+    startDate:input.startDate,endDate:input.endDate,billedDays,lines,subtotalPkr,
+    discounts:monthly?[{source:'package',label:'30-day boarding discount',amountPkr:discountPkr}]:[],
+    totalPkr:safeMoney(subtotalPkr-discountPkr),currency:'PKR'
   };
   return {
-    rateVersion:'fatima-confirmed-2026-11-05',
+    rateVersion:'fatima-confirmed-2026-11-06',
     status:'DRAFT_REVIEW_ONLY',quote,unresolved,
     requiresStaffReview:true,sendAutomatically:false,
     ...(input.transport?.requested && lines.some(x=>x.label==='Pet transport') && input.transport.fuelRate

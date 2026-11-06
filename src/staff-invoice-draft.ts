@@ -109,13 +109,11 @@ export function prepareStaffDraftReview(
   }
   const monthly=packageChoice==='monthly';
   const billedDays=countBilledDays(source.startDate,source.endDate,'inclusive_days');
-  if(monthly&&(source.cameraCageRequested||billedDays<28||billedDays>31)){
-    issues.push(source.cameraCageRequested
-      ? 'Camera-cage monthly price is not confirmed by Fatima.'
-      : 'Requested monthly package is outside a 28–31-inclusive-day candidate window; staff must resolve.');
+  if(monthly&&billedDays!==30){
+    issues.push('The Rs. 10,000 monthly discount applies to a 30 billed-day stay.');
     return {booking:source,packageChoice,draft:null,issues,previewOnly:true,canSend:false,canApprove:false};
   }
-  if(monthly)issues.push('Confirm monthly package eligibility before quoting this rate.');
+  if(monthly)issues.push('30-day discount: confirm dates before approving the invoice.');
   if(source.cameraCageRequested)issues.push('Camera cage REQUESTED: check availability.');
   if(source.transportRequested)issues.push(
     'Transport amount excluded. Check pickup location and driving route before quoting.'
@@ -164,12 +162,13 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
     +'<label for="package">Boarding rate</label>'
     +'<select id="package" name="package">'
     +'<option value="daily"'+(review.packageChoice==='daily'?' selected':'')+'>Daily boarding</option>'
-    +'<option value="monthly"'+(review.packageChoice==='monthly'?' selected':'')+'>Monthly package (requires review)</option>'
+    +'<option value="monthly"'+(review.packageChoice==='monthly'?' selected':'')+'>30-day package (Rs. 10,000 off per dog)</option>'
     +'</select><button type="submit">Update estimate</button></form>';
   const rows=review.draft?.quote.lines.map(x=>'<tr><td>'+esc(x.label)+'</td>'
     +'<td class="number">'+x.quantity+'</td><td class="number">'+pkr(x.unitPricePkr)
     +'</td><td class="number">'+pkr(x.totalPkr)+'</td></tr>').join('')??'';
   const issueHtml=review.issues.map(x=>'<li>'+esc(x)+'</li>').join('');
+  const discounts=review.draft?.quote.discounts.map(d=>'<div class="discount"><span>'+esc(d.label)+'</span><strong>− '+pkr(d.amountPkr)+'</strong></div>').join('')??'';
   return '<!doctype html><html lang="en"><head><meta charset="utf-8">'
     +'<meta name="viewport" content="width=device-width,initial-scale=1">'
     +'<meta name="robots" content="noindex,nofollow"><title>Apex | Invoice review</title>'
@@ -186,6 +185,7 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
     +'th{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#7c9183}'
     +'.number{text-align:right;white-space:nowrap}.sum{display:flex;justify-content:space-between;margin-top:26px;font-size:18px;font-weight:750}'
     +'ul{line-height:1.8;color:#6a5231;font-size:13px}.muted{color:#708579;font-size:12px}'
+    +'.discount{display:flex;justify-content:space-between;gap:12px;margin-top:16px;color:#386d45;font-weight:700;font-size:13px}'
     +'@media(max-width:620px){.panel{padding:15px}table{font-size:11px}}</style></head><body>'
     +'<main class="wrap"><a href="'+(site==='staff'?'/staff':'/demo/staff')+'">← Booking queue</a>'
     +'<div class="tag" style="margin-top:30px">Apex Kennels / Owner review</div>'
@@ -199,7 +199,7 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
     +(review.draft
       ? '<div class="panel"><table><thead><tr><th>Service</th><th class="number">Qty</th>'
         +'<th class="number">Rate</th><th class="number">Subtotal</th></tr></thead><tbody>'
-        +rows+'</tbody></table><div class="sum"><span>'
+        +rows+'</tbody></table>'+discounts+'<div class="sum"><span>'
         +(source.transportRequested?'Boarding-only estimate · transport excluded':'Provisional subtotal')
         +'</span><span>'+pkr(review.draft.quote.totalPkr)+'</span></div>'
         +(site==='staff'&&!source.transportRequested&&review.packageChoice==='daily'

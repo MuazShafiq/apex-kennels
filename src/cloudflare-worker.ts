@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import {verifiedAccessEmail} from './staff-access-jwt.ts';
+import {sendApprovedTemplate,bookingAlertTemplateValues,type WhatsappConfig,type WhatsappAccepted} from './whatsapp-cloud.ts';
 import {isTransportServiceLocation} from './transport-service-area.ts';
 import { IntakeError, parseIntake, type IntakeRequest } from './intake.ts';
 import {parsePublicBookingEnvelope,verifyBookingChallenge} from './public-booking.ts';
@@ -23,14 +24,20 @@ export type WorkerEnv = {
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
   ASSETS?: {fetch(request:Request):Promise<Response>};
+  WHATSAPP_ALERTS_ENABLED?: string;
+  WHATSAPP_ACCESS_TOKEN?: string;
+  WHATSAPP_PHONE_NUMBER_ID?: string;
+  WHATSAPP_GRAPH_VERSION?: string;
+  WHATSAPP_OWNER_PHONE?: string;
+  WHATSAPP_OWNER_ALERT_TEMPLATE?: string;
 };
 
 export type SaveIntake = (databaseUrl: string, input: IntakeRequest) => Promise<SavedBooking>;
 export type StaffList = (databaseUrl: string, filter: StaffFilter) => Promise<StaffBooking[]>;
-export type StaffContext = {access?: {aud: string; getIdentity(): Promise<{email?:string}|null>}};
+export type StaffContext = {access?: {aud: string; getIdentity(): Promise<{email?:string}|null>}; waitUntil?:(task:Promise<unknown>)=>void};
 export type StaffDraftReader=(databaseUrl:string,bookingId:string)=>Promise<StaffInvoiceSource|null>;
 export type StaffDetailReader=(databaseUrl:string,bookingId:string)=>Promise<StaffBookingDetail|null>;
-export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>};
+export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; sendWhatsApp?:(config:WhatsappConfig,to:string,template:string,values:string[])=>Promise<WhatsappAccepted>};
 
 async function authorizedStaff(env: WorkerEnv, context: StaffContext|undefined, request:Request): Promise<string|null> {
   if (!env.STAFF_ACCESS_AUD || !env.STAFF_ALLOWED_EMAILS) return null;
@@ -50,6 +57,37 @@ async function authorizedStaff(env: WorkerEnv, context: StaffContext|undefined, 
       env.STAFF_ACCESS_ISSUER,env.STAFF_ACCESS_AUD);
   }
   return email&&allow.includes(email)?email:null;
+}
+
+/**
+ * Notification never participates in the successful booking transaction.
+ * No customer message and no health details. Failures need monitoring;
+ * an accepted API response is NOT proof of WhatsApp delivery.
+ */
+async function notifyOwnerOfNewBooking(
+  env:WorkerEnv,input:IntakeRequest,saved:SavedBooking,staff:StaffOptions
+):Promise<void>{
+  if(!saved.created||env.WHATSAPP_ALERTS_ENABLED!=='true'||!env.WHATSAPP_ACCESS_TOKEN||
+     !env.WHATSAPP_PHONE_NUMBER_ID||!env.WHATSAPP_OWNER_PHONE||
+     !env.WHATSAPP_OWNER_ALERT_TEMPLATE||!env.WHATSAPP_GRAPH_VERSION)return;
+  if(input.customerName.trim().toUpperCase().startsWith('APEX CANARY')||
+     input.petName.trim().toUpperCase().includes('APEX SYNTHETIC CANARY')||
+     input.externalResponseId?.startsWith('apex-cf-smoke-'))return;
+  const task=async()=>{
+    try{
+      await (staff.sendWhatsApp??sendApprovedTemplate)(
+        {accessToken:env.WHATSAPP_ACCESS_TOKEN!,phoneNumberId:env.WHATSAPP_PHONE_NUMBER_ID!,
+         apiVersion:env.WHATSAPP_GRAPH_VERSION!},
+        env.WHATSAPP_OWNER_PHONE!,env.WHATSAPP_OWNER_ALERT_TEMPLATE!,
+        bookingAlertTemplateValues(saved.bookingId.slice(0,8))
+      );
+    }catch{
+      // Deliberately omit recipient, JWT, customer and provider response PII.
+      console.warn('Apex booking WhatsApp alert was not accepted; booking remains saved');
+    }
+  };
+  if(staff.context?.waitUntil)staff.context.waitUntil(task());
+  else await task();
 }
 
 function html(body: string):Response {
@@ -198,6 +236,7 @@ export async function handleWorkerRequest(
     if(!challengeValid)return json({error:'Verification expired. Please verify and try again.'},403);
     try{
       const saved=await persist(env.DATABASE_URL,parsed.booking);
+      await notifyOwnerOfNewBooking(env,parsed.booking,saved,staff);
       return json({ok:true,reference:saved.bookingId.slice(0,8)},saved.created?201:200);
     }catch(error){
       if(error instanceof IntakeError)return json({error:'Booking details changed. Please contact Apex.'},409);
@@ -326,6 +365,7 @@ export async function handleWorkerRequest(
   try {
     const input = parseIntake(await limitedJson(request));
     const saved = await persist(env.DATABASE_URL, input);
+    await notifyOwnerOfNewBooking(env,input,saved,staff);
     return json(saved, saved.created ? 201 : 200);
   } catch (error) {
     if (error instanceof IntakeError) return json({error:error.message}, error.status);

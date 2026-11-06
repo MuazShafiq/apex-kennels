@@ -33,10 +33,13 @@ test('Fatima-approved full-month package costs 65000 PKR PER normal-cage dog',()
     petCount:2,fullMonthPackageSelected:true
   });
   assert.equal(draft.quote.billedDays,30);
-  assert.equal(draft.quote.lines[0].unitPricePkr,65000);
-  assert.equal(draft.quote.lines[0].quantity,2);
+  assert.equal(draft.quote.lines[0].unitPricePkr,2500);
+  assert.equal(draft.quote.lines[0].quantity,60);
+  assert.equal(draft.quote.subtotalPkr,150000);
+  assert.deepEqual(draft.quote.discounts,[{
+    source:'package',label:'30-day boarding discount',amountPkr:20000
+  }]);
   assert.equal(draft.quote.totalPkr,130000);
-  assert.equal(draft.quote.discounts.length,0);
 });
 
 test('a 30-day stay does not silently receive monthly rate without explicit selection',()=>{
@@ -47,8 +50,21 @@ test('a 30-day stay does not silently receive monthly rate without explicit sele
   assert.equal(draft.quote.totalPkr,75000);
 });
 
-test('camera cage monthly package must be separately priced by owner',()=>{
-  assert.throws(()=>buildApexInvoiceDraft({...basic,cage:'camera',fullMonthPackageSelected:true}),/No owner-approved camera-cage monthly price/);
+test('30-day camera package reduces Rs 90,000 to Rs 80,000 per dog',()=>{
+  const draft=buildApexInvoiceDraft({
+    ...basic,startDate:'2026-11-01',endDate:'2026-11-30',
+    cage:'camera',petCount:2,fullMonthPackageSelected:true
+  });
+  assert.equal(draft.quote.subtotalPkr,180000);
+  assert.equal(draft.quote.discounts[0].amountPkr,20000);
+  assert.equal(draft.quote.totalPkr,160000);
+  assert.equal(draft.quote.lines[0].unitPricePkr,3000);
+});
+test('discount does not apply to 28, 29, 31 or 32 billed days',()=>{
+  for(const endDate of ['2026-11-28','2026-11-29','2026-12-01','2026-12-02']){
+    assert.throws(()=>buildApexInvoiceDraft({...basic,startDate:'2026-11-01',
+      endDate,cage:'camera',fullMonthPackageSelected:true}),/exactly 30 billed days/);
+  }
 });
 
 test('transport 20 percent on fuel COST: 12 km/litre, 400 PKR/litre',()=>{
@@ -58,7 +74,7 @@ test('transport 20 percent on fuel COST: 12 km/litre, 400 PKR/litre',()=>{
     requested:true,totalDrivenKm:24,profitBasis:'markup_on_fuel_cost',fuelRate:verified400
   }});
   assert.equal(q.quote.totalPkr,8460);
-  assert.ok(q.unresolved.some(s=>s.includes('markup versus margin')));
+  assert.ok(q.unresolved.some(s=>s.includes('provisional fuel cost + 20% markup')));
   assert.equal(q.fuelRateSnapshot?.pricePkrPerLitre,400);
 });
 
@@ -172,4 +188,17 @@ test('DRAFT invoice cannot be rendered as an unmarked customer invoice',()=>{
     number:'X',issuedOn:'2026-11-05',
     billedTo:'Customer',petName:'Pet',status:'DRAFT'
   },draft.quote),/internal-only/);
+});
+
+test('monthly discount is visible on the review invoice, not hidden in a package rate',()=>{
+  const q=buildApexInvoiceDraft({
+    startDate:'2026-11-01',endDate:'2026-11-30',cage:'camera',
+    petCount:1,fullMonthPackageSelected:true
+  });
+  const html=renderInvoiceHtml({number:'REVIEW-TEST',issuedOn:'2026-11-06',
+    billedTo:'Synthetic',petName:'Test',status:'DRAFT',reviewOnly:true},q.quote);
+  assert.match(html,/30-day boarding discount/);
+  assert.match(html,/PKR 90,000/);
+  assert.match(html,/PKR 10,000/);
+  assert.match(html,/PKR 80,000/);
 });

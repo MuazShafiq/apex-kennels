@@ -138,7 +138,7 @@ export function buildApexInvoiceDraft(input: ApexDraftInput): ApexDraftQuote {
   const discountPkr=monthly?safeMoney(APEX_CONFIRMED_PRICING.fullMonthDiscountPerDogPkr*input.petCount):0;
   const quote:Quote={
     startDate:input.startDate,endDate:input.endDate,billedDays,lines,subtotalPkr,
-    discounts:monthly?[{source:'manual',label:'30-day boarding discount',amountPkr:discountPkr}]:[],
+    discounts:monthly?[{source:'package',label:'30-day boarding discount',amountPkr:discountPkr}]:[],
     totalPkr:safeMoney(subtotalPkr-discountPkr),currency:'PKR'
   };
   return {

@@ -94,7 +94,6 @@ export function prepareStaffDraftReview(
 ):StaffDraftReview{
   const issues:string[]=[];
   if(source.status!=='approved')issues.push('Booking is not approved for boarding.');
-  if(source.synthetic)issues.push('TEST RECORD. Do not contact the customer.');
   if(source.cameraCageRequested===null){
     issues.push('Cage preference missing; do not assume normal cage.');
     return {booking:source,packageChoice,draft:null,issues,previewOnly:true,canSend:false,canApprove:false};

@@ -13,13 +13,13 @@ const base={
     distemperHistory:'No',pickupDropoffRequested:true,cameraCageRequested:false,
     termsAccepted:true
   },
-  transportLocation:{latitude:33.7,longitude:73.1,service:'pickup'}
+  transportLocation:{latitude:33.7,longitude:73.1,service:'pickup',customerConfirmed:true}
 };
 
 test('website submission includes customer-picked coordinates and is distinct from Google Form',()=>{
   const row=parseIntake(base,'website');
   assert.equal(row.source,'website');
-  assert.deepEqual(row.transportLocation,{latitude:33.7,longitude:73.1,service:'pickup'});
+  assert.deepEqual(row.transportLocation,{latitude:33.7,longitude:73.1,service:'pickup',customerConfirmed:true});
   assert.throws(()=>parseIntake(base),/Unsupported booking source/);
 });
 
@@ -27,7 +27,7 @@ test('transport bookings cannot omit an exact map location',()=>{
   const {transportLocation,...missing}=base;
   assert.throws(()=>parseIntake(missing,'website'),/Pickup location is required/);
   assert.throws(()=>parseIntake({...base,transportLocation:{
-    latitude:91,longitude:73,service:'pickup'
+    latitude:91,longitude:73,service:'pickup',customerConfirmed:true
   }},'website'),/Invalid pickup location/);
 });
 
@@ -42,7 +42,7 @@ test('booking without transport cannot secretly submit a location',()=>{
 test('changed location changes the immutable intake fingerprint',()=>{
   const a=parseIntake(base,'website');
   const b=parseIntake({...base,transportLocation:{
-    latitude:33.7001,longitude:73.1,service:'pickup'
+    latitude:33.7001,longitude:73.1,service:'pickup',customerConfirmed:true
   }},'website');
   assert.notEqual(fingerprintIntake(a),fingerprintIntake(b));
 });

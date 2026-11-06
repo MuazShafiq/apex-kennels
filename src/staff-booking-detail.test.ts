@@ -45,7 +45,7 @@ test('private booking details show essential animal-care answers, escaped and no
   assert.match(html,/Bite history: <strong>Yes<\/strong>/);
   assert.match(html,/Friendly: <strong>No<\/strong>/);
   assert.match(html,/Canine distemper history/);
-  assert.match(html,/Yes \/ No reflects the owner's answers/);
+  assert.match(html,/Yes \/ No reflects answers given on the form/);
   assert.match(html,/Review price estimate/);
   assert.match(html,/Rover &amp; &lt;script&gt;/);
   assert.match(html,/&lt;img/);

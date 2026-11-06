@@ -2,8 +2,6 @@ import { timingSafeEqual } from 'node:crypto';
 import {isTransportServiceLocation} from './transport-service-area.ts';
 import { IntakeError, parseIntake, type IntakeRequest } from './intake.ts';
 import {parsePublicBookingEnvelope,verifyBookingChallenge} from './public-booking.ts';
-import {parsePlaceQuery,searchPakistaniPlaces,type PlaceSuggestion} from './location-suggestions.ts';
-import {suggestTomTomPlaces,resolveTomTomPlace,TomTomPlacesError,type TomTomSuggestion} from './tomtom-places.ts';
 import { persistBookingWithNeon } from './neon-worker-db.ts';
 import type { SavedBooking } from './booking-store.ts';
 import {listStaffBookings,parseStaffFilter,syntheticBookings, type StaffBooking, type StaffFilter} from './staff-bookings.ts';
@@ -22,8 +20,6 @@ export type WorkerEnv = {
   APEX_PUBLIC_BOOKING_ENABLED?: string;
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
-  GEOAPIFY_API_KEY?: string;
-  TOMTOM_API_KEY?: string;
   ASSETS?: {fetch(request:Request):Promise<Response>};
 };
 
@@ -32,7 +28,7 @@ export type StaffList = (databaseUrl: string, filter: StaffFilter) => Promise<St
 export type StaffContext = {access?: {aud: string; getIdentity(): Promise<{email?:string}|null>}};
 export type StaffDraftReader=(databaseUrl:string,bookingId:string)=>Promise<StaffInvoiceSource|null>;
 export type StaffDetailReader=(databaseUrl:string,bookingId:string)=>Promise<StaffBookingDetail|null>;
-export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; searchPlaces?:(query:string,key:string)=>Promise<PlaceSuggestion[]>; suggestPlaces?:(query:string,key:string)=>Promise<TomTomSuggestion[]>; resolvePlace?:(type:TomTomSuggestion['placeType'],id:string,key:string)=>Promise<PlaceSuggestion>};
+export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>};
 
 async function authorizedStaff(env: WorkerEnv, context?: StaffContext): Promise<string|null> {
   if (!env.STAFF_ACCESS_AUD || !env.STAFF_ALLOWED_EMAILS || context?.access?.aud!==env.STAFF_ACCESS_AUD) return null;
@@ -163,64 +159,6 @@ export async function handleWorkerRequest(
     return json({latitude:resolved.pin.lat,longitude:resolved.pin.lon,
       mapsUrl:'https://www.google.com/maps/search/?api=1&query='+
         encodeURIComponent(resolved.pin.lat+','+resolved.pin.lon)});
-  }
-  if(path==='/api/book/places'){
-    if(request.method!=='GET')return json({error:'Method not allowed'},405,{Allow:'GET'});
-    if(!env.TOMTOM_API_KEY&&!env.GEOAPIFY_API_KEY)return json({error:'Location search unavailable'},503);
-    let query:string;
-    try{query=parsePlaceQuery(new URL(request.url));}
-    catch{return json({error:'Enter at least three characters',code:'BAD_QUERY'},400);}
-    try{
-      const usingTomTom=!!env.TOMTOM_API_KEY;
-      const providerItems=usingTomTom
-        ?await (staff.suggestPlaces??suggestTomTomPlaces)(query,env.TOMTOM_API_KEY!)
-        :await (staff.searchPlaces??searchPakistaniPlaces)(query,env.GEOAPIFY_API_KEY!);
-      const items=usingTomTom?providerItems:(providerItems as PlaceSuggestion[])
-        .filter(p=>isTransportServiceLocation(p.latitude,p.longitude));
-      return json({items,attribution:usingTomTom?'TomTom':'Geoapify · OpenStreetMap contributors'});
-    }catch(error){
-      if(error instanceof TomTomPlacesError){
-        // Do not log location queries, response bodies or credentials.
-        console.warn('Apex place search provider status',error.status);
-        if(error.status===429)
-          return json({error:'Search is busy. Please try again shortly.',code:'RATE_LIMITED'},429,{'Retry-After':'2'});
-        if(error.status===403)
-          return json({error:'Place search service is not authorized',code:'PROVIDER_ACCESS'},502);
-        if(error.status===400)
-          return json({error:'Place search provider rejected the request',code:'PROVIDER_REJECTED'},502);
-        return json({error:'Place search provider unavailable',code:'PROVIDER_ERROR'},502);
-      }
-      console.warn('Apex place search request failed');
-      return json({error:'Place search could not connect',code:'NETWORK_ERROR'},502);
-    }
-  }
-  if(path==='/api/book/place'){
-    if(request.method!=='GET')return json({error:'Method not allowed'},405,{Allow:'GET'});
-    if(!env.TOMTOM_API_KEY)return json({error:'Place lookup unavailable'},503);
-    const url=new URL(request.url);
-    if([...url.searchParams.keys()].some(k=>k!=='type'&&k!=='id')||
-       url.searchParams.getAll('type').length!==1||url.searchParams.getAll('id').length!==1)
-      return json({error:'Invalid place selection'},400);
-    const type=url.searchParams.get('type')??'';
-    const id=url.searchParams.get('id')??'';
-    if(!['pois','addresses','streets','intersections','areas'].includes(type)||
-       !/^[A-Za-z0-9_-]{1,160}$/.test(id))
-      return json({error:'Invalid place selection'},400);
-    try{
-      const place=await (staff.resolvePlace??resolveTomTomPlace)(
-        type as TomTomSuggestion['placeType'],id,env.TOMTOM_API_KEY);
-      if(!isTransportServiceLocation(place.latitude,place.longitude))
-        return json({error:'Pickup and drop-off are available only in Islamabad and Rawalpindi',
-          code:'OUT_OF_SERVICE_AREA'},422);
-      return json({place});
-    }catch(error){
-      if(error instanceof TomTomPlacesError&&error.status===429)
-        return json({error:'Search is busy. Please try again shortly.',code:'RATE_LIMITED'},429,{'Retry-After':'2'});
-      if(error instanceof TomTomPlacesError&&error.status===422)
-        return json({error:'Pickup and drop-off are available only in Islamabad and Rawalpindi',
-          code:'OUT_OF_SERVICE_AREA'},422);
-      return json({error:'Could not locate that place. Try another suggestion or move the map pin.',code:'PLACE_UNAVAILABLE'},502);
-    }
   }
   if(path==='/api/book/config'){
     if(request.method!=='GET')return json({error:'Method not allowed'},405,{Allow:'GET'});

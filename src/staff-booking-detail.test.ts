@@ -40,11 +40,13 @@ test('private booking details show essential animal-care answers, escaped and no
   assert.match(html,/Booking details/);
   assert.match(html,/Vaccination status/);
   assert.match(html,/Emergency contact/);
-  assert.match(html,/Medication &amp; feeding/);
+  assert.match(html,/Medication and feeding/);
   assert.match(html,/Bite history/);
-  assert.match(html,/Selected/);
-  assert.match(html,/Not selected does not confirm/);
-  assert.match(html,/Review boarding estimate/);
+  assert.match(html,/Bite history: <strong>Yes<\/strong>/);
+  assert.match(html,/Friendly: <strong>No<\/strong>/);
+  assert.match(html,/Canine distemper history/);
+  assert.match(html,/Yes \/ No reflects answers given on the form/);
+  assert.match(html,/Review price estimate/);
   assert.match(html,/Rover &amp; &lt;script&gt;/);
   assert.match(html,/&lt;img/);
   assert.match(html,/Address &lt;script&gt;/);
@@ -55,7 +57,7 @@ test('private booking details show essential animal-care answers, escaped and no
 test('missing Form details are not invented',()=>{
   const html=renderStaffBookingDetail({...detail,hasFormDetails:false,
     medicationFeedingInstructions:null,personalityTraits:null});
-  assert.match(html,/Detailed Google Form answers are unavailable/);
+  assert.match(html,/Full boarding details are missing/);
   assert.doesNotMatch(html,/Twice daily/);
 });
 
@@ -113,6 +115,6 @@ test('public demo never links to private booking records',async()=>{
 
 test('synthetic booking remains marked as fake, not contactable',()=>{
   const html=renderStaffBookingDetail({...detail,isSynthetic:true});
-  assert.match(html,/SYNTHETIC TEST RECORD/);
-  assert.match(html,/NEVER CONTACT CUSTOMER/);
+  assert.match(html,/TEST RECORD/);
+  assert.match(html,/DO NOT CONTACT/);
 });

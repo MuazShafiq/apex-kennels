@@ -206,7 +206,7 @@ test('customer pin checker requires staff Access, does not require or write Neon
     resolvePin:async()=>{throw new Error('GET must not resolve remote links')}
   });
   assert.equal(permitted.status,200);
-  assert.match(await permitted.text(),/Check a customer location/);
+  assert.match(await permitted.text(),/Check an older booking’s location/);
   assert.equal(permitted.headers.get('cache-control'),'private, no-store');
 });
 
@@ -253,7 +253,7 @@ test('valid staff can check a customer-submitted pin, but pin is not persisted o
   assert.equal(received,source);
   const body=await response.text();
   assert.match(body,/33.2992325, 73.2534561/);
-  assert.match(body,/NOT confirmed as the property gate/);
+  assert.match(body,/Check that the pin marks a drivable entrance/);
   assert.doesNotMatch(body,/x7KMJZuXFG74HqQg8/);
   assert.doesNotMatch(body,/Send invoice|Download invoice/);
 });
@@ -277,7 +277,7 @@ test('external redirect failure gives safe unresolved result, not a fake locatio
     context:valid,resolvePin:async()=>({ok:false,reason:'REDIRECT_UNAVAILABLE'})
   });
   assert.equal(response.status,200);
-  assert.match(await response.text(),/Could not verify an exact pin/);
+  assert.match(await response.text(),/Couldn't read that location link/);
 });
 
 test('staff booking queue links to Access-gated pin checker; demo does not',async()=>{

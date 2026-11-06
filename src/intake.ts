@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
 import {parseBoardingDetails, type BoardingDetails} from './boarding-details.ts';
 import {IntakeError} from './intake-error.ts';
+import {validateCustomerLocation,type CustomerLocation} from './customer-location-input.ts';
 export {IntakeError} from './intake-error.ts';
 
 export type IntakeRequest = {
-  source: 'google_form';
+  source: 'google_form' | 'website';
   externalResponseId: string;
   customerName: string;
   email?: string;
@@ -14,6 +15,7 @@ export type IntakeRequest = {
   endDate: string;
   accommodationType?: string;
   details?: BoardingDetails;
+  transportLocation?: CustomerLocation;
 };
 
 
@@ -36,13 +38,16 @@ function checkDate(value: string, name: string): number {
 }
 
 /** Only the fields explicitly mapped by a trusted Google Forms adapter may enter the system. */
-export function parseIntake(value: unknown): IntakeRequest {
+export function parseIntake(value: unknown, expectedSource: 'google_form'|'website'='google_form'): IntakeRequest {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new IntakeError('Expected a JSON object');
   }
   const row = value as Record<string, unknown>;
-  if (row.source !== 'google_form') throw new IntakeError('Unsupported booking source');
+  if (row.source !== expectedSource) throw new IntakeError('Unsupported booking source');
   const externalResponseId = textField(row.externalResponseId, 'externalResponseId', 160)!;
+  if(expectedSource==='website' && !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(externalResponseId)) {
+    throw new IntakeError('Invalid website submission identifier');
+  }
   const customerName = textField(row.customerName, 'customerName')!;
   const email = textField(row.email, 'email', 254, false)?.toLowerCase();
   const phone = textField(row.phone, 'phone', 40, false);
@@ -56,7 +61,20 @@ export function parseIntake(value: unknown): IntakeRequest {
   if (end < start || (end - start) / 86400000 > 366) throw new IntakeError('Invalid stay duration');
   const accommodationType = textField(row.accommodationType, 'accommodationType', 120, false);
   const details = parseBoardingDetails(row.details);
-  return { source:'google_form', externalResponseId, customerName, email, phone, petName, startDate, endDate, accommodationType, details };
+  if(expectedSource==='website' && !details)throw new IntakeError('Website booking requires full boarding details');
+  if(expectedSource==='website' && details?.termsAccepted!==true)throw new IntakeError('Terms acknowledgement required');
+  let transportLocation:CustomerLocation|undefined;
+  if(expectedSource==='website') {
+    if(details?.pickupDropoffRequested===true){
+      if(row.transportLocation===undefined)throw new IntakeError('Pickup location is required');
+      try{transportLocation=validateCustomerLocation(row.transportLocation);}
+      catch{throw new IntakeError('Invalid pickup location');}
+    } else if(row.transportLocation!==undefined && row.transportLocation!==null){
+      throw new IntakeError('Unexpected pickup location');
+    }
+  }
+  return { source:expectedSource, externalResponseId, customerName, email, phone, petName,
+    startDate, endDate, accommodationType, details, ...(transportLocation?{transportLocation}:{}) };
 }
 
 /** Canonical immutable import identity; does not contain invoice prices or private tokens. */
@@ -67,6 +85,7 @@ export function fingerprintIntake(input: IntakeRequest): string {
     phone: input.phone ?? null, petName: input.petName,
     startDate: input.startDate, endDate: input.endDate,
     accommodationType: input.accommodationType ?? null,
-    details: input.details ?? null
+    details: input.details ?? null,
+    transportLocation: input.transportLocation ?? null
   })).digest('hex');
 }

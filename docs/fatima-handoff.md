@@ -5,8 +5,9 @@ The Google Form and staff booking review already exist. These are the **unresolv
 ## Invoice and approval
 
 - Define precisely when the PKR 65,000 per-dog monthly standard-cage package applies (30 nights, inclusive days or calendar month).
-- Confirm whether the requested 20% transport profit is **markup on fuel cost** or **gross margin**, and whether to include tolls, driver time, vehicle costs or a minimum charge.
-- Identify the correct customer-facing payment recipient/bank account and invoice-number sequence. Confirm the desired invoice layout/template.
+- **No immediate owner question:** use fuel cost + 20% markup only as an explicitly provisional, editable estimate. This is not a confirmed 20% gross margin or an approved payable charge. Fatima reviews and can override the final transport amount. Do not silently add tolls, driver time or other costs.
+- **Reuse actual invoice examples:** founder-supplied 2026 invoices establish an existing simple four-digit invoice-number convention and a visual layout. Do not invent a new numbering format. Avoid collisions with invoices still created manually in Canva; verify the current latest number when activating issuance.
+- **One-time payment verification before first payable invoice:** newer sample invoices use a different bank recipient than older ones. Current payment instructions must be confirmed once before any customer-facing invoice; no account numbers or customer financial information belong in this public repo. Internal, nonpayable previews need no bank details.
 - Confirm who may approve booking availability, discounts and invoices. Fatima/staff will **send invoices manually**, not via an automated customer message.
 - Confirm how multi-dog special cases or nonstandard stays should be priced.
 

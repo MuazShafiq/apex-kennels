@@ -6,9 +6,7 @@
   <meta name="robots" content="noindex,nofollow">
   <meta name="theme-color" content="#18392d">
   <title>Request boarding | Apex Kennels</title>
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
   <link rel="stylesheet" href="/book/styles.css">
-  <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js" defer></script>
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" defer></script>
   <script src="/book/app.js" defer></script>
 </head>
@@ -74,23 +72,19 @@
           <label class="option option-card"><input type="radio" name="transportChoice" value="both"><span><strong>Both</strong><small>Same address</small></span></label>
         </div></fieldset>
         <div id="transport" class="transport" hidden>
-          <h3>Where should we come?</h3>
-          <p>Search a street or landmark in Islamabad or Rawalpindi. Choose a result, then move the pin to your gate.</p>
-          <div class="place-search">
-            <label for="place-search" class="place-search-label">Search Islamabad or Rawalpindi</label>
-            <input id="place-search" type="search" autocomplete="off" spellcheck="false"
-              placeholder="Street, landmark or neighbourhood in Islamabad or Rawalpindi" role="combobox"
-              aria-autocomplete="list" aria-expanded="false" aria-controls="place-results">
-            <div id="place-results" class="suggestions" role="listbox" hidden></div>
-            <p id="search-status" class="search-status" aria-live="polite">Or tap anywhere on the map.</p>
-            <p class="search-credit">Search by <a id="place-credit" href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">Geoapify</a>.</p>
+          <h3>Choose your pickup location</h3>
+          <p>Use your current location, or find your exact gate in Google Maps.</p>
+          <div class="location-actions">
+            <button type="button" class="secondary" id="locate">Use my current location</button>
+            <a class="maps-button" id="open-google-maps" href="https://www.google.com/maps/search/?api=1&amp;query=Islamabad%20Rawalpindi" target="_blank" rel="noopener noreferrer">Open Google Maps</a>
           </div>
-          <div id="map" role="application" aria-label="Map to adjust the exact pickup or drop-off location"></div>
-          <div class="mapbar">
-            <button type="button" class="secondary" id="locate">Use my location</button>
-            <span id="coordinate-status" aria-live="polite">No location selected</span>
-          </div>
-          <p class="fineprint">If the gate differs from the search result, drag the pin to the right spot. Transport charges will be confirmed separately.</p>
+          <label class="maps-link-label" for="maps-link">Location link from Google Maps</label>
+          <input id="maps-link" type="url" inputmode="url" autocomplete="off"
+            spellcheck="false" placeholder="Paste the link you copied in Google Maps">
+          <p class="location-help">In Google Maps, find your address or drop a pin on your gate, tap <strong>Share</strong>, then <strong>Copy link</strong>. Paste it above.</p>
+          <p id="coordinate-status" class="location-status" aria-live="polite">No location selected</p>
+          <a id="selected-location-link" class="pin-link" target="_blank" rel="noopener noreferrer" hidden>View selected location in Google Maps</a>
+          <p class="fineprint">Pickup and drop-off are available only in Islamabad and Rawalpindi. Transport charges are confirmed separately.</p>
         </div>
       </section>
       <section class="panel">
@@ -134,7 +128,7 @@
       <p>Your request is with Apex Kennels. We'll review the details and contact you to confirm the next steps.</p>
       <p class="fineprint">Reference: <span id="reference"></span></p>
     </section>
-    <footer>APEX KENNELS · Islamabad · Map © OpenFreeMap, OpenMapTiles and OpenStreetMap contributors</footer>
+    <footer>APEX KENNELS · Islamabad · Google Maps opens separately</footer>
   </div>
 </body>
 </html>

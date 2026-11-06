@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { IntakeError, parseIntake, type IntakeRequest } from './intake.ts';
 import {parsePublicBookingEnvelope,verifyBookingChallenge} from './public-booking.ts';
+import {parsePlaceQuery,searchPakistaniPlaces,type PlaceSuggestion} from './location-suggestions.ts';
 import { persistBookingWithNeon } from './neon-worker-db.ts';
 import type { SavedBooking } from './booking-store.ts';
 import {listStaffBookings,parseStaffFilter,syntheticBookings, type StaffBooking, type StaffFilter} from './staff-bookings.ts';
@@ -19,6 +20,7 @@ export type WorkerEnv = {
   APEX_PUBLIC_BOOKING_ENABLED?: string;
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
+  GEOAPIFY_API_KEY?: string;
   ASSETS?: {fetch(request:Request):Promise<Response>};
 };
 
@@ -27,7 +29,7 @@ export type StaffList = (databaseUrl: string, filter: StaffFilter) => Promise<St
 export type StaffContext = {access?: {aud: string; getIdentity(): Promise<{email?:string}|null>}};
 export type StaffDraftReader=(databaseUrl:string,bookingId:string)=>Promise<StaffInvoiceSource|null>;
 export type StaffDetailReader=(databaseUrl:string,bookingId:string)=>Promise<StaffBookingDetail|null>;
-export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>};
+export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; searchPlaces?:(query:string,key:string)=>Promise<PlaceSuggestion[]>};
 
 async function authorizedStaff(env: WorkerEnv, context?: StaffContext): Promise<string|null> {
   if (!env.STAFF_ACCESS_AUD || !env.STAFF_ALLOWED_EMAILS || context?.access?.aud!==env.STAFF_ACCESS_AUD) return null;
@@ -130,6 +132,17 @@ export async function handleWorkerRequest(
         "base-uri 'none'; frame-ancestors 'none'");
       return new Response(response.body,{status:response.status,headers});
     }catch{return json({error:'Booking page unavailable'},503);}
+  }
+  if(path==='/api/book/places'){
+    if(request.method!=='GET')return json({error:'Method not allowed'},405,{Allow:'GET'});
+    if(!env.GEOAPIFY_API_KEY)return json({error:'Location search unavailable'},503);
+    let query:string;
+    try{query=parsePlaceQuery(new URL(request.url));}
+    catch{return json({error:'Enter at least three characters'},400);}
+    try{
+      const items=await (staff.searchPlaces??searchPakistaniPlaces)(query,env.GEOAPIFY_API_KEY);
+      return json({items,attribution:'Geoapify · OpenStreetMap contributors'});
+    }catch{return json({error:'Location search unavailable'},502);}
   }
   if(path==='/api/book/config'){
     if(request.method!=='GET')return json({error:'Method not allowed'},405,{Allow:'GET'});

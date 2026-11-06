@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { IntakeError, parseIntake, type IntakeRequest } from './intake.ts';
+import {parsePublicBookingEnvelope,verifyBookingChallenge} from './public-booking.ts';
 import { persistBookingWithNeon } from './neon-worker-db.ts';
 import type { SavedBooking } from './booking-store.ts';
 import {listStaffBookings,parseStaffFilter,syntheticBookings, type StaffBooking, type StaffFilter} from './staff-bookings.ts';
@@ -15,6 +16,10 @@ export type WorkerEnv = {
   INTAKE_API_SECRET?: string;
   STAFF_ACCESS_AUD?: string;
   STAFF_ALLOWED_EMAILS?: string;
+  APEX_PUBLIC_BOOKING_ENABLED?: string;
+  TURNSTILE_SITE_KEY?: string;
+  TURNSTILE_SECRET_KEY?: string;
+  ASSETS?: {fetch(request:Request):Promise<Response>};
 };
 
 export type SaveIntake = (databaseUrl: string, input: IntakeRequest) => Promise<SavedBooking>;
@@ -22,7 +27,7 @@ export type StaffList = (databaseUrl: string, filter: StaffFilter) => Promise<St
 export type StaffContext = {access?: {aud: string; getIdentity(): Promise<{email?:string}|null>}};
 export type StaffDraftReader=(databaseUrl:string,bookingId:string)=>Promise<StaffInvoiceSource|null>;
 export type StaffDetailReader=(databaseUrl:string,bookingId:string)=>Promise<StaffBookingDetail|null>;
-export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>};
+export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>};
 
 async function authorizedStaff(env: WorkerEnv, context?: StaffContext): Promise<string|null> {
   if (!env.STAFF_ACCESS_AUD || !env.STAFF_ALLOWED_EMAILS || context?.access?.aud!==env.STAFF_ACCESS_AUD) return null;
@@ -106,6 +111,57 @@ export async function handleWorkerRequest(
   if (path === '/api/health') {
     if (request.method !== 'GET') return json({error:'Method not allowed'}, 405, {Allow:'GET'});
     return json({status:'ok',service:'apex-intake'});
+  }
+  if(path==='/book'||path==='/book/'||path.startsWith('/book/')){
+    if(request.method!=='GET')return json({error:'Method not allowed'},405,{Allow:'GET'});
+    if(!env.ASSETS)return json({error:'Booking page unavailable'},503);
+    try{
+      const url=new URL(request.url);
+      if(path==='/book'||path==='/book/')url.pathname='/book/index.html';
+      const response=await env.ASSETS.fetch(new Request(url.toString(),{method:'GET'}));
+      const headers=new Headers(response.headers);
+      headers.set('X-Content-Type-Options','nosniff');
+      headers.set('X-Robots-Tag','noindex, nofollow');
+      headers.set('Content-Security-Policy',
+        "default-src 'none'; script-src 'self' https://unpkg.com https://challenges.cloudflare.com; "+
+        "style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob: https://tiles.openfreemap.org; "+
+        "connect-src 'self' https://tiles.openfreemap.org; font-src 'self' data: https://tiles.openfreemap.org; "+
+        "worker-src blob:; frame-src https://challenges.cloudflare.com; form-action 'self'; "+
+        "base-uri 'none'; frame-ancestors 'none'");
+      return new Response(response.body,{status:response.status,headers});
+    }catch{return json({error:'Booking page unavailable'},503);}
+  }
+  if(path==='/api/book/config'){
+    if(request.method!=='GET')return json({error:'Method not allowed'},405,{Allow:'GET'});
+    const enabled=env.APEX_PUBLIC_BOOKING_ENABLED==='true' && !!env.DATABASE_URL &&
+      !!env.TURNSTILE_SITE_KEY && !!env.TURNSTILE_SECRET_KEY;
+    return json(enabled?{enabled:true,siteKey:env.TURNSTILE_SITE_KEY}:{enabled:false});
+  }
+  if(path==='/api/book'){
+    if(request.method!=='POST')return json({error:'Method not allowed'},405,{Allow:'POST'});
+    if(env.APEX_PUBLIC_BOOKING_ENABLED!=='true'||!env.DATABASE_URL||
+       !env.TURNSTILE_SECRET_KEY||!env.TURNSTILE_SITE_KEY)
+      return json({error:'Online booking is not available yet'},503);
+    const url=new URL(request.url);
+    if(request.headers.get('origin')!==url.origin)return json({error:'Forbidden'},403);
+    if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json'))
+      return json({error:'JSON required'},415);
+    let parsed:ReturnType<typeof parsePublicBookingEnvelope>;
+    try{parsed=parsePublicBookingEnvelope(await limitedJson(request));}
+    catch(error){
+      if(error instanceof IntakeError)return json({error:error.message},error.status);
+      return json({error:'Check the booking form and try again'},400);
+    }
+    const challengeValid=await (staff.verifyChallenge??verifyBookingChallenge)(
+      parsed.turnstileToken,env.TURNSTILE_SECRET_KEY,url.hostname);
+    if(!challengeValid)return json({error:'Verification expired. Please verify and try again.'},403);
+    try{
+      const saved=await persist(env.DATABASE_URL,parsed.booking);
+      return json({ok:true,reference:saved.bookingId.slice(0,8)},saved.created?201:200);
+    }catch(error){
+      if(error instanceof IntakeError)return json({error:'Booking details changed. Please contact Apex.'},409);
+      return json({error:'Unable to save the request. Please contact Apex.'},500);
+    }
   }
   if (path === '/demo/invoice') {
     if (request.method !== 'GET') return json({error:'Method not allowed'},405,{Allow:'GET'});

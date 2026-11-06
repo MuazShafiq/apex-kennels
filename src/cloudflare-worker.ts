@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
+import {isTransportServiceLocation} from './transport-service-area.ts';
 import { IntakeError, parseIntake, type IntakeRequest } from './intake.ts';
 import {parsePublicBookingEnvelope,verifyBookingChallenge} from './public-booking.ts';
 import {parsePlaceQuery,searchPakistaniPlaces,type PlaceSuggestion} from './location-suggestions.ts';
@@ -140,17 +141,29 @@ export async function handleWorkerRequest(
     if(!env.TOMTOM_API_KEY&&!env.GEOAPIFY_API_KEY)return json({error:'Location search unavailable'},503);
     let query:string;
     try{query=parsePlaceQuery(new URL(request.url));}
-    catch{return json({error:'Enter at least three characters'},400);}
+    catch{return json({error:'Enter at least three characters',code:'BAD_QUERY'},400);}
     try{
       const usingTomTom=!!env.TOMTOM_API_KEY;
-      const items=usingTomTom
+      const providerItems=usingTomTom
         ?await (staff.suggestPlaces??suggestTomTomPlaces)(query,env.TOMTOM_API_KEY!)
         :await (staff.searchPlaces??searchPakistaniPlaces)(query,env.GEOAPIFY_API_KEY!);
+      const items=usingTomTom?providerItems:(providerItems as PlaceSuggestion[])
+        .filter(p=>isTransportServiceLocation(p.latitude,p.longitude));
       return json({items,attribution:usingTomTom?'TomTom':'Geoapify · OpenStreetMap contributors'});
     }catch(error){
-      if(error instanceof TomTomPlacesError&&error.status===429)
-        return json({error:'Search is busy. Please try again shortly.',code:'RATE_LIMITED'},429,{'Retry-After':'2'});
-      return json({error:'Location search unavailable',code:error instanceof TomTomPlacesError&&error.status===403?'PROVIDER_ACCESS':'PROVIDER_ERROR'},502);
+      if(error instanceof TomTomPlacesError){
+        // Do not log location queries, response bodies or credentials.
+        console.warn('Apex place search provider status',error.status);
+        if(error.status===429)
+          return json({error:'Search is busy. Please try again shortly.',code:'RATE_LIMITED'},429,{'Retry-After':'2'});
+        if(error.status===403)
+          return json({error:'Place search service is not authorized',code:'PROVIDER_ACCESS'},502);
+        if(error.status===400)
+          return json({error:'Place search provider rejected the request',code:'PROVIDER_REJECTED'},502);
+        return json({error:'Place search provider unavailable',code:'PROVIDER_ERROR'},502);
+      }
+      console.warn('Apex place search request failed');
+      return json({error:'Place search could not connect',code:'NETWORK_ERROR'},502);
     }
   }
   if(path==='/api/book/place'){
@@ -168,10 +181,16 @@ export async function handleWorkerRequest(
     try{
       const place=await (staff.resolvePlace??resolveTomTomPlace)(
         type as TomTomSuggestion['placeType'],id,env.TOMTOM_API_KEY);
+      if(!isTransportServiceLocation(place.latitude,place.longitude))
+        return json({error:'Pickup and drop-off are available only in Islamabad and Rawalpindi',
+          code:'OUT_OF_SERVICE_AREA'},422);
       return json({place});
     }catch(error){
       if(error instanceof TomTomPlacesError&&error.status===429)
         return json({error:'Search is busy. Please try again shortly.',code:'RATE_LIMITED'},429,{'Retry-After':'2'});
+      if(error instanceof TomTomPlacesError&&error.status===422)
+        return json({error:'Pickup and drop-off are available only in Islamabad and Rawalpindi',
+          code:'OUT_OF_SERVICE_AREA'},422);
       return json({error:'Could not locate that place. Try another suggestion or move the map pin.',code:'PLACE_UNAVAILABLE'},502);
     }
   }

@@ -1,4 +1,5 @@
 import type {PlaceSuggestion} from './location-suggestions.ts';
+import {TRANSPORT_SERVICE_BOUNDS,isTransportServiceLocation} from './transport-service-area.ts';
 
 /**
  * TomTom Orbis Places Discover: resolved POIs and addresses, not road-name
@@ -88,6 +89,20 @@ export function normalizeTomTomQuery(query:string):string{
   return query.normalize('NFKC').replace(/\bU\s*\.\s*S\s*\./gi,'US')
     .replace(/\bU\s*\.\s*S\b/gi,'US').replace(/\s+/g,' ').trim();
 }
+const terms=(text:string)=>normalizeTomTomQuery(text).toLowerCase()
+  .replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(Boolean);
+export function matchesPlaceQuery(query:string,label:string):boolean{
+  const words=terms(query),candidate=terms(label);
+  if(!words.length||!candidate.length)return false;
+  // Normalize the common embassy naming variants, without allowing unrelated
+  // spellings such as "Rayaz" to match the word "Raya".
+  const isUS=(word:string)=>['us','usa','american'].includes(word);
+  return words.every(word=>
+    word==='us'
+      ?candidate.some(isUS)||candidate.includes('united')&&candidate.includes('states')
+      :candidate.includes(word)
+  );
+}
 export async function suggestTomTomPlaces(
   query:string,key:string,fetcher:typeof fetch=fetch
 ):Promise<TomTomSuggestion[]>{
@@ -98,13 +113,17 @@ export async function suggestTomTomPlaces(
     method:'POST',
     headers:{
       'TomTom-Api-Key':key,'TomTom-Api-Version':'3',
-      'Attributes':'results(id,type,title,subtitles)',
+      'Attributes':'results(id,type,title,subtitles,address.countryCodeIso2)',
       'Accept':'application/json','Content-Type':'application/json','Accept-Language':'en-PK,en'
     },
     redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(5000),
     body:JSON.stringify({
-      query,maxResults:5,geopoliticalView:'PK',
-      filters:{types:['poi','address','street','intersection','area'],countryCodesIso2:['PK']},
+      query,maxResults:10,geopoliticalView:'PK',
+      filters:{
+        types:['poi','address','street','intersection','area'],
+        countryCodesIso2:['PK'],
+        geometry:{type:'rectangle',coordinates:[...TRANSPORT_SERVICE_BOUNDS]}
+      },
       preferences:{geometry:{type:'point',coordinates:[73.0479,33.6844]}}
     })
   });
@@ -120,6 +139,9 @@ export async function suggestTomTomPlaces(
     const subt=Array.isArray(r.subtitles)
       ?r.subtitles.filter((x):x is string=>typeof x==='string'&&!!x.trim()).slice(0,2):[];
     const label=[r.title,...subt].join(', ').slice(0,180);
+    const address=r.address&&typeof r.address==='object' ?r.address as Record<string,unknown>:null;
+    if(address?.countryCodeIso2 && address.countryCodeIso2!=='PK')continue;
+    if(!matchesPlaceQuery(query,label))continue;
     const unique=type+':'+r.id;
     if(seen.has(unique))continue;
     seen.add(unique);out.push({label,placeId:r.id,placeType:type});
@@ -151,7 +173,7 @@ export async function resolveTomTomPlace(
   if(pos?.type!=='Point'||!Array.isArray(coords)||coords.length!==2||
      !coords.every(x=>typeof x==='number'&&Number.isFinite(x)))throw new TomTomPlacesError(502);
   const [longitude,latitude]=coords;
-  if(latitude<23||latitude>38||longitude<60||longitude>78)throw new TomTomPlacesError(422);
+  if(!isTransportServiceLocation(latitude,longitude))throw new TomTomPlacesError(422);
   const addr=r.address&&typeof r.address==='object'?(r.address as Record<string,unknown>):null;
   if(addr?.countryCodeIso2!==undefined&&addr.countryCodeIso2!=='PK')throw new TomTomPlacesError(422);
   return {

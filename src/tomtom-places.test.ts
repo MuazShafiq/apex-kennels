@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {searchTomTomPlaces,suggestTomTomPlaces,resolveTomTomPlace,normalizeTomTomQuery,TomTomPlacesError} from './tomtom-places.ts';
+import {searchTomTomPlaces,suggestTomTomPlaces,resolveTomTomPlace,normalizeTomTomQuery,TomTomPlacesError,matchesPlaceQuery} from './tomtom-places.ts';
 import {handleWorkerRequest,type WorkerEnv} from './cloudflare-worker.ts';
 
 const url='https://example.workers.dev/api/book/places?q=US%20Embassy';
@@ -73,19 +73,22 @@ test('as-you-type Suggest uses TomTom purpose-built API with normalised U.S. abb
     assert.equal(init?.redirect,'manual');
     const body=JSON.parse(String(init?.body));
     assert.equal(body.query,'US Embassy');
-    assert.equal(body.maxResults,5);
+    assert.equal(body.maxResults,10);
     assert.deepEqual(body.filters.countryCodesIso2,['PK']);
-    assert.equal(new Headers(init?.headers).get('Attributes'),'results(id,type,title,subtitles)');
+    assert.deepEqual(body.filters.geometry,{type:'rectangle',coordinates:[72.81,33.43,73.30,33.84]});
+    assert.equal(new Headers(init?.headers).get('Attributes'),'results(id,type,title,subtitles,address.countryCodeIso2)');
     return new Response(JSON.stringify({results:[
       {type:'poi',id:'EmbassyId_01',title:'Embassy of the United States',subtitles:['Islamabad','Diplomatic Enclave']},
-      {type:'address',id:'Addr02',title:'Sector G-5'},
+      {type:'address',id:'Addr02',title:'US Embassy Road, Sector G-5'},
+      {type:'poi',id:'Kashmir01',title:'US Embassy Jammu',subtitles:['Kashmir'],address:{countryCodeIso2:'IN'}},
+      {type:'poi',id:'Rayaz01',title:'Rayaz Sayeed House',subtitles:['Jammu & Kashmir']}, 
       {type:'discoverAction',title:'Embassies',id:'not-a-place'},
       {type:'poi',id:'../../unsafe',title:'Unsafe'}
     ]}),{status:200});
   });
   assert.deepEqual(places,[
     {label:'Embassy of the United States, Islamabad, Diplomatic Enclave',placeId:'EmbassyId_01',placeType:'pois'},
-    {label:'Sector G-5',placeId:'Addr02',placeType:'addresses'}
+    {label:'US Embassy Road, Sector G-5',placeId:'Addr02',placeType:'addresses'}
   ]);
 });
 test('Details loads accurate coordinates only when the user selects a place',async()=>{
@@ -131,4 +134,26 @@ test('place details endpoint validates allowlisted place IDs and never exposes s
   });
   assert.equal(selected.status,200);
   assert.deepEqual(await selected.json(),{place:{label:'Actual selected place',latitude:33.73,longitude:73.12}});
+});
+
+test('only meaningful name matches are eligible in local search',()=>{
+  assert.equal(matchesPlaceQuery('Raya','Rayaz Sayeed House, Jammu & Kashmir'),false);
+  assert.equal(matchesPlaceQuery('Raya','Raya Fairways, DHA Phase 6 Lahore'),true);
+  assert.equal(matchesPlaceQuery('US Embassy','Embassy of the United States, Islamabad'),true);
+  assert.equal(matchesPlaceQuery('US Embassy','Attaturk Avenue, G-5, Islamabad'),false);
+});
+test('resolved places outside Islamabad–Rawalpindi are rejected even if provider suggests them',async()=>{
+  await assert.rejects(
+    ()=>resolveTomTomPlace('pois','LahoreId',key,async()=>new Response(JSON.stringify({
+      id:'LahoreId',title:'Raya Fairways',position:{type:'Point',coordinates:[74.40,31.48]},
+      address:{countryCodeIso2:'PK'}
+    }),{status:200})),
+    (error:unknown)=>error instanceof TomTomPlacesError&&error.status===422
+  );
+  const lookup=await handleWorkerRequest(
+    new Request('https://example.workers.dev/api/book/place?type=pois&id=LahoreId'),env,undefined,{
+      resolvePlace:async()=>({label:'Lahore place',latitude:31.48,longitude:74.40})
+    });
+  assert.equal(lookup.status,422);
+  assert.equal((await lookup.json() as {code:string}).code,'OUT_OF_SERVICE_AREA');
 });

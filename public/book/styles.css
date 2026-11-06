@@ -95,3 +95,5 @@ footer{border-top:1px solid #e4e7df;padding:24px 0;font-size:11px;letter-spacing
 .finish>.confirm input{width:18px;height:18px;accent-color:#285e3e}
 @media(max-width:760px){.transport-choices{grid-template-columns:repeat(2,minmax(0,1fr))}.benefits{grid-template-columns:1fr 1fr}}
 @media(max-width:430px){.benefits{grid-template-columns:1fr}.choice-cards{grid-template-columns:1fr 1fr}.trait{flex-wrap:wrap}.trait .choice-row{margin-left:0;width:100%}}
+
+.place-search-label{display:block;font-size:12px;font-weight:750;color:#45614e;margin-bottom:9px}

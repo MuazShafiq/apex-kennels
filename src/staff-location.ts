@@ -45,7 +45,7 @@ export function renderStaffPinChecker(result?:SharedPinResolution):string{
         +'<p>Check that the pin marks a drivable entrance before quoting transport.</p>'
         +'<a target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps?q='
         +result.pin.lat+','+result.pin.lon+'">Inspect pin in Google Maps</a></div>'
-      : '<div class="notice"><strong>Couldn't read that location link.</strong>'
+      : '<div class="notice"><strong>Unable to read that location link.</strong>'
         +'<p>Try an exact Google Maps pin or latitude, longitude.</p></div>'
     : '';
   return '<!doctype html><html lang="en"><head><meta charset="utf-8">'

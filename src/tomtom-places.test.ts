@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {searchTomTomPlaces} from './tomtom-places.ts';
+import {searchTomTomPlaces,suggestTomTomPlaces,resolveTomTomPlace,normalizeTomTomQuery,TomTomPlacesError} from './tomtom-places.ts';
 import {handleWorkerRequest,type WorkerEnv} from './cloudflare-worker.ts';
 
 const url='https://example.workers.dev/api/book/places?q=US%20Embassy';
@@ -48,10 +48,10 @@ test('invalid key, empty result, quota limit or provider error never invent a lo
 });
 test('new Worker search switches to TomTom when configured, leaves Geoapify as fallback',async()=>{
   const withTomTom=await handleWorkerRequest(new Request(url),env,undefined,{
-    searchPlaces:async(query,secret)=>{
+    suggestPlaces:async(query,secret)=>{
       assert.equal(query,'US Embassy');
       assert.equal(secret,key);
-      return [{label:'Synthetic Embassy',latitude:33.7,longitude:73.1}];
+      return [{label:'Synthetic Embassy',placeId:'synthetic',placeType:'pois'}];
     }
   });
   assert.equal(withTomTom.status,200);
@@ -63,4 +63,72 @@ test('new Worker search switches to TomTom when configured, leaves Geoapify as f
   });
   assert.equal(fallback.status,200);
   assert.match((await fallback.json() as {attribution:string}).attribution,/Geoapify/);
+});
+
+test('as-you-type Suggest uses TomTom purpose-built API with normalised U.S. abbreviation',async()=>{
+  assert.equal(normalizeTomTomQuery('  U.S. Embassy  '),'US Embassy');
+  assert.equal(normalizeTomTomQuery('U.S Embassy'),'US Embassy');
+  const places=await suggestTomTomPlaces('U.S. Embassy',key,async(url,init)=>{
+    assert.equal(String(url),'https://api.tomtom.com/maps/orbis/places/suggest');
+    assert.equal(init?.redirect,'manual');
+    const body=JSON.parse(String(init?.body));
+    assert.equal(body.query,'US Embassy');
+    assert.equal(body.maxResults,5);
+    assert.deepEqual(body.filters.countryCodesIso2,['PK']);
+    assert.equal(new Headers(init?.headers).get('Attributes'),'results(id,type,title,subtitles)');
+    return new Response(JSON.stringify({results:[
+      {type:'poi',id:'EmbassyId_01',title:'Embassy of the United States',subtitles:['Islamabad','Diplomatic Enclave']},
+      {type:'address',id:'Addr02',title:'Sector G-5'},
+      {type:'discoverAction',title:'Embassies',id:'not-a-place'},
+      {type:'poi',id:'../../unsafe',title:'Unsafe'}
+    ]}),{status:200});
+  });
+  assert.deepEqual(places,[
+    {label:'Embassy of the United States, Islamabad, Diplomatic Enclave',placeId:'EmbassyId_01',placeType:'pois'},
+    {label:'Sector G-5',placeId:'Addr02',placeType:'addresses'}
+  ]);
+});
+test('Details loads accurate coordinates only when the user selects a place',async()=>{
+  const place=await resolveTomTomPlace('pois','EmbassyId_01',key,async(url,init)=>{
+    assert.equal(String(url),'https://api.tomtom.com/maps/orbis/places/details/pois/EmbassyId_01');
+    assert.equal(init?.method,'GET');
+    assert.equal(init?.redirect,'manual');
+    return new Response(JSON.stringify({
+      id:'EmbassyId_01',type:'poi',title:'US Embassy Islamabad',
+      position:{type:'Point',coordinates:[73.126,33.731]},
+      address:{countryCodeIso2:'PK'}
+    }),{status:200});
+  });
+  assert.deepEqual(place,{label:'US Embassy Islamabad',latitude:33.731,longitude:73.126});
+  await assert.rejects(()=>resolveTomTomPlace('pois','../bad',key,async()=>new Response('{}')));
+  await assert.rejects(()=>resolveTomTomPlace('pois','GoodId',key,async()=>new Response(JSON.stringify({
+    title:'Outside Pakistan',position:{type:'Point',coordinates:[-73.9,40.7]},address:{countryCodeIso2:'US'}
+  }))));
+});
+test('upstream TomTom 429 reaches the browser as rate limited without disclosing the key',async()=>{
+  await assert.rejects(
+    ()=>suggestTomTomPlaces('US Embassy',key,async()=>new Response('{}',{status:429})),
+    (e:unknown)=>e instanceof TomTomPlacesError&&e.status===429
+  );
+  const response=await handleWorkerRequest(new Request(url),env,undefined,{
+    suggestPlaces:async()=>{throw new TomTomPlacesError(429);}
+  });
+  assert.equal(response.status,429);
+  assert.equal(response.headers.get('retry-after'),'2');
+  const data=await response.json() as {code:string;error:string};
+  assert.equal(data.code,'RATE_LIMITED');
+  assert.doesNotMatch(JSON.stringify(data),/synthetic-tomtom-test-api-key/);
+});
+test('place details endpoint validates allowlisted place IDs and never exposes server key',async()=>{
+  const host='https://example.workers.dev';
+  const invalid=await handleWorkerRequest(new Request(host+'/api/book/place?type=pois&id=../something'),env);
+  assert.equal(invalid.status,400);
+  const selected=await handleWorkerRequest(new Request(host+'/api/book/place?type=pois&id=GoodId'),env,undefined,{
+    resolvePlace:async(type,id,secret)=>{
+      assert.equal(type,'pois');assert.equal(id,'GoodId');assert.equal(secret,key);
+      return {label:'Actual selected place',latitude:33.73,longitude:73.12};
+    }
+  });
+  assert.equal(selected.status,200);
+  assert.deepEqual(await selected.json(),{place:{label:'Actual selected place',latitude:33.73,longitude:73.12}});
 });

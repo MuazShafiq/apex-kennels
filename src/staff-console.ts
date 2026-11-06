@@ -58,15 +58,14 @@ export function renderStaffConsoleHtml(rows:StaffBooking[], page:StaffPage):stri
     + '<td><div>'+escapeHtml(row.startDate)+'</div><div class="secondary">to '+escapeHtml(row.endDate)+'</div></td>'
     + '<td><span class="state '+row.status+'">'+title(row.status)+'</span></td>'
     + '<td><div class="secondary">'+escapeHtml(row.email||row.phone||(page.demo?'Demo record':'No contact'))+'</div></td>'
-    + '<td>'+(page.demo?'':'')
-    + '<a class="action" href="'+(page.demo?'/demo/draft':'/staff/booking?id='+encodeURIComponent(row.id))+'">Review booking</a></td></tr>').join('');
+    + '<td>'
+    + '<a class="action" href="'+(page.demo?'/demo/draft':'/staff/booking?id='+encodeURIComponent(row.id))+'">'+(page.demo?'View example':'Review booking')+'</a></td></tr>').join('');
   const c = (status:string)=>visible.filter(row=>row.status===status).length;
   const metric=(label:string,value:number,note:string)=>'<article class="metric"><div class="metriclabel">'+label+'</div><div class="number">'+value+'</div><div class="fine">'+note+'</div></article>';
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
     + '<meta name="robots" content="noindex,nofollow"><title>Apex Kennels | Booking operations</title><style>'+styles+'</style></head><body>'
     + '<div class="shell"><aside class="sidebar"><a href="'+base+'"><div class="brand">APEX</div><div class="under">KENNELS</div></a>'
     + '<div class="navlabel">Workspace</div><a class="nav" href="'+base+'">▦ &nbsp; Bookings</a>'
-    +(page.demo?'':'')
     + '<div class="sidebarfoot">Staff bookings</div></aside>'
     + '<main><div class="top"><span>Apex Kennels &nbsp; / &nbsp; Operations &nbsp; / &nbsp; Bookings</span><span class="tag">'+(page.demo?'SYNTHETIC DEMO':'STAFF · READ ONLY')+'</span></div>'
     + (page.demo?'<div class="notice"><strong>DEMO ONLY.</strong> All bookings and names below are synthetic. This preview uses no customer records, database, or automated invoicing.</div>':'')

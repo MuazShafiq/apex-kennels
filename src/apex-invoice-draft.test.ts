@@ -37,7 +37,7 @@ test('Fatima-approved full-month package costs 65000 PKR PER normal-cage dog',()
   assert.equal(draft.quote.lines[0].quantity,60);
   assert.equal(draft.quote.subtotalPkr,150000);
   assert.deepEqual(draft.quote.discounts,[{
-    source:'manual',label:'30-day boarding discount',amountPkr:20000
+    source:'package',label:'30-day boarding discount',amountPkr:20000
   }]);
   assert.equal(draft.quote.totalPkr,130000);
 });

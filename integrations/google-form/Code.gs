@@ -283,34 +283,109 @@ function apexDisarmRealFormCanary() {
 }
 
 /**
- * Opt-in manual recovery for deliveries missed by an installable trigger.
- * No timer is automatically installed. Required review boundary:
- * APEX_INTAKE_ENABLED=true, APEX_RECONCILE_AFTER set to owner's approved start date.
- * Hard cap prevents accidentally importing a large historical backlog.
+ * Resumable reconciliation for new submissions, never historical backfill.
+ * Safe to repeat: the Worker treats identical Google response IDs as idempotent.
+ * Every successful POST advances a cursor. A failed POST stops immediately;
+ * the next run resumes at the same response, and Apps Script reports the error.
+ * This is NOT scheduled until an authorized operator installs the hourly trigger.
  */
 function reconcileApexRecentResponses() {
   var config=apexConfig();
   if (!config) throw new Error('Apex intake is disabled; no reconciliation performed');
-  var since=apexProperties().getProperty('APEX_RECONCILE_AFTER');
-  var sinceMs=Date.parse(since||'');
-  if (!since || isNaN(sinceMs)) throw new Error('Set a reviewed ISO APEX_RECONCILE_AFTER first');
+  var props=apexProperties();
+  var activated=Date.parse(props.getProperty('APEX_LIVE_START_AFTER')||'');
+  var since=Date.parse(props.getProperty('APEX_RECONCILE_AFTER')||'');
+  if (!isFinite(activated) || !isFinite(since) || since<activated) {
+    throw new Error('Recovery window must start no earlier than the live activation cutoff');
+  }
+
+  var cursor={timestampMs:since-1,responseId:''};
+  var stored=props.getProperty('APEX_RECONCILE_CURSOR');
+  if (stored) {
+    try {cursor=JSON.parse(stored);}
+    catch (_) {throw new Error('Invalid recovery cursor; manual review required');}
+    if (!cursor || !Number.isSafeInteger(cursor.timestampMs) ||
+        cursor.timestampMs<since-1 || typeof cursor.responseId!=='string' ||
+        cursor.responseId.length>256) {
+      throw new Error('Invalid recovery cursor; manual review required');
+    }
+  }
 
   var lock=LockService.getScriptLock();
   if (!lock.tryLock(1000)) throw new Error('Apex reconciliation is already running');
   try {
     var form=FormApp.getActiveForm();
-    if (!form) throw new Error('Run from the actual form-bound Apps Script');
-    var responses=form.getResponses(new Date(sinceMs)).filter(function(r) {
-      return r.getTimestamp().getTime() >= sinceMs;
+    if (!form) throw new Error('Run from the original Form-bound Apps Script');
+    // One millisecond of overlap ensures equal-timestamp responses are not lost.
+    // The response ID is the deterministic tie-breaker within that timestamp.
+    var scanFrom=new Date(Math.max(since-1,cursor.timestampMs-1));
+    var pending=form.getResponses(scanFrom).map(function(response){
+      var timestamp=response.getTimestamp();
+      var id=response.getId();
+      var ms=timestamp && timestamp.getTime();
+      if (!Number.isSafeInteger(ms) || !id || typeof id!=='string') {
+        throw new Error('Unexpected Form response metadata; manual review required');
+      }
+      return {response:response,timestampMs:ms,responseId:id};
+    }).filter(function(row){
+      return row.timestampMs>=since &&
+        (row.timestampMs>cursor.timestampMs ||
+         (row.timestampMs===cursor.timestampMs && row.responseId>cursor.responseId));
+    }).sort(function(a,b){
+      return a.timestampMs-b.timestampMs ||
+        (a.responseId<b.responseId?-1:a.responseId>b.responseId?1:0);
     });
-    if (responses.length > 50) {
-      throw new Error('More than 50 responses since approved start; review explicit backfill first');
-    }
-    responses.forEach(function(response) { apexSubmit(response,config); });
-    Logger.log('Apex reconciliation completed. Number of responses checked: '+responses.length);
+
+    var processed=0;
+    pending.slice(0,50).forEach(function(row){
+      apexSubmit(row.response,config);
+      // Write AFTER the successful POST; an interruption may replay one
+      // response, which the Worker safely deduplicates by response ID.
+      cursor={timestampMs:row.timestampMs,responseId:row.responseId};
+      props.setProperty('APEX_RECONCILE_CURSOR',JSON.stringify(cursor));
+      processed++;
+    });
+    Logger.log('APEX RECOVERY: delivered '+processed+
+      ' response(s); morePending='+(pending.length>50)+'. No customer data logged.');
   } finally {
     lock.releaseLock();
   }
+}
+
+/** Pausing intake also pauses scheduled recovery without deleting the trigger. */
+function apexHourlyRecovery() {
+  if (apexProperties().getProperty('APEX_INTAKE_ENABLED')!=='true') return;
+  reconcileApexRecentResponses();
+}
+
+/**
+ * One-time manual opt-in from the original Form-bound Apps Script project.
+ * Uses native Apps Script scheduling and its trigger-failure email reporting;
+ * no new service, paid provider, customer message or credentials.
+ */
+function apexInstallHourlyRecovery() {
+  if (!apexConfig()) throw new Error('Activate owner-approved shadow intake first');
+  var props=apexProperties();
+  var activated=Date.parse(props.getProperty('APEX_LIVE_START_AFTER')||'');
+  var since=Date.parse(props.getProperty('APEX_RECONCILE_AFTER')||'');
+  if (!isFinite(activated) || !isFinite(since) || since<activated) {
+    throw new Error('Valid post-activation recovery boundary required');
+  }
+  if (!FormApp.getActiveForm()) throw new Error('Expected the original Form-bound project');
+  var triggers=ScriptApp.getProjectTriggers().filter(function(trigger){
+    return trigger.getHandlerFunction()==='apexHourlyRecovery';
+  });
+  if (triggers.length>1) throw new Error('Duplicate recovery triggers; manual review required');
+  if (triggers.length===1) {
+    if (triggers[0].getEventType()!==ScriptApp.EventType.CLOCK ||
+        triggers[0].getTriggerSource()!==ScriptApp.TriggerSource.CLOCK) {
+      throw new Error('Recovery trigger type mismatch');
+    }
+    Logger.log('APEX RECOVERY: existing hourly trigger retained; nothing installed.');
+    return;
+  }
+  ScriptApp.newTrigger('apexHourlyRecovery').timeBased().everyHours(1).create();
+  Logger.log('APEX RECOVERY: one hourly trigger installed; no historical imports performed.');
 }
 
 /** Lists only question titles and IDs, never submitted personal answers. */

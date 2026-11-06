@@ -60,7 +60,7 @@ export async function listStaffBookings(dbUrl: string, filter: StaffFilter): Pro
     return result.rows.map(row=>({
       id:row.id,status:row.status,customerName:row.customer_name,petNames:row.pet_names,
       email:row.email,phone:row.phone,startDate:row.start_date,endDate:row.end_date,
-      accommodationType:row.accommodation_type,createdAt:row.created_at,isSynthetic:row.is_synthetic
+      accommodationType:row.accommodation_type,createdAt:row.created_at,isSynthetic:row.is_synthetic || row.customer_name.startsWith('APEX CANARY ') || row.pet_names.includes('APEX SYNTHETIC CANARY PET')
     }));
   } finally {
     await client.end();

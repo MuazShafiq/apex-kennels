@@ -210,13 +210,14 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
           ?'<p><a href="/staff/draft?id='+encodeURIComponent(source.bookingId)
             +'&amp;package='+encodeURIComponent(review.packageChoice)
             +'&amp;format=print">View printable review copy</a></p>':'')
-        +(site==='staff'&&options.enableSaving&&!source.synthetic&&!source.transportRequested
+        +(site==='staff'&&options.enableSaving&&!source.transportRequested
           &&['requested','reviewing','approved'].includes(source.status)
           ?'<form method="post" action="/staff/draft/save">'
             +'<input type="hidden" name="id" value="'+esc(source.bookingId)+'">'
             +'<input type="hidden" name="package" value="'+esc(review.packageChoice)+'">'
             +'<input type="hidden" name="revision" value="'+String(options.savedRevision??0)+'">'
-            +'<button type="submit">'+(options.savedRevision?'Update saved draft':'Save internal draft')+'</button></form>'
+            +'<button type="submit">'+(source.synthetic?(options.savedRevision?'Update synthetic test draft':'Save synthetic test draft')
+              :(options.savedRevision?'Update saved draft':'Save internal draft'))+'</button></form>'
             +(options.savedRevision?'<p><a href="/staff/draft/saved?id='
               +encodeURIComponent(source.bookingId)+'">View saved draft</a></p>':'')
           :'')

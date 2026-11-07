@@ -1,7 +1,7 @@
 import {renderCanvaStaffPdf} from './canva-invoice-pdf.ts';
 import { timingSafeEqual } from 'node:crypto';
 import {verifiedAccessEmail} from './staff-access-jwt.ts';
-import {makeReviewSnapshot,saveReviewDraft,loadSavedReview,renderSavedReview,DraftSaveError,type ReviewSnapshot,type SavedReview,type SaveReviewResult} from './staff-saved-review.ts';
+import {makeReviewSnapshot,saveReviewDraft,loadSavedReview,DraftSaveError,type ReviewSnapshot,type SavedReview,type SaveReviewResult} from './staff-saved-review.ts';
 import {sendApprovedTemplate,bookingAlertTemplateValues,type WhatsappConfig,type WhatsappAccepted} from './whatsapp-cloud.ts';
 import {isTransportServiceLocation} from './transport-service-area.ts';
 import { IntakeError, parseIntake, type IntakeRequest } from './intake.ts';
@@ -10,8 +10,7 @@ import { persistBookingWithNeon } from './neon-worker-db.ts';
 import type { SavedBooking } from './booking-store.ts';
 import {listStaffBookings,parseStaffFilter,syntheticBookings, type StaffBooking, type StaffFilter} from './staff-bookings.ts';
 import {renderStaffConsoleHtml} from './staff-console.ts';
-import {syntheticInvoiceHtml} from './demo-invoice.ts';
-import {readStaffInvoiceSource,parseStaffDraftRequest,prepareStaffDraftReview,renderStaffDraftReview,renderPrintableStaffReview,type StaffInvoiceSource} from './staff-invoice-draft.ts';
+import {readStaffInvoiceSource,parseStaffDraftRequest,prepareStaffDraftReview,renderStaffDraftReview,type StaffInvoiceSource} from './staff-invoice-draft.ts';
 import {resolveSharedGoogleMapsPin,type SharedPinResolution} from './shared-map-pin.ts';
 import {readPinForm,renderStaffPinChecker} from './staff-location.ts';
 import {readStaffBookingDetail,renderStaffBookingDetail,parseStaffBookingId,type StaffBookingDetail} from './staff-booking-detail.ts';
@@ -112,6 +111,28 @@ function json(body: unknown, status = 200, extraHeaders: Record<string, string> 
       'X-Content-Type-Options': 'nosniff',
       ...extraHeaders,
     },
+  });
+}
+
+/** All invoice viewing and downloads use Fatima's original Canva PDF. Never fall back to legacy HTML. */
+async function canvaInvoiceResponse(
+  env:WorkerEnv,request:Request,snapshot:ReviewSnapshot,reviewDate:string,download=false
+):Promise<Response>{
+  if(!env.ASSETS)return json({error:'Canva invoice template unavailable'},503);
+  const url=new URL('/invoice/canva-blank.pdf',request.url);
+  const template=await env.ASSETS.fetch(new Request(url));
+  if(!template.ok)return json({error:'Canva invoice template unavailable'},503);
+  const bytes=await renderCanvaStaffPdf(snapshot,reviewDate,
+    new Uint8Array(await template.arrayBuffer()));
+  return new Response(new Blob([new Uint8Array(bytes)],{type:'application/pdf'}),{
+    headers:{
+      'Content-Type':'application/pdf',
+      'Content-Disposition':(download?'attachment':'inline')+
+        '; filename="apex-canva-invoice-preview.pdf"',
+      'Cache-Control':'private, no-store',
+      'X-Content-Type-Options':'nosniff',
+      'X-Robots-Tag':'noindex, nofollow'
+    }
   });
 }
 
@@ -270,7 +291,16 @@ export async function handleWorkerRequest(
   }
   if (path === '/demo/invoice') {
     if (request.method !== 'GET') return json({error:'Method not allowed'},405,{Allow:'GET'});
-    return html(syntheticInvoiceHtml());
+    try{
+      const demo:StaffInvoiceSource={
+        bookingId:'00000000-0000-4000-8000-000000000001',
+        customerName:'SYNTHETIC OWNER',petNames:'SYNTHETIC PET',petBreeds:'Sample breed',
+        petCount:1,startDate:'2026-12-10',endDate:'2026-12-12',
+        status:'requested',cameraCageRequested:false,transportRequested:false,synthetic:true
+      };
+      const snapshot=makeReviewSnapshot(prepareStaffDraftReview(demo,'daily'));
+      return await canvaInvoiceResponse(env,request,snapshot,'2026-11-07');
+    }catch{return json({error:'Canva demo invoice unavailable'},503);}
   }
   if (path === '/demo/staff') {
     if (request.method !== 'GET') return json({error:'Method not allowed'},405,{Allow:'GET'});
@@ -380,28 +410,26 @@ export async function handleWorkerRequest(
     try{
       const url=new URL(request.url);
       const id=url.searchParams.get('id')??'';
-      if([...url.searchParams.keys()].some(k=>k!=='id')||url.searchParams.getAll('id').length!==1)
+      const isPdf=path==='/staff/draft/saved.pdf';
+      const download=isPdf&&url.searchParams.get('download')==='1';
+      if([...url.searchParams.keys()].some(k=>k!=='id'&&!(isPdf&&k==='download'))||
+         url.searchParams.getAll('id').length!==1||
+         url.searchParams.getAll('download').length>(isPdf?1:0)||
+         (url.searchParams.has('download')&&!download))
         return json({error:'Invalid saved draft request'},400);
       let parsed:ReturnType<typeof parseStaffDraftRequest>;
       try{parsed=parseStaffDraftRequest(new URL('/staff/draft?id='+encodeURIComponent(id),request.url));}
       catch{return json({error:'Invalid booking ID'},400);}
       const saved=await (staff.loadReview??loadSavedReview)(env.DATABASE_URL,parsed.bookingId);
       if(!saved)return json({error:'Saved draft not found'},404);
-      if(path==='/staff/draft/saved.pdf'){
-        if(!env.ASSETS)return json({error:'Invoice template not configured'},503);
-        const url=new URL('/invoice/canva-blank.pdf',request.url);
-        const template=await env.ASSETS.fetch(new Request(url));
-        if(!template.ok)return json({error:'Invoice template unavailable'},503);
-        const bytes=await renderCanvaStaffPdf(saved.snapshot,
-          saved.updatedAt.slice(0,10),new Uint8Array(await template.arrayBuffer()));
-        return new Response(new Blob([new Uint8Array(bytes)],{type:'application/pdf'}),{
-          headers:{'Content-Type':'application/pdf',
-            'Content-Disposition':'attachment; filename="apex-internal-review.pdf"',
-            'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff',
-            'X-Robots-Tag':'noindex, nofollow'}
-        });
+      if(path==='/staff/draft/saved'){
+        return new Response(null,{status:302,headers:{
+          Location:'/staff/draft/saved.pdf?id='+encodeURIComponent(parsed.bookingId),
+          'Cache-Control':'private, no-store'
+        }});
       }
-      return html(renderSavedReview(saved));
+      return await canvaInvoiceResponse(env,request,saved.snapshot,
+        saved.updatedAt.slice(0,10),download);
     }catch(error){
       if(error instanceof DraftSaveError)return json({error:error.message},error.status);
       return json({error:'Unable to load saved estimate'},500);
@@ -427,9 +455,11 @@ export async function handleWorkerRequest(
       if(!source)return json({error:'Booking not found'},404);
       const review=prepareStaffDraftReview(source,parsed.packageChoice);
       if(format[0]==='print'){
-        if(!review.draft||source.transportRequested)
+        if(!review.draft||source.transportRequested!==false)
           return json({error:'Complete boarding estimate required for printing'},409);
-        return html(renderPrintableStaffReview(review,new Date().toISOString().slice(0,10)));
+        const snapshot=makeReviewSnapshot(review);
+        return await canvaInvoiceResponse(env,request,snapshot,
+          new Date().toISOString().slice(0,10));
       }
       if(env.APEX_STAFF_DRAFTS_ENABLED==='true'){
         const saved=await (staff.loadReview??loadSavedReview)(env.DATABASE_URL,parsed.bookingId);
@@ -438,7 +468,10 @@ export async function handleWorkerRequest(
         }));
       }
       return html(renderStaffDraftReview(review));
-    }catch{return json({error:'Internal server error'},500);}
+    }catch(error){
+      if(error instanceof DraftSaveError)return json({error:error.message},error.status);
+      return json({error:'Internal server error'},500);
+    }
   }
   if (path === '/staff' || path === '/staff/api/bookings') {
     if (request.method !== 'GET') return json({error:'Method not allowed'},405,{Allow:'GET'});

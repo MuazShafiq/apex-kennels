@@ -64,6 +64,26 @@ export function validateSnapshot(snapshot:unknown):ReviewSnapshot {
   return value as ReviewSnapshot;
 }
 
+export function savedReviewStatement(snapshot:ReviewSnapshot,expectedRevision:number,updatedBy:string):{
+  sql:string;params:(string|number)[]
+}{
+  const json=JSON.stringify(snapshot);
+  if(expectedRevision===0){
+    return {
+      sql:'INSERT INTO public.invoice_draft_reviews '+
+        '(booking_id,snapshot,revision,updated_by) VALUES ($1,$2::jsonb,1,$3) '+
+        'ON CONFLICT (booking_id) DO NOTHING RETURNING revision',
+      params:[snapshot.booking.id,json,updatedBy]
+    };
+  }
+  return {
+    sql:'UPDATE public.invoice_draft_reviews SET snapshot=$2::jsonb, '+
+      'revision=revision+1,updated_by=$3,updated_at=now() '+
+      'WHERE booking_id=$1 AND revision=$4 RETURNING revision',
+    params:[snapshot.booking.id,json,updatedBy,expectedRevision]
+  };
+}
+
 /** Compare-and-swap prevents two staff browsers overwriting each other. */
 export async function saveReviewDraft(databaseUrl:string,snapshot:ReviewSnapshot,
   expectedRevision:number,updatedBy:string):Promise<SaveReviewResult>{
@@ -74,19 +94,8 @@ export async function saveReviewDraft(databaseUrl:string,snapshot:ReviewSnapshot
   const db=new Client(databaseUrl);
   await db.connect();
   try{
-    const sql=expectedRevision===0
-      ?'INSERT INTO public.invoice_draft_reviews '+
-       '(booking_id,snapshot,revision,updated_by) VALUES ($1,$2::jsonb,1,$3) '+
-       'ON CONFLICT (booking_id) DO NOTHING RETURNING revision'
-      :'UPDATE public.invoice_draft_reviews SET snapshot=$2::jsonb, '+
-       'revision=revision+1,updated_by=$3,updated_at=now() '+
-       'WHERE booking_id=$1 AND revision=$4 RETURNING revision';
-    // INSERT uses three placeholders; UPDATE uses four. Supplying a fourth
-    // argument on INSERT causes PostgreSQL's bind-parameter count to fail.
-    const values=expectedRevision===0
-      ?[snapshot.booking.id,JSON.stringify(snapshot),updatedBy]
-      :[snapshot.booking.id,JSON.stringify(snapshot),updatedBy,expectedRevision];
-    const result=await db.query<{revision:number}>(sql,values);
+    const statement=savedReviewStatement(snapshot,expectedRevision,updatedBy);
+    const result=await db.query<{revision:number}>(statement.sql,statement.params);
     const row=result.rows[0];
     if(!row)throw new DraftSaveError('This estimate changed in another tab. Refresh and review it.',409);
     return {revision:Number(row.revision)};

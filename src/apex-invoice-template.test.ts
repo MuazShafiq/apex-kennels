@@ -19,7 +19,6 @@ test('template preserves Fatima original blue bands, identity grid and four serv
     'INVOICE','Number # REVIEW-TEST','Billed To:','Boarding Time:',
     'Pet name:','Breed:','SERVICES','QTY','PRICE','AMOUNT',
     'Boarding','Grooming','Training','Pick-up &amp; Drop-off',
-    'Payment', // CSS class name
     'SUB TOTAL','DISCOUNT','TOTAL','30-day boarding discount',
     'Your Furry Friend Thanks You for Their Dream Vacation!'
   ])assert.ok(html.includes(part),part+' missing');

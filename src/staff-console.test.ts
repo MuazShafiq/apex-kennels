@@ -1,6 +1,8 @@
 import type {StaffInvoiceSource} from './staff-invoice-draft.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {PDFDocument} from 'pdf-lib';
 import {handleWorkerRequest, type WorkerEnv, type StaffList, type StaffContext} from './cloudflare-worker.ts';
 import {parseStaffFilter,type StaffBooking} from './staff-bookings.ts';
 
@@ -291,32 +293,45 @@ test('staff booking queue links to Access-gated pin checker; demo does not',asyn
   assert.doesNotMatch(await demo.text(),/href="\/staff\/location"/);
 });
 
-test('printable staff review is Access-protected and never opens for unpriced transport',async()=>{
+test('printable Canva staff PDF is Access-protected and rejects unpriced transport',async()=>{
   const url=origin+'/staff/draft?id='+invoiceBookingId+'&format=print';
-  let reads=0;
+  const blank=readFileSync('public/invoice/canva-blank.pdf');
+  let reads=0,assetReads=0;
+  const pdfEnv:WorkerEnv={...env,ASSETS:{fetch:async request=>{
+    assert.equal(new URL(request.url).pathname,'/invoice/canva-blank.pdf');
+    assetReads++;
+    return new Response(new Uint8Array(blank),{
+      headers:{'Content-Type':'application/pdf'}
+    });
+  }}};
   const opts={draft:async()=>{reads++;return {...invoiceBooking,transportRequested:false};}};
-  const missingAccess=await handleWorkerRequest(new Request(url),env,undefined,opts);
+  const missingAccess=await handleWorkerRequest(new Request(url),pdfEnv,undefined,opts);
   assert.equal(missingAccess.status,403);
   assert.equal(reads,0);
-  const authorized=await handleWorkerRequest(new Request(url),env,undefined,{
+  assert.equal(assetReads,0);
+  const authorized=await handleWorkerRequest(new Request(url),pdfEnv,undefined,{
     ...opts,context:valid
   });
   assert.equal(authorized.status,200);
-  const page=await authorized.text();
-  assert.match(page,/REVIEW-123E4567/);
-  assert.match(page,/INTERNAL PREVIEW/);
-  assert.match(page,/NOT FOR CUSTOMER DELIVERY/);
-  assert.doesNotMatch(page,/Payment details|IBAN|Send invoice/);
+  assert.equal(authorized.headers.get('content-type'),'application/pdf');
+  assert.match(authorized.headers.get('content-disposition')??'',/^inline;/);
   assert.equal(authorized.headers.get('cache-control'),'private, no-store');
+  const bytes=new Uint8Array(await authorized.arrayBuffer());
+  assert.equal(Buffer.from(bytes.subarray(0,4)).toString(),'%PDF');
+  const document=await PDFDocument.load(bytes);
+  assert.equal(document.getPageCount(),1);
+  assert.match(document.getSubject()??'',/not an issued invoice/);
   assert.equal(reads,1);
-  const unpriced=await handleWorkerRequest(new Request(url),env,undefined,{
+  assert.equal(assetReads,1);
+  const unpriced=await handleWorkerRequest(new Request(url),pdfEnv,undefined,{
     context:valid,draft:async()=>invoiceBooking
   });
   assert.equal(unpriced.status,409);
-  const monthly=await handleWorkerRequest(new Request(url+'&package=monthly'),env,undefined,{
+  const monthly=await handleWorkerRequest(new Request(url+'&package=monthly'),pdfEnv,undefined,{
     context:valid,draft:async()=>({...invoiceBooking,transportRequested:false})
   });
   assert.equal(monthly.status,409);
+  assert.equal(assetReads,1,'rejected estimates must never load invoice artwork');
 });
 test('print format validation rejects duplicate and unknown query formats before SQL',async()=>{
   let reads=0;

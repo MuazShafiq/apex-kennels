@@ -11,5 +11,9 @@
     "directory": "./public",
     "binding": "ASSETS",
     "run_worker_first": true
+  },
+  "keep_vars": true,
+  "vars": {
+    "APEX_STAFF_DRAFTS_ENABLED": "true"
   }
 }

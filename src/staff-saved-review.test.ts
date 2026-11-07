@@ -46,9 +46,8 @@ test('saved draft freezes a real 30-day camera package with explicit discount',(
   assert.doesNotMatch(page,/Payment details|IBAN|Send invoice|Approved invoice/);
 });
 
-test('synthetic records, transport pricing and cancelled bookings cannot be saved',()=>{
+test('transport, missing preferences and cancelled bookings cannot be saved',()=>{
   for(const modified of [
-    {...booking,synthetic:true},
     {...booking,transportRequested:true},
     {...booking,transportRequested:null},
     {...booking,cameraCageRequested:null},
@@ -58,6 +57,24 @@ test('synthetic records, transport pricing and cancelled bookings cannot be save
       ()=>makeReviewSnapshot(prepareStaffDraftReview(modified,'auto')),DraftSaveError);
   }
   assert.throws(()=>validateSnapshot({version:1,booking:{id:'bad'},quote:{lines:[],discounts:[]}}));
+});
+test('synthetic booking is never disguised as a customer invoice',()=>{
+  const record={...booking,synthetic:true,startDate:'2026-11-10',endDate:'2026-11-12',
+    cameraCageRequested:false};
+  const review=prepareStaffDraftReview(record,'daily');
+  const snapshot=makeReviewSnapshot(review);
+  assert.equal(snapshot.booking.synthetic,true);
+  assert.equal(snapshot.quote.totalPkr,7500);
+  assert.equal(validateSnapshot(snapshot).booking.synthetic,true);
+  const body=renderSavedReview({
+    snapshot,revision:1,updatedBy:'owner@example.test',updatedAt:'2026-11-07'
+  });
+  assert.match(body,/SYNTHETIC EXAMPLE/);
+  assert.match(body,/INTERNAL PREVIEW · NOT FOR CUSTOMER DELIVERY/);
+  assert.doesNotMatch(body,/Payment details|IBAN|Send invoice|Approved invoice|Pay now/i);
+  assert.throws(()=>validateSnapshot({
+    ...snapshot,booking:{...snapshot.booking,synthetic:undefined}
+  }));
 });
 
 test('saving is disabled by default and unauthorized identities never touch booking database',async()=>{
@@ -162,6 +179,28 @@ test('draft page only offers saving when feature enabled; revisions carry forwar
   assert.match(await saved.text(),/name="revision" value="3"/);
 });
 
+test('actual synthetic canary record shows save action to verified staff without sending',async()=>{
+  const sample={...booking,
+    bookingId:'cb5e767c-7170-40a1-ae63-08a5f4eac5bc',
+    customerName:'APEX CANARY TEST',petNames:'APEX SYNTHETIC CANARY PET',
+    synthetic:true,cameraCageRequested:false,
+    startDate:'2026-11-10',endDate:'2026-11-12'
+  };
+  const url=origin+'/staff/draft?id='+sample.bookingId;
+  const on=await handleWorkerRequest(new Request(url),env,undefined,{
+    context,draft:async()=>sample,loadReview:async()=>null
+  });
+  assert.equal(on.status,200);
+  const body=await on.text();
+  assert.match(body,/Save synthetic test draft/);
+  assert.match(body,/SYNTHETIC DATA/);
+  assert.doesNotMatch(body,/Approve & Send|Payment details/);
+  const disabled=await handleWorkerRequest(new Request(url),
+    {...env,APEX_STAFF_DRAFTS_ENABLED:'false'},undefined,{
+      context,draft:async()=>sample
+    });
+  assert.doesNotMatch(await disabled.text(),/Save synthetic test draft/);
+});
 test('database conflicts are visible but no retries or external messages occur',async()=>{
   const response=await handleWorkerRequest(form(fields),env,undefined,{
     context,draft:async()=>booking,

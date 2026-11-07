@@ -9,7 +9,7 @@ export class DraftSaveError extends Error {
 }
 export type ReviewSnapshot={
   version:1;
-  booking:{id:string;customerName:string;petNames:string;startDate:string;endDate:string;synthetic:boolean};
+  booking:{id:string;customerName:string;petNames:string;petBreeds?:string;startDate:string;endDate:string;synthetic:boolean};
   packageChoice:'daily'|'monthly';
   rateVersion:string;
   quote:Quote;
@@ -40,7 +40,7 @@ export function makeReviewSnapshot(review:StaffDraftReview):ReviewSnapshot {
   return {
     version:1,
     booking:{id:source.bookingId,customerName:source.customerName,
-      petNames:source.petNames,startDate:source.startDate,endDate:source.endDate,
+      petNames:source.petNames,petBreeds:source.petBreeds,startDate:source.startDate,endDate:source.endDate,
       synthetic:source.synthetic},
     packageChoice:review.packageChoice,
     rateVersion:review.draft.rateVersion,
@@ -128,6 +128,7 @@ export function renderSavedReview(saved:SavedReview):string {
     number:'REVIEW-'+data.booking.id.slice(0,8).toUpperCase(),
     issuedOn:new Date().toISOString().slice(0,10),
     billedTo:data.booking.customerName,petName:data.booking.petNames,
+    petBreed:data.booking.petBreeds,
     status:'DRAFT',reviewOnly:true,demo:data.booking.synthetic
   },data.quote);
 }

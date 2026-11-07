@@ -1,179 +1,205 @@
 /**
- * Apex Kennels Canva PDF overlay.
- * This uses Fatima's original blank Canva export, never a redrawn document.
- * Only non-payable STAFF reviews are supported by this entry point.
+ * Precise overlay on the original Apex Canva A4 PDF.
+ * The same PDF contains embedded, locally-subset Inter fonts. No network font
+ * requests, runtime font files, HTML invoices, or automatic payment issuance.
+ * Do not replace it with a different Canva export without updating geometry.
  */
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
-import { validateSnapshot, type ReviewSnapshot } from './staff-saved-review.ts';
+import {
+  PDFArray, PDFDict, PDFDocument, PDFName,
+  rgb, type PDFFont, type PDFPage,
+} from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
+import {validateSnapshot, type ReviewSnapshot} from './staff-saved-review.ts';
 
-const BLACK = rgb(0.1, 0.1, 0.1);
-const WARNING = rgb(0.54, 0.28, 0.12);
-const TEMPLATE_WIDTH=595.5;
-const TEMPLATE_HEIGHT=842.25;
+const W=595.5, H=842.25;
+const BLACK=rgb(30/255,30/255,30/255);
+const GRAY=rgb(124/255,126/255,131/255);
+const ALT_FONT_FILES=['Inter-Regular-Subset','Inter-Bold-Subset'] as const;
+const pkr=(n:number)=>n.toLocaleString('en-PK');
 
-const money=(n:number):string=>n.toLocaleString('en-PK');
-function readableDate(raw:string):string {
-  const date=new Date(`${raw}T12:00:00Z`);
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(raw)||Number.isNaN(date.getTime())||
-     date.toISOString().slice(0,10)!==raw)throw new Error('Invalid invoice date');
-  return new Intl.DateTimeFormat('en-US',{
-    timeZone:'UTC',month:'long',day:'numeric',year:'numeric'
-  }).format(date);
+function clean(value:string):string {
+  if(typeof value!=='string'||value.length===0||value.length>220||
+    /[\x00-\x1F\x7F]/.test(value))
+    throw new Error('Invalid invoice text');
+  // The embedded Inter subset is explicitly Latin-only. Do not silently render
+  // tofu, skip glyphs, or invent a replacement for a customer name.
+  if(/[^\u0020-\u007e\u00a0-\u00ff\u2013-\u2014\u2018-\u2019\u201c-\u201d]/u.test(value))
+    throw new Error('Customer text needs a supported invoice font');
+  return value.replace(/\s+/g,' ').trim();
 }
-function shortDate(raw:string):string {
-  const date=new Date(`${raw}T12:00:00Z`);
-  if(Number.isNaN(date.getTime())||date.toISOString().slice(0,10)!==raw)
-    throw new Error('Invalid boarding date');
-  const day=date.getUTCDate();
-  const suffix=(day%100>=11&&day%100<=13)?'th':
-    ({1:'st',2:'nd',3:'rd'} as Record<number,string>)[day%10]??'th';
-  const month=new Intl.DateTimeFormat('en-US',{timeZone:'UTC',month:'short'}).format(date);
-  return `${day}${suffix} ${month}`;
-}
-function boardingPeriod(from:string,to:string):string {
-  const a=new Date(`${from}T12:00:00Z`);
-  const b=new Date(`${to}T12:00:00Z`);
-  const suffix=(day:number)=>(day%100>=11&&day%100<=13)?'th':
-    ({1:'st',2:'nd',3:'rd'} as Record<number,string>)[day%10]??'th';
-  const d=(date:Date)=>`${date.getUTCDate()}${suffix(date.getUTCDate())}`;
-  const month=(date:Date,long:boolean)=>new Intl.DateTimeFormat('en-US',{
-    timeZone:'UTC',month:long?'long':'short'
-  }).format(date);
-  if(a.getUTCFullYear()===b.getUTCFullYear()){
-    if(a.getUTCMonth()===b.getUTCMonth())return `${d(a)} - ${d(b)} ${month(b,true)}`;
-    return `${d(a)} ${month(a,false)} - ${d(b)} ${month(b,true)}`;
+
+function rawFontAttachment(pdf:PDFDocument,name:string):Uint8Array {
+  const names=pdf.context.lookup(pdf.catalog.get(PDFName.of('Names')),PDFDict);
+  if(!names)throw new Error('Canva template missing embedded fonts');
+  const embedded=pdf.context.lookup(names.get(PDFName.of('EmbeddedFiles')),PDFDict);
+  if(!embedded)throw new Error('Canva template missing embedded fonts');
+  const entries=pdf.context.lookup(embedded.get(PDFName.of('Names')),PDFArray);
+  if(!entries)throw new Error('Canva template missing font index');
+  for(let i=0;i+1<entries.size();i+=2){
+    const key=entries.lookup(i) as {decodeText?:()=>string}|undefined;
+    if(key?.decodeText?.()!==name)continue;
+    const spec=pdf.context.lookup(entries.get(i+1),PDFDict);
+    if(!spec)break;
+    const ef=pdf.context.lookup(spec.get(PDFName.of('EF')),PDFDict);
+    if(!ef)break;
+    // The bundled assets deliberately store UNCOMPRESSED OTF bytes so that
+    // extraction needs no Node zlib or external services on Cloudflare Workers.
+    const stream=pdf.context.lookup(ef.get(PDFName.of('F'))) as
+      | {contents?:Uint8Array;dict?:PDFDict} | undefined;
+    if(!stream?.contents?.length||stream.dict?.has(PDFName.of('Filter')))
+      throw new Error('Canva embedded font must be an uncompressed PDF stream');
+    if(stream.contents.length>800_000)throw new Error('Oversized Canva font');
+    return stream.contents;
   }
-  return `${shortDate(from)} ${a.getUTCFullYear()} - ${shortDate(to)} ${b.getUTCFullYear()}`;
+  throw new Error('Canva template missing '+name);
 }
 
-function add(page:PDFPage,font:PDFFont,regular:PDFFont,value:string,
-  x:number,baselineTop:number,opts:{size?:number;maxWidth?:number;right?:number;warning?:boolean}={}):void {
-  const limit=opts.maxWidth??(opts.right===undefined?undefined:opts.right-x);
-  let size=opts.size??12;
-  if(!value||/[\x00-\x08\x0E-\x1F]/.test(value)||value.length>220)
-    throw new Error('Invalid PDF invoice field');
-  while(limit!==undefined&&font.widthOfTextAtSize(value,size)>limit&&size>=7.75)size-=0.25;
-  if(limit!==undefined&&font.widthOfTextAtSize(value,size)>limit)
-    throw new Error('Invoice field does not fit the Canva layout');
-  const finalX=opts.right===undefined?x:opts.right-font.widthOfTextAtSize(value,size);
-  page.drawText(value,{x:finalX,y:page.getHeight()-baselineTop,size,font,color:opts.warning?WARNING:BLACK});
-  void regular;
+function parseDate(value:string):Date {
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(value))throw new Error('Invalid date');
+  const dt=new Date(value+'T12:00:00Z');
+  if(!Number.isFinite(dt.getTime())||dt.toISOString().slice(0,10)!==value)
+    throw new Error('Invalid date');
+  return dt;
+}
+function dateLong(value:string):string {
+  return new Intl.DateTimeFormat('en-US',{
+    day:'numeric',month:'long',year:'numeric',timeZone:'UTC'
+  }).format(parseDate(value));
+}
+function period(from:string,to:string):string {
+  const a=parseDate(from),b=parseDate(to);
+  const d=(v:Date)=>{
+    const day=v.getUTCDate();
+    const suffix=(day%100>=11&&day%100<=13)?'th':
+      (day%10===1?'st':day%10===2?'nd':day%10===3?'rd':'th');
+    return day+suffix;
+  };
+  const month=(v:Date,long:boolean)=>new Intl.DateTimeFormat('en-US',{
+    month:long?'long':'short',timeZone:'UTC'
+  }).format(v);
+  if(a.getUTCFullYear()===b.getUTCFullYear()){
+    if(a.getUTCMonth()===b.getUTCMonth())return d(a)+' - '+d(b)+' '+month(b,true);
+    return d(a)+' '+month(a,false)+' - '+d(b)+' '+month(b,true);
+  }
+  return d(a)+' '+month(a,false)+' '+a.getUTCFullYear()+' - '+
+    d(b)+' '+month(b,false)+' '+b.getUTCFullYear();
+}
+
+function insert(page:PDFPage,font:PDFFont,value:string,
+  x:number,topBaseline:number,size=12,color=BLACK,width?:number):void {
+  const v=clean(value);
+  if(width!==undefined&&font.widthOfTextAtSize(v,size)>width+0.02)
+    throw new Error('Invoice field would overlap the adjacent Canva field');
+  page.drawText(v,{x,y:H-topBaseline,size,font,color});
+}
+function insertRight(page:PDFPage,font:PDFFont,value:string,
+  right:number,baseline:number,size=12,maxWidth=86,color=BLACK):void {
+  const v=clean(value);
+  const width=font.widthOfTextAtSize(v,size);
+  if(width>maxWidth+0.02)throw new Error('Invoice numeric field exceeds Canva column');
+  insert(page,font,v,right-width,baseline,size,color,maxWidth);
 }
 
 /**
- * Reserved for the future, separately approved invoice-issuance workflow.
- * PDF artwork already prints "IBAN Number :" at this position; keep the
- * complete Pakistani IBAN beside that label on ONE line, never below it.
- * Deliberately not used by renderCanvaStaffPdf (staff drafts have no banking).
+ * Layout is deliberately bounded: the next label begins at top y=254.118pt.
+ * The two-line upper values must end above that, never overlap it.
+ */
+export function layoutCanvaValue(value:string,font:PDFFont,width:number,upper:boolean):{
+  text:string;size:number;baseline:number
+}[] {
+  const text=clean(value);
+  if(font.widthOfTextAtSize(text,12)<=width)
+    return [{text,size:12,baseline:upper?242.355:280.62}];
+  const words=text.split(' ');
+  if(words.length<2)throw new Error('Unbreakable invoice identity field');
+  for(const size of [11,10.5,10,9.5,9,8.75]){
+    let best:{a:string;b:string;balance:number}|null=null;
+    for(let split=1;split<words.length;split++){
+      const a=words.slice(0,split).join(' '),b=words.slice(split).join(' ');
+      const aw=font.widthOfTextAtSize(a,size);
+      const bw=font.widthOfTextAtSize(b,size);
+      if(aw>width||bw>width)continue;
+      const balance=Math.abs(aw-bw);
+      if(!best||balance<best.balance)best={a,b,balance};
+    }
+    if(best)return [
+      {text:best.a,size,baseline:upper?238.7:277.0},
+      {text:best.b,size,baseline:upper?249.8:288.1},
+    ];
+  }
+  throw new Error('Invoice identity field does not fit the original Canva cell');
+}
+function identity(page:PDFPage,font:PDFFont,value:string,x:number,width:number,upper:boolean):void {
+  for(const line of layoutCanvaValue(value,font,width,upper))
+    insert(page,font,line.text,x,line.baseline,line.size,BLACK,width);
+}
+
+/**
+ * Future issued-invoice helper. The blank template contains the IBAN label;
+ * the customer account may ONLY be added to a separately approved invoice.
  */
 export function drawCanvaIbanSingleLine(page:PDFPage,font:PDFFont,iban:string):void {
   const normalized=iban.replace(/[ -]/g,'').toUpperCase();
   if(!/^PK[0-9]{2}[A-Z0-9]{20}$/.test(normalized))
     throw new Error('Expected one valid-format 24-character Pakistan IBAN');
-  const x=130,baselineTop=685.453,size=10,maxWidth=216;
-  if(font.widthOfTextAtSize(normalized,size)>maxWidth)
-    throw new Error('IBAN cannot fit on one Canva line');
-  page.drawText(normalized,{x,y:page.getHeight()-baselineTop,size,font,color:BLACK});
+  insert(page,font,normalized,130,685.453,10,BLACK,216);
 }
 
-/** Fit ordinary values, but wrap unusually long names within their own cell. */
-function addIdentityField(page:PDFPage,font:PDFFont,regular:PDFFont,value:string,
-  x:number,baselineTop:number,width:number):void {
-  if(!value||/[\x00-\x08\x0E-\x1F]/.test(value)||value.length>220)
-    throw new Error('Invalid PDF invoice field');
-  if(font.widthOfTextAtSize(value,9.5)<=width){
-    add(page,font,regular,value,x,baselineTop,{size:12,maxWidth:width});
-    return;
-  }
-  const words=value.trim().split(/\s+/);
-  if(words.length<2)throw new Error('Invoice field does not fit Canva identity column');
-  // The upper identity row ends where the next blue label begins (y=254pt).
-  // Use compact two-line typography there instead of colliding with the label.
-  const isUpperRow=baselineTop<260;
-  for(let size=isUpperRow?9:11.5;size>=8.5;size-=0.5){
-    let best:[string,string]|null=null;
-    let bestDifference=Infinity;
-    for(let i=1;i<words.length;i++){
-      const a=words.slice(0,i).join(' '),b=words.slice(i).join(' ');
-      const aw=font.widthOfTextAtSize(a,size),bw=font.widthOfTextAtSize(b,size);
-      if(aw<=width&&bw<=width&&Math.abs(aw-bw)<bestDifference){
-        best=[a,b];bestDifference=Math.abs(aw-bw);
-      }
-    }
-    if(best){
-      add(page,font,regular,best[0],x,baselineTop,{size,maxWidth:width});
-      add(page,font,regular,best[1],x,baselineTop+
-        (isUpperRow?9:Math.max(11.5,size+0.8)),{size,maxWidth:width});
-      return;
-    }
-  }
-  throw new Error('Invoice field needs staff correction: cannot fit two Canva lines');
-}
-
+/** Printable owner-only PDF; no official number, bank data, approval or sending. */
 export async function renderCanvaStaffPdf(
   input:ReviewSnapshot,reviewDate:string,blankPdf:Uint8Array
 ):Promise<Uint8Array> {
-  const snapshot=validateSnapshot(input);
-  const q=snapshot.quote;
+  const snapshot=validateSnapshot(input),q=snapshot.quote;
   if(q.currency!=='PKR'||q.billedDays<1||q.lines.length===0||
-     !q.lines.every(l=>Number.isSafeInteger(l.totalPkr)&&l.totalPkr===l.quantity*l.unitPricePkr)||
-     q.lines.reduce((s,l)=>s+l.totalPkr,0)!==q.subtotalPkr||
-     q.subtotalPkr-q.discounts.reduce((s,d)=>s+d.amountPkr,0)!==q.totalPkr)
-    throw new Error('Invalid saved review amounts');
+    !q.lines.every(l=>Number.isSafeInteger(l.totalPkr)&&l.totalPkr===l.quantity*l.unitPricePkr)||
+    q.lines.reduce((s,l)=>s+l.totalPkr,0)!==q.subtotalPkr||
+    q.subtotalPkr-q.discounts.reduce((s,d)=>s+d.amountPkr,0)!==q.totalPkr)
+    throw new Error('Invalid invoice review totals');
   const boarding=q.lines.filter(l=>/^(Standard|Camera cage) boarding$/i.test(l.label));
   const extras=q.lines.filter(l=>!/^(Standard|Camera cage) boarding$/i.test(l.label));
   if(boarding.length!==1||extras.some(l=>l.totalPkr!==0||!/grooming/i.test(l.label)))
-    throw new Error('Canva staff PDF supports boarding-only reviews; do not omit priced extras');
-  const line=boarding[0];
-  if(line.quantity%q.billedDays!==0||line.quantity<q.billedDays)
-    throw new Error('Invalid boarding quantity');
-  const pets=line.quantity/q.billedDays;
+    throw new Error('Canva staff PDF supports boarding-only reviews');
+  const line=boarding[0],pets=line.quantity/q.billedDays;
+  if(!Number.isSafeInteger(pets)||pets<1)throw new Error('Invalid pet quantity');
   const pdf=await PDFDocument.load(blankPdf,{ignoreEncryption:false});
-  if(pdf.getPageCount()!==1)throw new Error('Unexpected Canva invoice template');
+  if(pdf.getPageCount()!==2)throw new Error('Unexpected Canva invoice template variants');
+  const discount=q.discounts.reduce((s,d)=>s+d.amountPkr,0);
+  // Page 1 is the original Canva discount layout. Page 2 is its authentic
+  // no-discount sibling, with the old DISCOUNT artwork physically removed.
+  pdf.removePage(discount===0?0:1);
   const page=pdf.getPage(0);
-  if(Math.abs(page.getWidth()-TEMPLATE_WIDTH)>0.6||Math.abs(page.getHeight()-TEMPLATE_HEIGHT)>0.6)
-    throw new Error('Canva invoice template dimensions changed');
-  const regular=await pdf.embedFont(StandardFonts.Helvetica);
-  const bold=await pdf.embedFont(StandardFonts.HelveticaBold);
-  const put=(value:string,x:number,y:number,size=12,heavy=false,maxWidth?:number)=>
-    add(page,heavy?bold:regular,regular,value,x,y,{size,maxWidth});
-  const right=(value:string,y:number,end:number,size=12,heavy=false,maxWidth=90)=>
-    add(page,heavy?bold:regular,regular,value,end-maxWidth,y,{size,maxWidth,right:end});
-  const booking=snapshot.booking;
+  if(Math.abs(page.getWidth()-W)>.2||Math.abs(page.getHeight()-H)>.2)
+    throw new Error('Canva invoice template size changed');
+  pdf.registerFontkit(fontkit);
+  const regular=await pdf.embedFont(rawFontAttachment(pdf,ALT_FONT_FILES[0]),{subset:true});
+  const bold=await pdf.embedFont(rawFontAttachment(pdf,ALT_FONT_FILES[1]),{subset:true});
+  const b=snapshot.booking;
+  const no=clean('REVIEW-'+b.id.slice(0,8).toUpperCase());
+  insert(page,regular,'Number # '+no,54.2455,267.663,10,BLACK,191);
+  insert(page,regular,dateLong(reviewDate),86,281.17,10,BLACK,157);
+  identity(page,bold,b.customerName,264.9975,151,true);
+  identity(page,bold,b.petNames,428.7533,103,true);
+  identity(page,bold,period(b.startDate,b.endDate),264.9975,159,false);
+  if(b.petBreeds)identity(page,bold,b.petBreeds,428.7533,103,false);
+  if(/camera cage/i.test(line.label))insert(page,regular,' - camera cage',117.8,396.115,12,BLACK,157);
 
-  put('Number # REVIEW-'+booking.id.slice(0,8).toUpperCase(),54.2455,267.663,10,false,192);
-  put(readableDate(reviewDate),86,281.17,10,false,156);
-  addIdentityField(page,bold,regular,booking.customerName,264.9975,242.355,156);
-  addIdentityField(page,bold,regular,booking.petNames,428.7533,242.355,112);
-  addIdentityField(page,bold,regular,boardingPeriod(booking.startDate,booking.endDate),264.9975,280.62,159);
-  if(booking.petBreeds)addIdentityField(page,bold,regular,booking.petBreeds,428.7533,280.62,106);
-  if(/camera cage/i.test(line.label))put(' - camera cage',117.8,396.115,12,false,158);
+  insertRight(page,regular,q.billedDays+' days'+(pets>1?' x '+pets+' dogs':''),
+    349.56,396.115,12,86);
+  insertRight(page,regular,String(line.unitPricePkr),439.11,396.115);
+  insertRight(page,regular,pkr(line.totalPkr),520.88,396.115);
+  for(const [baseline,value] of [[435.130,'free'],[474.273,'-'],[513.288,'-']] as const)
+    for(const x of [349.56,439.11,520.88])insertRight(page,regular,value,x,baseline);
 
-  const quantity=`${q.billedDays} days${pets>1?` x ${pets} dogs`:''}`;
-  right(quantity,396.115,349.56,12,false,81);
-  right(money(line.unitPricePkr),396.115,439.11);
-  right(money(line.totalPkr),396.115,520.88);
-  // Printed service labels come directly from Canva, not from synthetic SVGs.
-  for(const [y,vals] of [
-    [435.130,['free','free','free']],
-    [474.273,['-','-','-']],
-    [513.288,['-','-','-']]
-  ] as const){
-    right(vals[0],y,349.56);right(vals[1],y,439.11);right(vals[2],y,520.88);
+  insertRight(page,regular,pkr(q.subtotalPkr),520.88,630.232);
+  if(discount===0)insertRight(page,bold,pkr(q.totalPkr),520.88,669.247);
+  else {
+    insertRight(page,regular,pkr(discount),520.88,669.247);
+    insertRight(page,bold,pkr(q.totalPkr),520.88,709.012);
   }
-  right(money(q.subtotalPkr),630.232,520.88);
-  right(money(q.discounts.reduce((sum,d)=>sum+d.amountPkr,0)),669.247,520.88);
-  right(money(q.totalPkr),709.012,520.88,12,true);
-
-  // No visual internal-review banner on real records. Safety is enforced by
-  // staff Access, no bank data, no official invoice number and no send route.
-  // Synthetic bookings remain unmistakably marked as examples.
-  if(booking.synthetic)
-    add(page,bold,regular,'SYNTHETIC EXAMPLE',54.2455,307.5,
-      {size:8.5,maxWidth:160,warning:true});
-  pdf.setTitle(booking.synthetic
-    ?'Apex Kennels | Synthetic invoice preview':'Apex Kennels | Invoice preview');
+  if(b.synthetic)
+    insert(page,bold,'SYNTHETIC EXAMPLE',54.2455,321,8,GRAY,150);
+  pdf.setTitle(b.synthetic?'Apex Kennels | Synthetic preview':'Apex Kennels | Staff review');
   pdf.setAuthor('Apex Kennels');
-  pdf.setSubject('Staff-only booking estimate, not an issued invoice');
+  pdf.setSubject('Internal booking estimate; not an issued invoice');
   return pdf.save({useObjectStreams:false});
 }

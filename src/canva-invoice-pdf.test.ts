@@ -2,47 +2,86 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {PDFDocument, StandardFonts} from 'pdf-lib';
-import {renderCanvaStaffPdf,drawCanvaIbanSingleLine} from './canva-invoice-pdf.ts';
+import {
+  renderCanvaStaffPdf,drawCanvaIbanSingleLine,layoutCanvaValue
+} from './canva-invoice-pdf.ts';
 import type {ReviewSnapshot} from './staff-saved-review.ts';
 
 const blank=readFileSync('public/invoice/canva-blank.pdf');
-const example:ReviewSnapshot={
+const sample:ReviewSnapshot={
   version:1,
   booking:{id:'cb5e767c-7170-40a1-ae63-08a5f4eac5bc',
-    customerName:'APEX CANARY',petNames:'APEX SYNTHETIC CANARY PET',
-    petBreeds:'Husky',startDate:'2026-11-10',endDate:'2026-11-12',synthetic:true},
+    customerName:'APEX CANARY 50847836-445',petNames:'APEX SYNTHETIC CANARY PET',
+    petBreeds:'APEX SYNTHETIC CANARY BREED',
+    startDate:'2026-11-10',endDate:'2026-11-12',synthetic:true},
   packageChoice:'daily',rateVersion:'fatima-confirmed-2026-11-06',
   quote:{currency:'PKR',startDate:'2026-11-10',endDate:'2026-11-12',billedDays:3,
     lines:[{label:'Standard boarding',quantity:3,unitPricePkr:2500,totalPkr:7500}],
     discounts:[],subtotalPkr:7500,totalPkr:7500}
 };
-test('pdf generator preserves original Canva A4 and cannot turn into a payable invoice',async()=>{
-  const result=await renderCanvaStaffPdf(example,'2026-11-07',blank);
-  assert.ok(result.length>blank.length);
-  const pdf=await PDFDocument.load(result);
-  assert.equal(pdf.getPageCount(),1);
-  assert.ok(Math.abs(pdf.getPage(0).getWidth()-595.5)<0.1);
-  assert.match(pdf.getSubject()??'',/not an issued invoice/);
+
+test('template contains original and no-discount Canva artwork, not a reconstructed HTML page',async()=>{
+  const pdf=await PDFDocument.load(blank);
+  assert.equal(pdf.getPageCount(),2);
+  for(const page of pdf.getPages()){
+    assert.ok(Math.abs(page.getWidth()-595.5)<.1);
+    assert.ok(Math.abs(page.getHeight()-842.25)<.1);
+  }
 });
-test('refuses unrepresented priced extras (no silent underquoting)',async()=>{
-  const changed=structuredClone(example);
+
+test('real synthetic canary renders as one-page, authentic-font Canva PDF',async()=>{
+  const bytes=await renderCanvaStaffPdf(sample,'2026-11-07',blank);
+  const pdf=await PDFDocument.load(bytes);
+  assert.equal(pdf.getPageCount(),1);
+  assert.match(pdf.getSubject()??'',/not an issued invoice/);
+  assert.match(pdf.getTitle()??'',/Synthetic preview/);
+  assert.ok(bytes.length>5000);
+});
+
+test('30-day discount uses the original three-row Canva totals layout',async()=>{
+  const monthly=structuredClone(sample);
+  monthly.booking.startDate='2026-11-01';monthly.booking.endDate='2026-11-30';
+  monthly.quote.startDate='2026-11-01';monthly.quote.endDate='2026-11-30';
+  monthly.quote.billedDays=30;
+  monthly.quote.lines[0]={label:'Standard boarding',quantity:30,unitPricePkr:2500,totalPkr:75000};
+  monthly.quote.subtotalPkr=75000;
+  monthly.quote.discounts=[{source:'package',label:'30-day boarding discount',amountPkr:10000}];
+  monthly.quote.totalPkr=65000;
+  const bytes=await renderCanvaStaffPdf(monthly,'2026-11-07',blank);
+  assert.equal((await PDFDocument.load(bytes)).getPageCount(),1);
+});
+
+test('identity lines obey the fixed Canva columns and never cross the next label',async()=>{
+  const pdf=await PDFDocument.create();
+  const font=await pdf.embedFont(StandardFonts.HelveticaBold);
+  for(const [text,width,upper] of [
+    ['APEX CANARY 50847836-445',151,true],
+    ['APEX SYNTHETIC CANARY PET',103,true],
+    ['APEX SYNTHETIC CANARY BREED',103,false],
+  ] as const){
+    const rows=layoutCanvaValue(text,font,width,upper);
+    assert.ok(rows.length>=1&&rows.length<=2);
+    for(const row of rows){
+      assert.ok(font.widthOfTextAtSize(row.text,row.size)<=width);
+      if(upper)assert.ok(row.baseline<=249.8);
+    }
+  }
+  assert.throws(()=>layoutCanvaValue('A'.repeat(200),font,103,true),
+    /Unbreakable invoice identity field/);
+});
+
+test('refuses priced transport rather than silently suppressing it',async()=>{
+  const changed=structuredClone(sample);
   changed.quote.lines.push({label:'Pet transport',quantity:1,unitPricePkr:4000,totalPkr:4000});
   changed.quote.subtotalPkr=11500;changed.quote.totalPkr=11500;
   await assert.rejects(renderCanvaStaffPdf(changed,'2026-11-07',blank),/boarding-only/);
 });
 
-test('approved-layout helper keeps Pakistan IBAN on exactly one line',async()=>{
+test('IBAN helper never wraps or accepts malformed bank details',async()=>{
   const pdf=await PDFDocument.create();
   const page=pdf.addPage([595.5,842.25]);
   const font=await pdf.embedFont(StandardFonts.Helvetica);
   assert.doesNotThrow(()=>drawCanvaIbanSingleLine(page,font,'PK90 HABB 0013537902027603'));
-  assert.ok(font.widthOfTextAtSize('PK90HABB0013537902027603',10)<216);
-  assert.throws(()=>drawCanvaIbanSingleLine(page,font,'PK90HABB0013537902027603 on a second line'),
+  assert.throws(()=>drawCanvaIbanSingleLine(page,font,'PK90HABB0013537902027603 other line'),
     /valid-format 24-character Pakistan IBAN/);
-  const result=await pdf.save();
-  assert.ok(result.length>0);
-});
-test('long synthetic pet names wrap inside the Canva column instead of failing',async()=>{
-  const result=await renderCanvaStaffPdf(example,'2026-11-07',blank);
-  assert.ok(result.length>blank.length);
 });

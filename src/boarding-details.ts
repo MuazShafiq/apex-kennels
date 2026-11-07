@@ -21,6 +21,8 @@ export type BoardingDetails = {
   specialInstructions?: string;
   medicationFeedingInstructions?: string;
   termsAccepted?: boolean;
+  /** Optional explicit consent for booking updates and approved invoices via WhatsApp. */
+  whatsappInvoiceOptIn?: boolean;
 };
 const TRAITS: readonly PersonalityTrait[] = [
   'friendly','fears','climber','foodSensitivities','barksExcessively',
@@ -58,7 +60,8 @@ export function parseBoardingDetails(value:unknown): BoardingDetails|undefined {
   const allowed=[
     'ownerAddress','pickupDropoffRequested','cameraCageRequested','emergencyContactPhone',
     'breed','gender','age','vaccinationStatus','distemperHistory','veterinarianPhone',
-    'personalityTraits','specialInstructions','medicationFeedingInstructions','termsAccepted'
+    'personalityTraits','specialInstructions','medicationFeedingInstructions','termsAccepted',
+    'whatsappInvoiceOptIn'
   ];
   if (Object.keys(row).some(key=>!allowed.includes(key))) throw new IntakeError('Unexpected details field');
 
@@ -96,7 +99,8 @@ export function parseBoardingDetails(value:unknown): BoardingDetails|undefined {
     personalityTraits,
     specialInstructions:optionalText(row.specialInstructions,'specialInstructions',3000,true),
     medicationFeedingInstructions:optionalText(row.medicationFeedingInstructions,'medicationFeedingInstructions',3000,true),
-    termsAccepted:optionalBool(row.termsAccepted,'termsAccepted')
+    termsAccepted:optionalBool(row.termsAccepted,'termsAccepted'),
+    whatsappInvoiceOptIn:optionalBool(row.whatsappInvoiceOptIn,'whatsappInvoiceOptIn')
   };
   // Presence of a details object means a full real Form response, not an
   // incomplete partial record. Optional care notes and the trait grid may be empty.

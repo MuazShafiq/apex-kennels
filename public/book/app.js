@@ -134,7 +134,8 @@
       medicationFeedingInstructions:optional(data,'medicationFeedingInstructions'),
       pickupDropoffRequested:needsTransport,
       cameraCageRequested:field(data,'cameraCageRequested')==='yes',
-      termsAccepted:data.get('termsAccepted')==='on'
+      termsAccepted:data.get('termsAccepted')==='on',
+      whatsappInvoiceOptIn:data.get('whatsappInvoiceOptIn')==='on'
     };
     const booking={
       source:'website',externalResponseId:requestId,

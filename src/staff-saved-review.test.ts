@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {handleWorkerRequest,type WorkerEnv,type StaffContext} from './cloudflare-worker.ts';
 import {prepareStaffDraftReview,type StaffInvoiceSource} from './staff-invoice-draft.ts';
-import {makeReviewSnapshot,validateSnapshot,renderSavedReview,DraftSaveError,type ReviewSnapshot} from './staff-saved-review.ts';
+import {makeReviewSnapshot,validateSnapshot,renderSavedReview,savedReviewStatement,DraftSaveError,type ReviewSnapshot} from './staff-saved-review.ts';
 
 const origin='https://example.workers.dev';
 const bookingId='123e4567-e89b-42d3-a456-426614174001';
@@ -27,6 +27,21 @@ const form=(fields:Record<string,string>,from=origin)=>new Request(origin+'/staf
   body:new URLSearchParams(fields).toString()
 });
 const fields={id:bookingId,package:'monthly',revision:'0'};
+
+test('SQL draft save INSERT binds exactly 3 parameters, UPDATE exactly 4',()=>{
+  const snapshot=newReview();
+  const insertion=savedReviewStatement(snapshot,0,'owner@example.test');
+  const update=savedReviewStatement(snapshot,1,'owner@example.test');
+  const placeholders=(sql:string)=>[...sql.matchAll(/\$(\d+)/g)].map(m=>Number(m[1]));
+  assert.deepEqual(placeholders(insertion.sql),[1,2,3]);
+  assert.equal(insertion.params.length,3);
+  assert.equal(insertion.params[0],bookingId);
+  assert.deepEqual(placeholders(update.sql),[2,3,1,4]);
+  assert.equal(update.params.length,4);
+  assert.equal(update.params[3],1);
+  assert.match(insertion.sql,/ON CONFLICT \(booking_id\) DO NOTHING/);
+  assert.match(update.sql,/WHERE booking_id=\$1 AND revision=\$4/);
+});
 
 test('saved draft freezes a real 30-day camera package with explicit discount',()=>{
   const snapshot=newReview();

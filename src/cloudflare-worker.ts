@@ -1,3 +1,4 @@
+import {renderCanvaStaffPdf} from './canva-invoice-pdf.ts';
 import { timingSafeEqual } from 'node:crypto';
 import {verifiedAccessEmail} from './staff-access-jwt.ts';
 import {makeReviewSnapshot,saveReviewDraft,loadSavedReview,renderSavedReview,DraftSaveError,type ReviewSnapshot,type SavedReview,type SaveReviewResult} from './staff-saved-review.ts';
@@ -329,7 +330,7 @@ export async function handleWorkerRequest(
       return html(renderStaffBookingDetail(detail));
     }catch{return json({error:'Internal server error'},500);}
   }
-  if(path==='/staff/draft/save'||path==='/staff/draft/saved'){
+  if(path==='/staff/draft/save'||path==='/staff/draft/saved'||path==='/staff/draft/saved.pdf'){
     const writing=path==='/staff/draft/save';
     if(request.method!==(writing?'POST':'GET'))
       return json({error:'Method not allowed'},405,{Allow:writing?'POST':'GET'});
@@ -386,6 +387,20 @@ export async function handleWorkerRequest(
       catch{return json({error:'Invalid booking ID'},400);}
       const saved=await (staff.loadReview??loadSavedReview)(env.DATABASE_URL,parsed.bookingId);
       if(!saved)return json({error:'Saved draft not found'},404);
+      if(path==='/staff/draft/saved.pdf'){
+        if(!env.ASSETS)return json({error:'Invoice template not configured'},503);
+        const url=new URL('/invoice/canva-blank.pdf',request.url);
+        const template=await env.ASSETS.fetch(new Request(url));
+        if(!template.ok)return json({error:'Invoice template unavailable'},503);
+        const bytes=await renderCanvaStaffPdf(saved.snapshot,
+          saved.updatedAt.slice(0,10),new Uint8Array(await template.arrayBuffer()));
+        return new Response(new Blob([new Uint8Array(bytes)],{type:'application/pdf'}),{
+          headers:{'Content-Type':'application/pdf',
+            'Content-Disposition':'attachment; filename="apex-internal-review.pdf"',
+            'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff',
+            'X-Robots-Tag':'noindex, nofollow'}
+        });
+      }
       return html(renderSavedReview(saved));
     }catch(error){
       if(error instanceof DraftSaveError)return json({error:error.message},error.status);

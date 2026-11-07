@@ -7,6 +7,7 @@ export type StaffInvoiceSource={
   bookingId:string;
   customerName:string;
   petNames:string;
+  petBreeds?:string;
   petCount:number;
   startDate:string;
   endDate:string;
@@ -37,7 +38,7 @@ export function parseStaffDraftRequest(url:URL):{bookingId:string;packageChoice:
   return {bookingId,packageChoice:choice};
 }
 type Row={
-  id:string;customer_name:string;pet_names:string;pet_count:number|string;
+  id:string;customer_name:string;pet_names:string;pet_breeds:string|null;pet_count:number|string;
   start_date:string;end_date:string;status:string;
   camera_cage_requested:boolean|null;pickup_dropoff_requested:boolean|null;
   is_synthetic:boolean;
@@ -56,6 +57,7 @@ export async function readStaffInvoiceSource(databaseUrl:string,bookingId:string
       +"b.start_date::text AS start_date,b.end_date::text AS end_date,"
       +"d.camera_cage_requested,d.pickup_dropoff_requested,"
       +"COALESCE(STRING_AGG(p.name, ', ' ORDER BY p.name),'') AS pet_names,"
+      +"COALESCE(STRING_AGG(DISTINCT p.breed, ', ' ORDER BY p.breed),'') AS pet_breeds,"
       +"COUNT(bp.pet_id)::integer AS pet_count,"
       +"COALESCE(b.external_submission_id LIKE 'apex-cf-smoke-%',false) AS is_synthetic "
       +"FROM public.booking_requests b "
@@ -72,6 +74,7 @@ export async function readStaffInvoiceSource(databaseUrl:string,bookingId:string
       bookingId:row.id,
       customerName:row.customer_name,
       petNames:row.pet_names,
+      petBreeds:row.pet_breeds||undefined,
       petCount:Number(row.pet_count),
       startDate:row.start_date,
       endDate:row.end_date,
@@ -146,6 +149,7 @@ export function renderPrintableStaffReview(review:StaffDraftReview,reviewDate:st
     issuedOn:reviewDate,
     billedTo:review.booking.customerName,
     petName:review.booking.petNames,
+    petBreed:review.booking.petBreeds,
     status:'DRAFT',
     reviewOnly:true,
     demo:review.booking.synthetic

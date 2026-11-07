@@ -9,7 +9,7 @@ export class DraftSaveError extends Error {
 }
 export type ReviewSnapshot={
   version:1;
-  booking:{id:string;customerName:string;petNames:string;startDate:string;endDate:string};
+  booking:{id:string;customerName:string;petNames:string;startDate:string;endDate:string;synthetic:boolean};
   packageChoice:'daily'|'monthly';
   rateVersion:string;
   quote:Quote;
@@ -20,7 +20,7 @@ const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]
 
 export function makeReviewSnapshot(review:StaffDraftReview):ReviewSnapshot {
   const source=review.booking;
-  if(!review.draft||source.synthetic||source.transportRequested!==false||
+  if(!review.draft||source.transportRequested!==false||
      !['requested','reviewing','approved'].includes(source.status))
     throw new DraftSaveError('This booking needs staff review before saving an estimate');
   const quote=review.draft.quote;
@@ -40,7 +40,8 @@ export function makeReviewSnapshot(review:StaffDraftReview):ReviewSnapshot {
   return {
     version:1,
     booking:{id:source.bookingId,customerName:source.customerName,
-      petNames:source.petNames,startDate:source.startDate,endDate:source.endDate},
+      petNames:source.petNames,startDate:source.startDate,endDate:source.endDate,
+      synthetic:source.synthetic},
     packageChoice:review.packageChoice,
     rateVersion:review.draft.rateVersion,
     quote:structuredClone(quote)
@@ -54,6 +55,7 @@ export function validateSnapshot(snapshot:unknown):ReviewSnapshot {
   if(value.version!==1||!value.booking||!UUID.test(value.booking.id)||
      typeof value.booking.customerName!=='string'||
      typeof value.booking.petNames!=='string'||
+     typeof value.booking.synthetic!=='boolean'||
      !/^\d{4}-\d{2}-\d{2}$/.test(value.booking.startDate)||
      !/^\d{4}-\d{2}-\d{2}$/.test(value.booking.endDate)||
      !value.quote||!Array.isArray(value.quote.lines)||!Array.isArray(value.quote.discounts)||
@@ -113,6 +115,6 @@ export function renderSavedReview(saved:SavedReview):string {
     number:'REVIEW-'+data.booking.id.slice(0,8).toUpperCase(),
     issuedOn:new Date().toISOString().slice(0,10),
     billedTo:data.booking.customerName,petName:data.booking.petNames,
-    status:'DRAFT',reviewOnly:true
+    status:'DRAFT',reviewOnly:true,demo:data.booking.synthetic
   },data.quote);
 }

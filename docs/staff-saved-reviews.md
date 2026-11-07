@@ -10,7 +10,7 @@ The existing `/staff/draft` estimate remains read-only by default. Set `APEX_STA
 - A stale browser revision returns HTTP 409 so two staff tabs can't silently overwrite each other's changes.
 - No approval, official invoice number, payment details, messaging, PDF email or WhatsApp customer sending is exposed.
 
-Blocked: synthetic bookings, requests involving transport, missing preferences, cancelled/declined/completed bookings, and incomplete estimates. Thirty inclusive billed days select the existing discounted package automatically.
+Blocked: requests involving transport, missing preferences, cancelled/declined/completed bookings, and incomplete estimates. **Synthetic canaries with complete no-transport details can now save internal test-only reviews**, but their saved snapshot permanently records `booking.synthetic=true` and renders the visible `SYNTHETIC EXAMPLE · INTERNAL PREVIEW · NOT FOR CUSTOMER DELIVERY` watermark. Any future invoice approval, numbering or send feature MUST reject this marker server-side. Thirty inclusive billed days select the existing discounted package automatically.
 
 ## Deployment gates
 

@@ -9,7 +9,7 @@ export class DraftSaveError extends Error {
 }
 export type ReviewSnapshot={
   version:1;
-  booking:{id:string;customerName:string;petNames:string;startDate:string;endDate:string;synthetic:boolean};
+  booking:{id:string;customerName:string;petNames:string;petBreeds?:string;startDate:string;endDate:string;synthetic:boolean};
   packageChoice:'daily'|'monthly';
   rateVersion:string;
   quote:Quote;
@@ -40,7 +40,7 @@ export function makeReviewSnapshot(review:StaffDraftReview):ReviewSnapshot {
   return {
     version:1,
     booking:{id:source.bookingId,customerName:source.customerName,
-      petNames:source.petNames,startDate:source.startDate,endDate:source.endDate,
+      petNames:source.petNames,petBreeds:source.petBreeds,startDate:source.startDate,endDate:source.endDate,
       synthetic:source.synthetic},
     packageChoice:review.packageChoice,
     rateVersion:review.draft.rateVersion,
@@ -64,6 +64,26 @@ export function validateSnapshot(snapshot:unknown):ReviewSnapshot {
   return value as ReviewSnapshot;
 }
 
+export function savedReviewStatement(snapshot:ReviewSnapshot,expectedRevision:number,updatedBy:string):{
+  sql:string;params:(string|number)[]
+}{
+  const json=JSON.stringify(snapshot);
+  if(expectedRevision===0){
+    return {
+      sql:'INSERT INTO public.invoice_draft_reviews '+
+        '(booking_id,snapshot,revision,updated_by) VALUES ($1,$2::jsonb,1,$3) '+
+        'ON CONFLICT (booking_id) DO NOTHING RETURNING revision',
+      params:[snapshot.booking.id,json,updatedBy]
+    };
+  }
+  return {
+    sql:'UPDATE public.invoice_draft_reviews SET snapshot=$2::jsonb, '+
+      'revision=revision+1,updated_by=$3,updated_at=now() '+
+      'WHERE booking_id=$1 AND revision=$4 RETURNING revision',
+    params:[snapshot.booking.id,json,updatedBy,expectedRevision]
+  };
+}
+
 /** Compare-and-swap prevents two staff browsers overwriting each other. */
 export async function saveReviewDraft(databaseUrl:string,snapshot:ReviewSnapshot,
   expectedRevision:number,updatedBy:string):Promise<SaveReviewResult>{
@@ -74,15 +94,8 @@ export async function saveReviewDraft(databaseUrl:string,snapshot:ReviewSnapshot
   const db=new Client(databaseUrl);
   await db.connect();
   try{
-    const sql=expectedRevision===0
-      ?'INSERT INTO public.invoice_draft_reviews '+
-       '(booking_id,snapshot,revision,updated_by) VALUES ($1,$2::jsonb,1,$3) '+
-       'ON CONFLICT (booking_id) DO NOTHING RETURNING revision'
-      :'UPDATE public.invoice_draft_reviews SET snapshot=$2::jsonb, '+
-       'revision=revision+1,updated_by=$3,updated_at=now() '+
-       'WHERE booking_id=$1 AND revision=$4 RETURNING revision';
-    const result=await db.query<{revision:number}>(sql,
-      [snapshot.booking.id,JSON.stringify(snapshot),updatedBy,expectedRevision]);
+    const statement=savedReviewStatement(snapshot,expectedRevision,updatedBy);
+    const result=await db.query<{revision:number}>(statement.sql,statement.params);
     const row=result.rows[0];
     if(!row)throw new DraftSaveError('This estimate changed in another tab. Refresh and review it.',409);
     return {revision:Number(row.revision)};
@@ -115,6 +128,7 @@ export function renderSavedReview(saved:SavedReview):string {
     number:'REVIEW-'+data.booking.id.slice(0,8).toUpperCase(),
     issuedOn:new Date().toISOString().slice(0,10),
     billedTo:data.booking.customerName,petName:data.booking.petNames,
+    petBreed:data.booking.petBreeds,
     status:'DRAFT',reviewOnly:true,demo:data.booking.synthetic
   },data.quote);
 }

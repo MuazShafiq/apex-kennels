@@ -149,7 +149,7 @@ test('fuel provenance stays in INTERNAL quote data, not in customer-facing invoi
   },q.quote);
   assert.equal(q.fuelRateSnapshot?.pricePkrPerLitre,362);
   assert.equal(q.fuelRateSnapshot?.sourceUrl,'https://oilprices.pk/api/latest');
-  assert.match(html,/Pet transport/);
+  assert.match(html,/Pick-up &amp; Drop-off/);
   const customerVisible=html.replace(/<style>[\s\S]*?<\/style>/,'').replace(/<[^>]+>/g,' ');
   for(const forbidden of ['OilPrices','CC BY','petrol','fuel','markup','margin',
     'Staff','STAFF','provisional','NOT PAYABLE','To be confirmed by Apex','APPROVED']) {

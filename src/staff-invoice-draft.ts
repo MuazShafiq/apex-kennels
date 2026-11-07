@@ -213,7 +213,7 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
         +(site==='staff'&&!source.transportRequested
           ?'<p><a href="/staff/draft?id='+encodeURIComponent(source.bookingId)
             +'&amp;package='+encodeURIComponent(review.packageChoice)
-            +'&amp;format=print">View printable review copy</a></p>':'')
+            +'&amp;format=print">Preview Canva invoice (PDF)</a></p>':'')
         +(site==='staff'&&options.enableSaving&&!source.transportRequested
           &&['requested','reviewing','approved'].includes(source.status)
           ?'<form method="post" action="/staff/draft/save">'
@@ -223,7 +223,7 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
             +'<button type="submit">'+(source.synthetic?(options.savedRevision?'Update synthetic test draft':'Save synthetic test draft')
               :(options.savedRevision?'Update saved draft':'Save internal draft'))+'</button></form>'
             +(options.savedRevision?'<p><a href="/staff/draft/saved?id='
-              +encodeURIComponent(source.bookingId)+'">View saved draft</a> · <a href="/staff/draft/saved.pdf?id='+encodeURIComponent(source.bookingId)+'">Download Canva PDF review</a></p>':'')
+              +encodeURIComponent(source.bookingId)+'">View saved Canva invoice</a> · <a href="/staff/draft/saved.pdf?id='+encodeURIComponent(source.bookingId)+'&amp;download=1">Download Canva PDF</a></p>':'')
           :'')
         +'</div>'
       : '<div class="panel"><strong>Estimate unavailable.</strong><p>Resolve the issues below.</p></div>')

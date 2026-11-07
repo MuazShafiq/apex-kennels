@@ -164,10 +164,9 @@ test('saved route is staff-only, read-only and renders frozen numbers',async()=>
       reads++;assert.equal(id,bookingId);return saved;
     }
   });
-  assert.equal(found.status,200);
-  const html=await found.text();
-  assert.match(html,/PKR 80,000/);
-  assert.match(html,/NOT FOR CUSTOMER DELIVERY/);
+  assert.equal(found.status,302);
+  assert.equal(found.headers.get('location'),'/staff/draft/saved.pdf?id='+bookingId);
+  assert.equal(found.headers.get('cache-control'),'private, no-store');
   assert.equal(reads,1);
   const post=await handleWorkerRequest(new Request(url,{method:'POST'}),env,undefined,{context});
   assert.equal(post.status,405);
@@ -223,4 +222,39 @@ test('database conflicts are visible but no retries or external messages occur',
   });
   assert.equal(response.status,409);
   assert.equal((await response.json() as {error:string}).error,'Draft changed in another tab');
+});
+
+test('saved invoice and print preview serve Canva PDF; no legacy HTML or payment details',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const blank=readFileSync('public/invoice/canva-blank.pdf');
+  const assets={fetch:async(_request:Request)=>new Response(
+    new Blob([new Uint8Array(blank)],{type:'application/pdf'}))};
+  const withAssets={...env,ASSETS:assets};
+  const saved={snapshot:newReview(),revision:1,
+    updatedBy:'owner@example.test',updatedAt:'2026-11-07'};
+  const pdfUrl=origin+'/staff/draft/saved.pdf?id='+bookingId;
+  const pdf=await handleWorkerRequest(new Request(pdfUrl),withAssets,undefined,{
+    context,loadReview:async()=>saved
+  });
+  assert.equal(pdf.status,200);
+  assert.match(pdf.headers.get('content-type')??'',/application\/pdf/);
+  assert.match(pdf.headers.get('content-disposition')??'',/^inline;/);
+  assert.equal(Buffer.from(await pdf.arrayBuffer()).subarray(0,4).toString(),'%PDF');
+  const dl=await handleWorkerRequest(new Request(pdfUrl+'&download=1'),
+    withAssets,undefined,{context,loadReview:async()=>saved});
+  assert.equal(dl.status,200);
+  assert.match(dl.headers.get('content-disposition')??'',/^attachment;/);
+  const invalid=await handleWorkerRequest(new Request(pdfUrl+'&download=0'),
+    withAssets,undefined,{context,loadReview:async()=>saved});
+  assert.equal(invalid.status,400);
+  const preview=await handleWorkerRequest(new Request(
+    origin+'/staff/draft?id='+bookingId+'&format=print'),withAssets,undefined,{
+      context,draft:async()=>booking
+    });
+  assert.equal(preview.status,200);
+  assert.match(preview.headers.get('content-type')??'',/application\/pdf/);
+  assert.equal(Buffer.from(await preview.arrayBuffer()).subarray(0,4).toString(),'%PDF');
+  const forbidden=await handleWorkerRequest(new Request(pdfUrl),withAssets,
+    undefined,{loadReview:async()=>{throw new Error('should not query');}});
+  assert.equal(forbidden.status,403);
 });

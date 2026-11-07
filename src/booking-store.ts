@@ -100,6 +100,16 @@ export async function saveBooking(pool: DbPool, input: IntakeRequest): Promise<S
          d.termsAccepted??null]
       );
     }
+    // Only a deliberately checked website checkbox creates WhatsApp consent.
+    // The original Google Form has no WhatsApp opt-in question, so those
+    // records remain unconsented until independently confirmed.
+    if (input.source==='website' && input.details?.whatsappInvoiceOptIn===true) {
+      await tx.query(
+        "INSERT INTO public.booking_whatsapp_consents "+
+        "(booking_id,phone,consent_text_version,source) VALUES ($1,$2,$3,$4)",
+        [booking.id,input.phone,'website-booking-v1','website']
+      );
+    }
     if (input.source === 'website' && input.transportLocation) {
       const point = input.transportLocation;
       await tx.query(

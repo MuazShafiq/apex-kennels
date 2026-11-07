@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import {verifiedAccessEmail} from './staff-access-jwt.ts';
+import {makeReviewSnapshot,saveReviewDraft,loadSavedReview,renderSavedReview,DraftSaveError,type ReviewSnapshot,type SavedReview,type SaveReviewResult} from './staff-saved-review.ts';
 import {sendApprovedTemplate,bookingAlertTemplateValues,type WhatsappConfig,type WhatsappAccepted} from './whatsapp-cloud.ts';
 import {isTransportServiceLocation} from './transport-service-area.ts';
 import { IntakeError, parseIntake, type IntakeRequest } from './intake.ts';
@@ -21,6 +22,7 @@ export type WorkerEnv = {
   STAFF_ACCESS_ISSUER?: string;
   STAFF_ALLOWED_EMAILS?: string;
   APEX_PUBLIC_BOOKING_ENABLED?: string;
+  APEX_STAFF_DRAFTS_ENABLED?: string;
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
   ASSETS?: {fetch(request:Request):Promise<Response>};
@@ -37,7 +39,7 @@ export type StaffList = (databaseUrl: string, filter: StaffFilter) => Promise<St
 export type StaffContext = {access?: {aud: string; getIdentity(): Promise<{email?:string}|null>}; waitUntil?:(task:Promise<unknown>)=>void};
 export type StaffDraftReader=(databaseUrl:string,bookingId:string)=>Promise<StaffInvoiceSource|null>;
 export type StaffDetailReader=(databaseUrl:string,bookingId:string)=>Promise<StaffBookingDetail|null>;
-export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; sendWhatsApp?:(config:WhatsappConfig,to:string,template:string,values:string[])=>Promise<WhatsappAccepted>};
+export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; sendWhatsApp?:(config:WhatsappConfig,to:string,template:string,values:string[])=>Promise<WhatsappAccepted>; saveReview?:(url:string,snapshot:ReviewSnapshot,revision:number,email:string)=>Promise<SaveReviewResult>; loadReview?:(url:string,bookingId:string)=>Promise<SavedReview|null>};
 
 async function authorizedStaff(env: WorkerEnv, context: StaffContext|undefined, request:Request): Promise<string|null> {
   if (!env.STAFF_ACCESS_AUD || !env.STAFF_ALLOWED_EMAILS) return null;
@@ -110,6 +112,28 @@ function json(body: unknown, status = 200, extraHeaders: Record<string, string> 
       ...extraHeaders,
     },
   });
+}
+
+/** Small, same-origin URL-encoded staff form; no uploads or JSON mutation. */
+async function boundedForm(request:Request):Promise<URLSearchParams>{
+  const length=request.headers.get('content-length');
+  if(length!==null&&(!/^\d{1,8}$/.test(length)||Number(length)>2048))
+    throw new DraftSaveError('Invalid form size',413);
+  if(!request.body)throw new DraftSaveError('Empty form',400);
+  const reader=request.body.getReader();
+  const chunks:Uint8Array[]=[];let total=0;
+  try {
+    while(true){
+      const {value,done}=await reader.read();
+      if(done)break;
+      total+=value.byteLength;
+      if(total>2048)throw new DraftSaveError('Form too large',413);
+      chunks.push(value);
+    }
+  }finally{reader.releaseLock();}
+  const body=new Uint8Array(total);let offset=0;
+  for(const chunk of chunks){body.set(chunk,offset);offset+=chunk.byteLength;}
+  return new URLSearchParams(new TextDecoder('utf-8',{fatal:true}).decode(body));
 }
 
 function bearerAuthorized(header: string | null, configuredSecret: string): boolean {
@@ -305,6 +329,69 @@ export async function handleWorkerRequest(
       return html(renderStaffBookingDetail(detail));
     }catch{return json({error:'Internal server error'},500);}
   }
+  if(path==='/staff/draft/save'||path==='/staff/draft/saved'){
+    const writing=path==='/staff/draft/save';
+    if(request.method!==(writing?'POST':'GET'))
+      return json({error:'Method not allowed'},405,{Allow:writing?'POST':'GET'});
+    if(env.APEX_STAFF_DRAFTS_ENABLED!=='true')
+      return json({error:'Saved drafts are not enabled'},503);
+    if(!env.STAFF_ACCESS_AUD||!env.STAFF_ALLOWED_EMAILS||!env.DATABASE_URL)
+      return json({error:'Staff access not configured'},503);
+    const email=await authorizedStaff(env,staff.context,request);
+    if(!email)return json({error:'Forbidden'},403);
+    if(writing){
+      // Browser navigation has a mandatory Origin header on POST; fail closed
+      // instead of trusting cookies alone on a potentially cross-site form.
+      if(request.headers.get('origin')!==new URL(request.url).origin||
+         request.headers.get('sec-fetch-site')==='cross-site')
+        return json({error:'Forbidden'},403);
+      if(!/^application\/x-www-form-urlencoded(?:\s*;|$)/i.test(request.headers.get('content-type')??''))
+        return json({error:'Expected browser form'},415);
+      try{
+        const form=await boundedForm(request);
+        const allowed=['id','package','revision'];
+        if([...form.keys()].some(k=>!allowed.includes(k))||
+           allowed.some(k=>form.getAll(k).length!==1))
+          throw new DraftSaveError('Invalid form fields',400);
+        const id=form.get('id')??'';
+        const packageChoice=form.get('package')??'';
+        const revisionRaw=form.get('revision')??'';
+        if(!/^(0|[1-9][0-9]{0,6})$/.test(revisionRaw)||
+           !['daily','monthly'].includes(packageChoice))
+          throw new DraftSaveError('Invalid draft revision or package',400);
+        let parsed:ReturnType<typeof parseStaffDraftRequest>;
+        try{parsed=parseStaffDraftRequest(new URL('/staff/draft?id='+
+          encodeURIComponent(id)+'&package='+encodeURIComponent(packageChoice),request.url));}
+        catch{throw new DraftSaveError('Invalid booking or package',400);}
+        const source=await (staff.draft??readStaffInvoiceSource)(env.DATABASE_URL,parsed.bookingId);
+        if(!source)return json({error:'Booking not found'},404);
+        const snapshot=makeReviewSnapshot(prepareStaffDraftReview(source,parsed.packageChoice));
+        await (staff.saveReview??saveReviewDraft)(env.DATABASE_URL,snapshot,Number(revisionRaw),email);
+        return new Response(null,{status:303,headers:{
+          Location:'/staff/draft/saved?id='+encodeURIComponent(id),
+          'Cache-Control':'private, no-store'
+        }});
+      }catch(error){
+        if(error instanceof DraftSaveError)return json({error:error.message},error.status);
+        return json({error:'Unable to save estimate'},500);
+      }
+    }
+    try{
+      const url=new URL(request.url);
+      const id=url.searchParams.get('id')??'';
+      if([...url.searchParams.keys()].some(k=>k!=='id')||url.searchParams.getAll('id').length!==1)
+        return json({error:'Invalid saved draft request'},400);
+      let parsed:ReturnType<typeof parseStaffDraftRequest>;
+      try{parsed=parseStaffDraftRequest(new URL('/staff/draft?id='+encodeURIComponent(id),request.url));}
+      catch{return json({error:'Invalid booking ID'},400);}
+      const saved=await (staff.loadReview??loadSavedReview)(env.DATABASE_URL,parsed.bookingId);
+      if(!saved)return json({error:'Saved draft not found'},404);
+      return html(renderSavedReview(saved));
+    }catch(error){
+      if(error instanceof DraftSaveError)return json({error:error.message},error.status);
+      return json({error:'Unable to load saved estimate'},500);
+    }
+  }
   if (path === '/staff/draft') {
     if (request.method !== 'GET') return json({error:'Method not allowed'},405,{Allow:'GET'});
     // Identical Access controls as /staff and /staff/api/bookings; no secret fallbacks.
@@ -328,6 +415,12 @@ export async function handleWorkerRequest(
         if(!review.draft||source.transportRequested)
           return json({error:'Complete boarding estimate required for printing'},409);
         return html(renderPrintableStaffReview(review,new Date().toISOString().slice(0,10)));
+      }
+      if(env.APEX_STAFF_DRAFTS_ENABLED==='true'){
+        const saved=await (staff.loadReview??loadSavedReview)(env.DATABASE_URL,parsed.bookingId);
+        return html(renderStaffDraftReview(review,'staff',{
+          enableSaving:true,savedRevision:saved?.revision??0
+        }));
       }
       return html(renderStaffDraftReview(review));
     }catch{return json({error:'Internal server error'},500);}

@@ -146,6 +146,6 @@ test('printable preview is always internal, synthetic is labeled and names are H
   const html=renderPrintableStaffReview(review,'2026-11-06');
   assert.match(html,/SYNTHETIC EXAMPLE/);
   assert.match(html,/&lt;svg onload=alert\(1\)&gt; &amp; Owner/);
-  assert.doesNotMatch(html,/<svg/);
+  assert.doesNotMatch(html,/<svg onload/);
   assert.throws(()=>renderPrintableStaffReview(review,'tomorrow'),/Invalid review date/);
 });

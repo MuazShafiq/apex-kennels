@@ -345,7 +345,7 @@ export async function handleWorkerRequest(
       if(request.headers.get('origin')!==new URL(request.url).origin||
          request.headers.get('sec-fetch-site')==='cross-site')
         return json({error:'Forbidden'},403);
-      if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/x-www-form-urlencoded'))
+      if(!/^application\/x-www-form-urlencoded(?:\s*;|$)/i.test(request.headers.get('content-type')??''))
         return json({error:'Expected browser form'},415);
       try{
         const form=await boundedForm(request);
@@ -359,8 +359,10 @@ export async function handleWorkerRequest(
         if(!/^(0|[1-9][0-9]{0,6})$/.test(revisionRaw)||
            !['daily','monthly'].includes(packageChoice))
           throw new DraftSaveError('Invalid draft revision or package',400);
-        const parsed=parseStaffDraftRequest(new URL('/staff/draft?id='+
-          encodeURIComponent(id)+'&package='+encodeURIComponent(packageChoice),request.url));
+        let parsed:ReturnType<typeof parseStaffDraftRequest>;
+        try{parsed=parseStaffDraftRequest(new URL('/staff/draft?id='+
+          encodeURIComponent(id)+'&package='+encodeURIComponent(packageChoice),request.url));}
+        catch{throw new DraftSaveError('Invalid booking or package',400);}
         const source=await (staff.draft??readStaffInvoiceSource)(env.DATABASE_URL,parsed.bookingId);
         if(!source)return json({error:'Booking not found'},404);
         const snapshot=makeReviewSnapshot(prepareStaffDraftReview(source,parsed.packageChoice));
@@ -379,7 +381,9 @@ export async function handleWorkerRequest(
       const id=url.searchParams.get('id')??'';
       if([...url.searchParams.keys()].some(k=>k!=='id')||url.searchParams.getAll('id').length!==1)
         return json({error:'Invalid saved draft request'},400);
-      const parsed=parseStaffDraftRequest(new URL('/staff/draft?id='+encodeURIComponent(id),request.url));
+      let parsed:ReturnType<typeof parseStaffDraftRequest>;
+      try{parsed=parseStaffDraftRequest(new URL('/staff/draft?id='+encodeURIComponent(id),request.url));}
+      catch{return json({error:'Invalid booking ID'},400);}
       const saved=await (staff.loadReview??loadSavedReview)(env.DATABASE_URL,parsed.bookingId);
       if(!saved)return json({error:'Saved draft not found'},404);
       return html(renderSavedReview(saved));

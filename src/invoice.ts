@@ -22,7 +22,7 @@ const date=(raw:string)=>{
   if(!/^\d{4}-\d{2}-\d{2}$/.test(raw))return esc(raw);
   const d=new Date(raw+'T12:00:00Z');
   if(!Number.isFinite(d.getTime())||d.toISOString().slice(0,10)!==raw)return esc(raw);
-  return esc(new Intl.DateTimeFormat('en-GB',{
+  return esc(new Intl.DateTimeFormat('en-US',{
     day:'numeric',month:'long',year:'numeric',timeZone:'UTC'
   }).format(d));
 };

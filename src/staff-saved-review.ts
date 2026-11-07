@@ -72,12 +72,13 @@ export async function saveReviewDraft(databaseUrl:string,snapshot:ReviewSnapshot
   const db=new Client(databaseUrl);
   await db.connect();
   try{
-    const sql='INSERT INTO public.invoice_draft_reviews '+
-      '(booking_id,snapshot,revision,updated_by) VALUES ($1,$2::jsonb,1,$3) '+
-      'ON CONFLICT (booking_id) DO UPDATE SET '+
-      'snapshot=EXCLUDED.snapshot,revision=public.invoice_draft_reviews.revision+1, '+
-      'updated_by=EXCLUDED.updated_by,updated_at=now() '+
-      'WHERE public.invoice_draft_reviews.revision=$4 RETURNING revision';
+    const sql=expectedRevision===0
+      ?'INSERT INTO public.invoice_draft_reviews '+
+       '(booking_id,snapshot,revision,updated_by) VALUES ($1,$2::jsonb,1,$3) '+
+       'ON CONFLICT (booking_id) DO NOTHING RETURNING revision'
+      :'UPDATE public.invoice_draft_reviews SET snapshot=$2::jsonb, '+
+       'revision=revision+1,updated_by=$3,updated_at=now() '+
+       'WHERE booking_id=$1 AND revision=$4 RETURNING revision';
     const result=await db.query<{revision:number}>(sql,
       [snapshot.booking.id,JSON.stringify(snapshot),updatedBy,expectedRevision]);
     const row=result.rows[0];

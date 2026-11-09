@@ -17,13 +17,13 @@
 2. Staff reviews a route and determines **total vehicle km actually driven**, including relevant return legs. This is **not** derived from the owner's street address automatically.
 3. When creating an invoice draft with `transport.requested=true`, `buildApexDraftWithFreshFuel` fetches the published current petrol baseline. If transport is not requested, there is **no API call**.
 4. Validate product is petrol, not diesel; unit must be **litre**, currency is PKR; rate must be finite, plausible (PKR 150–1000), and have two decimal places or less; date must be a real non-future date within **7 calendar days** (Islamabad date).
-5. Compute transport only when total vehicle distance, explicit 20%-profit interpretation, and a validated petrol snapshot are present. Fuel assumption remains 12 km/litre. **20% markup**: `km/12 × petrolPkrPerLitre × 1.20`; **20% gross margin**: `km/12 × petrolPkrPerLitre ÷ 0.80`. No default profit interpretation.
-6. Snapshot publisher, URL, effective date, retrieval timestamp, notified rate, currency, geographic scope, distance and chosen profit basis with the **review-only draft**. Historical invoice amounts must never change as fuel prices move.
+5. Compute transport only when total vehicle distance and a validated petrol snapshot are present. Fuel assumption remains 12 km/litre. **Fatima confirmed 20% markup (2026-11-09):** `km/12 × petrolPkrPerLitre × 1.20`. No profit-basis selection is required.
+6. Snapshot publisher, URL, effective date, retrieval timestamp, notified rate, currency, geographic scope, distance and confirmed markup basis with the **review-only draft**. Historical invoice amounts must never change as fuel prices move.
 7. If the primary API fails, try its GitHub mirror. If both fail, return a normal boarding draft **with transport UNPRICED** and a manual-review reason. **Never quietly use Fatima's old PKR 400/litre assumption.**
 
 ## Operational safety
 
-- User-facing amount must not be sent or marked payable until staff approves **route distance**, **20% margin-versus-markup interpretation**, **Islamabad pump freight adjustment** and any additional vehicle costs. No customer notification, WhatsApp or invoice delivery occurs.
+- User-facing amount must not be sent or marked payable until staff approves **route distance**, **Islamabad pump freight adjustment** and any additional vehicle costs. The markup basis is settled. No customer notification, WhatsApp or invoice delivery occurs.
 - No new database columns or production secrets are needed for this pure quote/lookup module. The quote and fuel metadata are presently in-memory data structures only; **persistent booking→invoice draft integration is future work**.
 - The API and mirror share the same underlying data lineage; fallback protects availability, **not data correctness**.
 - If the feed is older than 7 days, claims to contain a future notification, changes shape or returns invalid values, transport pricing is intentionally blocked.
@@ -38,7 +38,7 @@ npm.cmd ci
 npm.cmd run invoice:preview:fuel
 ```
 
-This **single** preview command attempts a real network price lookup and writes clearly synthetic review-only `output/apex-current-fuel-draft.html` plus an accompanying JSON provenance snapshot. The preview illustrates **24 actual vehicle km and 20% markup** purely as a test assumption, not Fatima's confirmed transport policy. If the network lookup fails, the draft has **no transport charge**.
+This **single** preview command attempts a real network price lookup and writes clearly synthetic review-only `output/apex-current-fuel-draft.html` plus an accompanying JSON provenance snapshot. The preview uses **24 synthetic vehicle km** as a route test assumption; 20% markup is Fatima's confirmed transport pricing method. If the network lookup fails, the draft has **no transport charge**.
 
 ## Remaining integration
 

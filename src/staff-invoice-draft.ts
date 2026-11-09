@@ -14,6 +14,8 @@ export type StaffInvoiceSource={
   status:string;
   cameraCageRequested:boolean|null;
   transportRequested:boolean|null;
+  /** Optional new website pin; legacy Form records have no confirmed pin. */
+  transportLocation?:{latitude:number;longitude:number;service:'pickup'|'dropoff'|'both';customerConfirmed:boolean}|null;
   synthetic:boolean;
 };
 export type StaffPackageChoice='daily'|'monthly';
@@ -70,6 +72,22 @@ export async function readStaffInvoiceSource(databaseUrl:string,bookingId:string
     );
     const row=result.rows[0];
     if(!row)return null;
+    let transportLocation:StaffInvoiceSource['transportLocation']=null;
+    try{
+      const pin=await db.query<{latitude:number;longitude:number;
+        service:'pickup'|'dropoff'|'both';customer_confirmed:boolean}>(
+        'SELECT latitude,longitude,service,customer_confirmed '+
+        'FROM public.booking_transport_locations WHERE booking_id=$1',
+        [bookingId]
+      );
+      if(pin.rows[0])transportLocation={
+        latitude:pin.rows[0].latitude,longitude:pin.rows[0].longitude,
+        service:pin.rows[0].service,customerConfirmed:pin.rows[0].customer_confirmed
+      };
+    }catch(error){
+      // The replacement website is not live and this additive table may not exist.
+      if(!error||typeof error!=='object'||!('code' in error)||error.code!=='42P01')throw error;
+    }
     return {
       bookingId:row.id,
       customerName:row.customer_name,
@@ -80,7 +98,7 @@ export async function readStaffInvoiceSource(databaseUrl:string,bookingId:string
       endDate:row.end_date,
       status:row.status,
       cameraCageRequested:row.camera_cage_requested,
-      transportRequested:row.pickup_dropoff_requested,
+      transportRequested:row.pickup_dropoff_requested,transportLocation,
       synthetic:row.is_synthetic || row.customer_name.startsWith('APEX CANARY ') || row.pet_names.includes('APEX SYNTHETIC CANARY PET'),
     };
   }finally{
@@ -210,6 +228,8 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
         +rows+'</tbody></table>'+discounts+'<div class="sum"><span>'
         +(source.transportRequested?'Boarding-only estimate · transport excluded':'Provisional subtotal')
         +'</span><span>'+pkr(review.draft.quote.totalPkr)+'</span></div>'
+        +(site==='staff'&&source.transportRequested
+          ?'<p><a href="/staff/transport?id='+encodeURIComponent(source.bookingId)+'">Calculate pickup / drop-off</a></p>':'')
         +(site==='staff'&&!source.transportRequested
           ?'<p><a href="/staff/draft?id='+encodeURIComponent(source.bookingId)
             +'&amp;package='+encodeURIComponent(review.packageChoice)

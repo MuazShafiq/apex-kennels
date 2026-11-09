@@ -79,7 +79,7 @@ test('GET requires verified staff access and only reads private booking details'
     context,draft:async()=>{reads++;return booking;},loadReview:async()=>null
   });
   assert.equal(ok.status,200);
-  assert.match(await ok.text(),/Price pickup &amp; drop-off/);
+  assert.match(await ok.text(),/Price pickup & drop-off/);
   assert.equal(ok.headers.get('cache-control'),'private, no-store');
   assert.equal(reads,1);
 });

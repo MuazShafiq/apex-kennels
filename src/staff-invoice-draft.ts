@@ -2,6 +2,8 @@ import {Client} from '@neondatabase/serverless';
 import {buildApexInvoiceDraft,type ApexDraftQuote} from './apex-invoice-draft.ts';
 import {countBilledDays} from './pricing.ts';
 import {renderInvoiceHtml} from './invoice.ts';
+import type {RouteEstimate} from './transport-route.ts';
+import type {VerifiedPetrolRate} from './islamabad-petrol-rate.ts';
 
 export type StaffInvoiceSource={
   bookingId:string;
@@ -24,6 +26,8 @@ export type StaffDraftReview={
   booking:StaffInvoiceSource;
   packageChoice:StaffPackageChoice;
   draft:ApexDraftQuote|null;
+  /** Generated only after the staff-verified route and fresh fuel lookup. */
+  transport?:{route:RouteEstimate;fuelRate:VerifiedPetrolRate};
   issues:string[];
   previewOnly:true;
   canSend:false;

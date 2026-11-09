@@ -23,7 +23,7 @@ export type TransportDraftInput = {
   requested: boolean;
   /** Total vehicle kilometres across all actual legs, including return trips. */
   totalDrivenKm?: number;
-  /** Must be explicitly chosen by staff until Fatima clarifies "20% profit". */
+  /** Legacy input accepted for compatibility; Apex now mandates 20% markup on fuel cost. */
   profitBasis?: TransportProfitBasis;
   /** Server-fetched, timestamped national notified petrol baseline, not Form input. */
   fuelRate?: VerifiedPetrolRate;
@@ -64,22 +64,20 @@ function validDistanceKm(km: number): boolean {
 /**
  * Computes a TRANSPORT DRAFT for known total kilometres driven. Only fuel cost
  * is considered; tolls, car wear, labour and deadheading outside the stated
- * route are not included. This cannot be a final customer price until Fatima
- * confirms whether "20% profit" means markup or gross margin.
+ * route are not included. On 2026-11-09 Fatima confirmed 20% markup on
+ * fuel cost. Final customer pricing still requires staff route/fuel review.
  */
 export function transportFuelDraftPkr(totalDrivenKm: number, basis: TransportProfitBasis, petrolPkrPerLitre: number): number {
   if (!validDistanceKm(totalDrivenKm)) throw new Error('Total driven km must be >0 and <=1000');
   if (!Number.isFinite(petrolPkrPerLitre) || petrolPkrPerLitre<150 || petrolPkrPerLitre>1000) {
     throw new Error('A validated current petrol price is required');
   }
-  if (basis !== 'markup_on_fuel_cost' && basis !== 'gross_margin_on_sale') {
-    throw new Error('Choose a supported 20% profit calculation explicitly');
+  if (basis !== 'markup_on_fuel_cost') {
+    throw new Error('Apex transport uses 20% markup on fuel cost');
   }
   const fuelCost = totalDrivenKm / APEX_CONFIRMED_PRICING.transportKmPerLitre *
     petrolPkrPerLitre;
-  const price = basis === 'markup_on_fuel_cost'
-    ? fuelCost * 1.20
-    : fuelCost / 0.80;
+  const price = fuelCost * (1 + APEX_CONFIRMED_PRICING.transportDesiredProfitPercent / 100);
   // Never undercharge the selected fuel-profit target due to fractional rupees.
   return safeMoney(Math.ceil(price - 1e-9));
 }
@@ -111,25 +109,25 @@ export function buildApexInvoiceDraft(input: ApexDraftInput): ApexDraftQuote {
   if(monthly)unresolved.push('Monthly discount: verify the 30 billed days before approval');
   if (input.transport?.requested) {
     const km = input.transport.totalDrivenKm;
-    const basis = input.transport.profitBasis;
+    const basis = input.transport.profitBasis ?? 'markup_on_fuel_cost';
     const rate = input.transport.fuelRate;
     if (km !== undefined && !validDistanceKm(km)) throw new Error('Invalid transport driven distance');
-    if (basis && basis !== 'markup_on_fuel_cost' && basis !== 'gross_margin_on_sale') {
-      throw new Error('Unknown transport profit basis');
+    if (basis !== 'markup_on_fuel_cost') {
+      throw new Error('Apex transport uses 20% markup on fuel cost');
     }
     if (rate && (rate.product !== 'Motor Spirit (Petrol)' || rate.unit !== 'litre' ||
         rate.currency !== 'PKR' || rate.requiresStaffReview !== true ||
         rate.geographicBasis !== 'Pakistan national notified price; Islamabad pump freight excluded')) {
       throw new Error('Invalid fuel rate provenance');
     }
-    if (km !== undefined && basis && rate) {
+    if (km !== undefined && rate) {
       const unitPrice = transportFuelDraftPkr(km,basis,rate.pricePkrPerLitre);
       lines.push({
         label:'Pet transport',
         quantity:1,unitPricePkr:unitPrice,totalPkr:unitPrice
       });
     } else {
-      unresolved.push('Transport needs total driven distance, 20% profit basis and a fresh source-backed fuel rate');
+      unresolved.push('Transport needs total driven distance and a fresh source-backed fuel rate');
     }
     unresolved.push('National notified price excludes Islamabad pump freight; staff must verify local fuel price');
     unresolved.push('Transport uses provisional fuel cost + 20% markup; Fatima reviews the final charge');

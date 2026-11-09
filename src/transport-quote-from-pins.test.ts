@@ -54,6 +54,19 @@ test('route distance replaces stale caller-submitted 24km, counts both vehicle t
   assert.match(result.draft.unresolved.join(' '),/19.45 km round trip/);
 });
 
+test('pinned route automatically applies owner-confirmed 20% fuel-cost markup',async()=>{
+  const result=await preparePinnedTransportDraft({
+    ...base,transport:{requested:true}
+  },location,{
+    route:async()=>verifiedRoute,
+    fetchFuel:async()=>({ok:true,rate})
+  });
+  const expected=Math.ceil(38.9/12*362*1.20-1e-9);
+  assert.equal(result.draft.quote.lines.find(l=>l.label==='Pet transport')?.totalPkr,expected);
+  assert.equal(result.draft.sendAutomatically,false);
+  assert.equal(result.fuelLookup,'CURRENT_NOTIFIED_RATE');
+});
+
 test('non-transport orders never hit route or petrol providers',async()=>{
   const result=await preparePinnedTransportDraft(base,location,{
     route:async()=>{throw new Error('No route needed')},

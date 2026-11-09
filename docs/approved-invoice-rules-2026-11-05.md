@@ -14,21 +14,19 @@
 | Invoice workflow | **Generate draft automatically; Fatima/staff inspect it and SEND MANUALLY** |
 | Car consumption | **12 km/litre** (assumed interpretation of "Car fuel average is 12") |
 | Fuel-cost assumption | **PKR 400/litre**, owner-supplied; configurable, not verified current pump price |
-| Desired transport profit | **20%**, calculation basis not specified |
+| Transport profit | **20% markup on fuel cost**, confirmed 2026-11-09 (Rs. 1,000 fuel → Rs. 1,200 fee) |
 | Transport pricing | Distance-based, not a flat PKR 4,000 trip |
 
 ### Monthly package eligibility
 
 The owner confirmed a **PKR 10,000 per-dog discount** for a full month on either standard or camera boarding. The explicit examples use 30 billed days, so the current deterministic discount applies to **exactly 30 inclusive billed days**, after staff selects the package. It is not silently applied to 28, 29, 31 or longer stays. Longer/calendar-month exceptions remain for staff review instead of inventing a rule.
 
-### Transport: provisional formula, not an approved customer-facing amount
+### Transport: confirmed markup; final route and fuel amount still require review
 
 Fuel cost (PKR) = **total vehicle km driven / 12 × 400**.
 
-- If **20% markup on fuel cost**: fee = fuel cost × 1.20 = **PKR 40 per vehicle km**.
-- If **20% gross profit margin**: fee = fuel cost / 0.80 = **PKR 41.67 per vehicle km** (before whole-rupee rounding).
-
-Current operational default is **fuel cost + 20% markup**, clearly marked provisional and editable. Fatima must approve the final charge; do not claim it is a 20% gross margin. If a 10-km one-way collection requires the driver to return to the kennel, the route is 20 vehicle km before any other trips. If pickup **and** drop-off are separately requested, include the full actual driven route for both tasks, and avoid charging the same segment twice. Tolls, driver time and vehicle depreciation are not specified and are not included in the fuel-only estimate. The Form's yes/no pickup-dropoff field does **not** supply a route or exact driven kilometres. Require measured route input and Fatima's choice of profit basis before a payable transport line is approved.
+- **Owner-confirmed method (2026-11-09):** fee = fuel cost × 1.20. At the historical PKR 400/litre assumption, that is **PKR 40 per vehicle km**.
+- The alternate gross-margin formula is **not** used. Fatima must still approve the final amount after route and local fuel-rate verification. If a 10-km one-way collection requires the driver to return to the kennel, the route is 20 vehicle km before any other trips. If pickup **and** drop-off are separately requested, include the full actual driven route for both tasks, and avoid charging the same segment twice. Tolls, driver time and vehicle depreciation are not specified and are not included in the fuel-only estimate. The Form's yes/no pickup-dropoff field does **not** supply a route or exact driven kilometres. Require measured route input and verified fuel price before a payable transport line is approved.
 
 ## Approved operational posture
 
@@ -40,7 +38,7 @@ Current operational default is **fuel cost + 20% markup**, clearly marked provis
 ## Unresolved (ask only if needed for the actual invoice)
 
 - Clarify how exceptions to the 30 billed-day package are handled, only if an actual such booking arises.
-- The 20% markup is a provisional default; confirm extraordinary tolls or vehicle costs only when relevant.
+- The 20% markup is confirmed; confirm extraordinary tolls or vehicle costs only when relevant.
 - How are additional dogs or special cases handled beyond the confirmed per-dog monthly rule?
 - Payment recipient is **Fatima's HBL account**, not Zain's. The full sensitive account details must be securely configured rather than committed to source. Reuse Apex's existing four-digit invoice numbering, checking for any numbers issued manually in Canva before automatic sequence activation. Actual customer invoice sending requires Meta setup and an approved invoice template.
 
@@ -51,4 +49,4 @@ Current operational default is **fuel cost + 20% markup**, clearly marked provis
 
 ## Updated engineering: live price lookup supersedes fixed fuel estimate
 
-For new transport invoice **drafts**, the earlier owner-supplied PKR 400/litre is preserved as a historical assumption, **not an automatic fallback rate**. See [live petrol rate implementation](live-petrol-rate-invoices.md). The draft service fetches a current OGRA-notified national petrol price each time transport is quoted, validates the effective date and snapshots the source. Islamabad pump secondary freight still requires manual adjustment; no rate is silently invented when the feed is unavailable. Transport profit basis and total driven kilometres still need staff confirmation. No customer-facing auto-send.
+For new transport invoice **drafts**, the earlier owner-supplied PKR 400/litre is preserved as a historical assumption, **not an automatic fallback rate**. See [live petrol rate implementation](live-petrol-rate-invoices.md). The draft service fetches a current OGRA-notified national petrol price each time transport is quoted, validates the effective date and snapshots the source. Islamabad pump secondary freight still requires manual adjustment; no rate is silently invented when the feed is unavailable. The markup method is settled; total driven kilometres and applicable local petrol rate still need staff confirmation. No customer-facing auto-send.

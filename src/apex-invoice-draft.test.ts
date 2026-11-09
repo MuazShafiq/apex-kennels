@@ -78,16 +78,25 @@ test('transport 20 percent on fuel COST: 12 km/litre, 400 PKR/litre',()=>{
   assert.equal(q.fuelRateSnapshot?.pricePkrPerLitre,400);
 });
 
-test('20 percent gross margin gives different amount, never silently chosen',()=>{
-  assert.equal(transportFuelDraftPkr(12,'gross_margin_on_sale',400),500);
-  assert.equal(transportFuelDraftPkr(24,'gross_margin_on_sale',400),1000);
-  assert.notEqual(
-    transportFuelDraftPkr(12,'gross_margin_on_sale',400),
-    transportFuelDraftPkr(12,'markup_on_fuel_cost',400)
-  );
+test('gross margin is rejected because the owner chose a 20 percent markup',()=>{
+  assert.throws(()=>transportFuelDraftPkr(12,'gross_margin_on_sale',400),/20% markup/);
+  assert.throws(()=>buildApexInvoiceDraft({...basic,transport:{
+    requested:true,totalDrivenKm:12,profitBasis:'gross_margin_on_sale',fuelRate:verified400
+  }}),/20% markup/);
 });
 
-test('missing route distance or profit definition leaves transport UNPRICED',()=>{
+test('verified route and fuel automatically use the confirmed 20 percent markup',()=>{
+  assert.equal(transportFuelDraftPkr(30,'markup_on_fuel_cost',400),1200);
+  const q=buildApexInvoiceDraft({...basic,transport:{
+    requested:true,totalDrivenKm:30,fuelRate:verified400
+  }});
+  assert.equal(q.quote.lines.find(l=>l.label==='Pet transport')?.totalPkr,1200);
+  assert.equal(q.quote.totalPkr,8700);
+  assert.equal(q.unresolved.some(s=>s.includes('profit basis')),false);
+  assert.equal(q.sendAutomatically,false);
+});
+
+test('missing route distance or verified fuel leaves transport UNPRICED',()=>{
   const draft=buildApexInvoiceDraft({...basic,transport:{requested:true,totalDrivenKm:18}});
   assert.equal(draft.quote.totalPkr,7500);
   assert.equal(draft.quote.lines.filter(x=>x.label.includes('Pet transport')).length,0);
@@ -97,7 +106,7 @@ test('missing route distance or profit definition leaves transport UNPRICED',()=
 test('reject invalid distances, quantities and backwards dates',()=>{
   assert.throws(()=>transportFuelDraftPkr(-1,'markup_on_fuel_cost',400),/Total driven km/);
   assert.throws(()=>transportFuelDraftPkr(0,'markup_on_fuel_cost',400),/Total driven km/);
-  assert.throws(()=>transportFuelDraftPkr(12,'not-a-mode' as never,400),/supported/);
+  assert.throws(()=>transportFuelDraftPkr(12,'not-a-mode' as never,400),/20% markup/);
   assert.throws(()=>buildApexInvoiceDraft({...basic,petCount:0}),/Pet count/);
   assert.throws(()=>buildApexInvoiceDraft({...basic,startDate:'2026-12-04'}),/before/);
 });

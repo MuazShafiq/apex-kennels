@@ -1,22 +1,25 @@
-# Saved staff price reviews (prepared, not enabled)
+# Saved staff estimates and Canva PDF reviews
 
-The existing `/staff/draft` estimate remains read-only by default. Set `APEX_STAFF_DRAFTS_ENABLED=true` only **after applying migration 003** and verifying the code. This is an **internal review**, not an invoice.
+## Existing boarding-only flow
 
-## Workflow
+- `/staff/draft?id=<uuid>` shows the protected boarding estimate and package selection.
+- `/staff/draft/save` saves a frozen boarding-only review to the existing `invoice_draft_reviews` table.
+- `/staff/draft/saved?id=<uuid>` opens Fatima's original Canva PDF, with no official invoice number or payment details.
 
-- `/staff/draft?id=<booking UUID>` displays a Save/Update internal draft button for eligible non-synthetic, no-transport requests.
-- `POST /staff/draft/save` requires Cloudflare Access and same-origin form submission. It re-reads the booking server-side, calculates the quote again, and saves only a server-computed snapshot.
-- `GET /staff/draft/saved?id=<booking UUID>` renders the persisted A4 **non-payable** review copy. Its pricing and explicit discount snapshot are frozen.
-- A stale browser revision returns HTTP 409 so two staff tabs can't silently overwrite each other's changes.
-- No approval, official invoice number, payment details, messaging, PDF email or WhatsApp customer sending is exposed.
+## New transport review
 
-Blocked: requests involving transport, missing preferences, cancelled/declined/completed bookings, and incomplete estimates. **Synthetic canaries with complete no-transport details can now save internal test-only reviews**, but their saved snapshot permanently records `booking.synthetic=true` and renders the visible `SYNTHETIC EXAMPLE · INTERNAL PREVIEW · NOT FOR CUSTOMER DELIVERY` watermark. Any future invoice approval, numbering or send feature MUST reject this marker server-side. Thirty inclusive billed days select the existing discounted package automatically.
+- `/staff/transport?id=<uuid>` is available only for bookings requesting pickup or drop-off. It is protected by Cloudflare Access and the staff email allowlist.
+- The form preloads the website customer's chosen service and pin if `booking_transport_locations` exists. The production table is not yet deployed, so the screen also allows staff to supply confirmed numeric coordinates for old Form bookings.
+- Staff explicitly select Pickup, Drop-off, or Both; confirm the customer's vehicle-access gate, the kennel entrance, and the Bawli approach. A regular street address or Maps viewport is never treated as verified coordinates.
+- A same-origin POST recalculates actual driving route: kennel → Bawli → customer → Bawli → kennel for each requested trip. It then fetches the current published fuel baseline, assumes 12 km/L and adds Fatima's confirmed 20% markup on fuel cost.
+- The first result is only a provisional estimate. A separate Save action recomputes route and fuel and saves the amount plus route/fuel provenance with optimistic revision checking.
+- The saved review-only Canva PDF now fills the original Pick-up & Drop-off service row. No official invoice issuance, payment account, automatic sending or customer contact is connected.
 
-## Deployment gates
+## Safeguards and release status
 
-1. Back up/inspect the production database and separately approve applying `db/migrations/003_invoice_draft_reviews.sql`. This document does **not** authorize autonomous DB changes.
-2. Deploy merged Cloudflare Worker code with `APEX_STAFF_DRAFTS_ENABLED` **unset/false** until the migration is approved and applied.
-3. Then enable the flag and test with an eligible booking: save, reopen, revise, browser print; verify transport and unauthorized users cannot save and no messages are sent.
-4. Customer invoice approval, official numbering, bank details and WhatsApp delivery remain separate, approval-dependent work.
-
-Related backlog: #39 (invoice delivery), #43 (owner alerts), #37 (mobile customer booking).
+- If any pin/road confirmation, drivable route or current fuel rate is missing, transport cannot be saved as a priced review.
+- The saved petrol rate is a published national baseline; actual Islamabad pump freight or exceptional vehicle costs still require Fatima's final review.
+- The known kennel and Bawli points are location candidates, not independently verified road entrances. Confirmation remains necessary. The private Worker `GEOAPIFY_API_KEY` is required for live routing.
+- Historical Google Form intake is unchanged. The replacement `/book` form already contains None, Pickup, Drop-off and Both plus a pin, but is not yet enabled. No new database migration is needed for staff reviews.
+- Esperanza/Camden was handled manually by Fatima: do not reprice, alter her booking or contact her.
+- This feature branch is not deployed until tests, CI and Worker configuration are verified. Existing invoice approvals and WhatsApp delivery remain separate work.

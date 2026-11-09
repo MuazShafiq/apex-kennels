@@ -13,6 +13,8 @@ export type ReviewSnapshot={
   packageChoice:'daily'|'monthly';
   rateVersion:string;
   quote:Quote;
+  /** Immutable transport route + petrol evidence for priced transport drafts. */
+  transport?:NonNullable<StaffDraftReview['transport']>;
 };
 export type SavedReview={snapshot:ReviewSnapshot;revision:number;updatedBy:string;updatedAt:string};
 export type SaveReviewResult={revision:number};
@@ -20,10 +22,14 @@ const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]
 
 export function makeReviewSnapshot(review:StaffDraftReview):ReviewSnapshot {
   const source=review.booking;
-  if(!review.draft||source.transportRequested!==false||
+  if(!review.draft||
      !['requested','reviewing','approved'].includes(source.status))
     throw new DraftSaveError('This booking needs staff review before saving an estimate');
   const quote=review.draft.quote;
+  const hasTransport=quote.lines.some(l=>l.label==='Pet transport'&&l.totalPkr>0);
+  if(source.transportRequested===true?(!hasTransport||!review.transport):
+     (hasTransport||!!review.transport))
+    throw new DraftSaveError('A verified transport price is required before saving',409);
   if(!Number.isSafeInteger(quote.totalPkr)||quote.totalPkr<0||
      !Number.isSafeInteger(quote.subtotalPkr)||quote.subtotalPkr<0||
      !Number.isSafeInteger(quote.billedDays)||quote.billedDays<1||
@@ -44,7 +50,8 @@ export function makeReviewSnapshot(review:StaffDraftReview):ReviewSnapshot {
       synthetic:source.synthetic},
     packageChoice:review.packageChoice,
     rateVersion:review.draft.rateVersion,
-    quote:structuredClone(quote)
+    quote:structuredClone(quote),
+    ...(review.transport?{transport:structuredClone(review.transport)}:{})
   };
 }
 
@@ -61,6 +68,15 @@ export function validateSnapshot(snapshot:unknown):ReviewSnapshot {
      !value.quote||!Array.isArray(value.quote.lines)||!Array.isArray(value.quote.discounts)||
      (value.packageChoice!=='daily'&&value.packageChoice!=='monthly'))
     throw new DraftSaveError('Invalid saved draft',422);
+  const priced=value.quote.lines.some(l=>l.label==='Pet transport'&&l.totalPkr>0);
+  if(priced){
+    const t=value.transport;
+    if(!t||!t.route||t.route.status!=='ROUTE_REVIEW_REQUIRED'||
+       !Number.isFinite(t.route.totalDrivenKm)||t.route.totalDrivenKm<=0||
+       ![1,2].includes(t.route.plannedRoundTrips)||
+       !t.fuelRate||!Number.isFinite(t.fuelRate.pricePkrPerLitre))
+      throw new DraftSaveError('Saved transport estimate lacks route or fuel evidence',422);
+  }else if(value.transport)throw new DraftSaveError('Transport evidence without a priced line',422);
   return value as ReviewSnapshot;
 }
 

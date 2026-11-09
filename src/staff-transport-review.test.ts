@@ -44,7 +44,7 @@ const post=(data:Record<string,string>,from=origin)=>new Request(origin+'/staff/
   body:new URLSearchParams(data).toString()
 });
 const deps={context,draft:async()=>booking,
-  transportRoute:async()=>route,transportFuel:async()=>({ok:true,rate:fuel})};
+  transportRoute:async()=>route,transportFuel:async()=>({ok:true as const,rate:fuel})};
 
 test('transport form preloads future website choice and private pin',()=>{
   const html=renderStaffTransportForm(booking,'daily',0);

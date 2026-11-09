@@ -6,6 +6,7 @@ import {
   renderCanvaStaffPdf,drawCanvaIbanSingleLine,layoutCanvaValue
 } from './canva-invoice-pdf.ts';
 import type {ReviewSnapshot} from './staff-saved-review.ts';
+import {parseNotifiedPetrolRate} from './islamabad-petrol-rate.ts';
 
 const blank=readFileSync('public/invoice/canva-blank.pdf');
 const sample:ReviewSnapshot={
@@ -70,11 +71,35 @@ test('identity lines obey the fixed Canva columns and never cross the next label
     /Unbreakable invoice identity field/);
 });
 
-test('refuses priced transport rather than silently suppressing it',async()=>{
+test('Canva fourth service row accepts priced transport with frozen route and fuel evidence',async()=>{
+  const changed=structuredClone(sample);
+  const amount=1409;
+  changed.quote.lines.push({label:'Pet transport',quantity:1,unitPricePkr:amount,totalPkr:amount});
+  changed.quote.subtotalPkr+=amount;changed.quote.totalPkr+=amount;
+  const fuel=parseNotifiedPetrolRate({effectiveDate:'2026-11-05',
+    products:[{product:'Motor Spirit (Petrol)',pricePkr:362,unit:'litre'}]},
+    {now:new Date('2026-11-05T12:00:00Z'),sourceUrl:'https://oilprices.pk/api/latest'});
+  changed.transport={
+    route:{status:'ROUTE_REVIEW_REQUIRED',provider:'Geoapify Routing',
+      routeType:'kennel_access_customer_access_kennel',
+      loopDistanceKm:19.45,plannedRoundTrips:2,totalDrivenKm:38.9,
+      retrievedAt:'2026-11-05T12:00:00Z',
+      kennelPin:{lat:33.2992325,lon:73.2534561},
+      kennelAccessWaypoint:{lat:33.31392,lon:73.25810},
+      customerPin:{lat:33.70,lon:73.08},needsStaffConfirmation:true},
+    fuelRate:fuel
+  };
+  const pdf=await PDFDocument.load(await renderCanvaStaffPdf(changed,'2026-11-07',blank));
+  assert.equal(pdf.getPageCount(),1);
+  assert.match(pdf.getSubject()??'',/not an issued invoice/);
+});
+test('rejects priced transport without verified provenance and unsupported extras',async()=>{
   const changed=structuredClone(sample);
   changed.quote.lines.push({label:'Pet transport',quantity:1,unitPricePkr:4000,totalPkr:4000});
   changed.quote.subtotalPkr=11500;changed.quote.totalPkr=11500;
-  await assert.rejects(renderCanvaStaffPdf(changed,'2026-11-07',blank),/boarding-only/);
+  await assert.rejects(renderCanvaStaffPdf(changed,'2026-11-07',blank),/transport estimate lacks route or fuel evidence/);
+  changed.quote.lines[1].label='Unknown extra charge';
+  await assert.rejects(renderCanvaStaffPdf(changed,'2026-11-07',blank),/unverified priced extras/);
 });
 
 test('IBAN helper never wraps or accepts malformed bank details',async()=>{

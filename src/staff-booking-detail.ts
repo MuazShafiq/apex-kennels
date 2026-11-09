@@ -182,6 +182,8 @@ export function renderStaffBookingDetail(b:StaffBookingDetail):string {
    +value('Owner email',present(b.email))
    +'</dl></section>'+transport+form
    +'<div class="actions"><a class="action" href="/staff/draft?id='+encodeURIComponent(b.id)+'">Review price estimate</a>'
+   +(b.pickupDropoffRequested===true||b.transportLocation
+     ?'<a class="action" href="/staff/transport?id='+encodeURIComponent(b.id)+'">Price pickup / drop-off</a>':'')
    +'<a href="/staff">Back to bookings</a></div>'
    +'<p class="fine">Health and care details came from the owner. Confirm anything unclear before accepting the booking.</p>'
    +'</main></body></html>';

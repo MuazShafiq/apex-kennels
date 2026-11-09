@@ -157,8 +157,13 @@ export async function renderCanvaStaffPdf(
     throw new Error('Invalid invoice review totals');
   const boarding=q.lines.filter(l=>/^(Standard|Camera cage) boarding$/i.test(l.label));
   const extras=q.lines.filter(l=>!/^(Standard|Camera cage) boarding$/i.test(l.label));
-  if(boarding.length!==1||extras.some(l=>l.totalPkr!==0||!/grooming/i.test(l.label)))
-    throw new Error('Canva staff PDF supports boarding-only reviews');
+  const transport=extras.filter(l=>l.label==='Pet transport');
+  const other=extras.filter(l=>l.label!=='Pet transport');
+  if(boarding.length!==1||transport.length>1||
+     transport.some(l=>l.quantity!==1||l.unitPricePkr<=0||l.totalPkr!==l.unitPricePkr)||
+     other.some(l=>l.totalPkr!==0||!/grooming/i.test(l.label))||
+     (transport.length===1&&!snapshot.transport))
+    throw new Error('Canva staff PDF cannot represent unverified priced extras');
   const line=boarding[0],pets=line.quantity/q.billedDays;
   if(!Number.isSafeInteger(pets)||pets<1)throw new Error('Invalid pet quantity');
   const pdf=await PDFDocument.load(blankPdf,{ignoreEncryption:false});
@@ -187,8 +192,18 @@ export async function renderCanvaStaffPdf(
     349.56,396.115,12,86);
   insertRight(page,regular,String(line.unitPricePkr),439.11,396.115);
   insertRight(page,regular,pkr(line.totalPkr),520.88,396.115);
-  for(const [baseline,value] of [[435.130,'free'],[474.273,'-'],[513.288,'-']] as const)
+  for(const [baseline,value] of [[435.130,'free'],[474.273,'-']] as const)
     for(const x of [349.56,439.11,520.88])insertRight(page,regular,value,x,baseline);
+  // The fourth row is labelled "Pick-up & Drop-off" on Fatima's original Canva artwork.
+  // A combined transport service is sold as one reviewed service, so quantity is 1
+  // even if it contains two separately routed round trips.
+  const tripLine=transport[0];
+  if(tripLine){
+    insertRight(page,regular,'1',349.56,513.288);
+    insertRight(page,regular,pkr(tripLine.unitPricePkr),439.11,513.288);
+    insertRight(page,regular,pkr(tripLine.totalPkr),520.88,513.288);
+  }else for(const x of [349.56,439.11,520.88])
+    insertRight(page,regular,'-',x,513.288);
 
   insertRight(page,regular,pkr(q.subtotalPkr),520.88,630.232);
   if(discount===0)insertRight(page,bold,pkr(q.totalPkr),520.88,669.247);

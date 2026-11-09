@@ -1,4 +1,10 @@
 import {renderCanvaStaffPdf} from './canva-invoice-pdf.ts';
+import {renderStaffTransportForm,renderStaffTransportResult,
+  parseStaffTransportSelection} from './staff-transport-review.ts';
+import {preparePinnedTransportDraft} from './transport-quote-from-pins.ts';
+import {APEX_KENNEL_LOCATION,APEX_KENNEL_ACCESS} from './apex-location-config.ts';
+import type {RouteResult} from './transport-route.ts';
+import type {PetrolRateResult} from './islamabad-petrol-rate.ts';
 import { timingSafeEqual } from 'node:crypto';
 import {verifiedAccessEmail} from './staff-access-jwt.ts';
 import {makeReviewSnapshot,saveReviewDraft,loadSavedReview,DraftSaveError,type ReviewSnapshot,type SavedReview,type SaveReviewResult} from './staff-saved-review.ts';
@@ -23,6 +29,7 @@ export type WorkerEnv = {
   STAFF_ALLOWED_EMAILS?: string;
   APEX_PUBLIC_BOOKING_ENABLED?: string;
   APEX_STAFF_DRAFTS_ENABLED?: string;
+  GEOAPIFY_API_KEY?:string;
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
   ASSETS?: {fetch(request:Request):Promise<Response>};
@@ -39,7 +46,9 @@ export type StaffList = (databaseUrl: string, filter: StaffFilter) => Promise<St
 export type StaffContext = {access?: {aud: string; getIdentity(): Promise<{email?:string}|null>}; waitUntil?:(task:Promise<unknown>)=>void};
 export type StaffDraftReader=(databaseUrl:string,bookingId:string)=>Promise<StaffInvoiceSource|null>;
 export type StaffDetailReader=(databaseUrl:string,bookingId:string)=>Promise<StaffBookingDetail|null>;
-export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; sendWhatsApp?:(config:WhatsappConfig,to:string,template:string,values:string[])=>Promise<WhatsappAccepted>; saveReview?:(url:string,snapshot:ReviewSnapshot,revision:number,email:string)=>Promise<SaveReviewResult>; loadReview?:(url:string,bookingId:string)=>Promise<SavedReview|null>};
+export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; sendWhatsApp?:(config:WhatsappConfig,to:string,template:string,values:string[])=>Promise<WhatsappAccepted>; saveReview?:(url:string,snapshot:ReviewSnapshot,revision:number,email:string)=>Promise<SaveReviewResult>; loadReview?:(url:string,bookingId:string)=>Promise<SavedReview|null>;
+  transportRoute?:()=>Promise<RouteResult>; transportFuel?:()=>Promise<PetrolRateResult>;
+};
 
 async function authorizedStaff(env: WorkerEnv, context: StaffContext|undefined, request:Request): Promise<string|null> {
   if (!env.STAFF_ACCESS_AUD || !env.STAFF_ALLOWED_EMAILS) return null;
@@ -359,6 +368,92 @@ export async function handleWorkerRequest(
       if(!detail)return json({error:'Booking not found'},404);
       return html(renderStaffBookingDetail(detail));
     }catch{return json({error:'Internal server error'},500);}
+  }
+  if(path==='/staff/transport'){
+    if(request.method!=='GET'&&request.method!=='POST')
+      return json({error:'Method not allowed'},405,{Allow:'GET, POST'});
+    if(env.APEX_STAFF_DRAFTS_ENABLED!=='true')
+      return json({error:'Staff estimates are not enabled'},503);
+    if(!env.STAFF_ACCESS_AUD||!env.STAFF_ALLOWED_EMAILS||!env.DATABASE_URL)
+      return json({error:'Staff access not configured'},503);
+    const email=await authorizedStaff(env,staff.context,request);
+    if(!email)return json({error:'Forbidden'},403);
+    try{
+      if(request.method==='GET'){
+        const url=new URL(request.url);
+        if([...url.searchParams.keys()].some(k=>k!=='id')||
+           url.searchParams.getAll('id').length!==1)
+          return json({error:'Invalid booking reference'},400);
+        let id:string;
+        try{id=parseStaffBookingId(url);}
+        catch{return json({error:'Invalid booking reference'},400);}
+        const source=await (staff.draft??readStaffInvoiceSource)(env.DATABASE_URL,id);
+        if(!source)return json({error:'Booking not found'},404);
+        if(source.transportRequested!==true)
+          return json({error:'This booking did not request transport'},409);
+        const review=prepareStaffDraftReview(source,'auto');
+        const saved=await (staff.loadReview??loadSavedReview)(env.DATABASE_URL,id);
+        return html(renderStaffTransportForm(source,review.packageChoice,saved?.revision??0));
+      }
+      // The only mutation is a signed-in staff member explicitly saving a review.
+      if(request.headers.get('origin')!==new URL(request.url).origin||
+         request.headers.get('sec-fetch-site')==='cross-site')
+        return json({error:'Forbidden'},403);
+      if(!/^application\/x-www-form-urlencoded(?:\s*;|$)/i.test(request.headers.get('content-type')??''))
+        return json({error:'Expected browser form'},415);
+      let selected:ReturnType<typeof parseStaffTransportSelection>;
+      try{selected=parseStaffTransportSelection(await boundedForm(request));}
+      catch(error){
+        if(error instanceof DraftSaveError)return json({error:error.message},error.status);
+        return json({error:error instanceof Error?error.message:'Invalid transport request'},400);
+      }
+      const source=await (staff.draft??readStaffInvoiceSource)(env.DATABASE_URL,selected.bookingId);
+      if(!source)return json({error:'Booking not found'},404);
+      if(source.transportRequested!==true)
+        return json({error:'This booking did not request transport'},409);
+      const review=prepareStaffDraftReview(source,selected.packageChoice);
+      if(!review.draft)return json({error:'Incomplete boarding estimate'},409);
+      const result=await preparePinnedTransportDraft({
+        startDate:source.startDate,endDate:source.endDate,
+        cage:source.cameraCageRequested?'camera':'normal',
+        petCount:source.petCount,fullMonthPackageSelected:selected.packageChoice==='monthly',
+        transport:{requested:true}
+      },{
+        kennelPin:APEX_KENNEL_LOCATION.pin,
+        kennelAccessWaypoint:APEX_KENNEL_ACCESS.pin,
+        customerPin:selected.customerPin,
+        kennelPinConfirmed:selected.kennelConfirmed,
+        kennelAccessWaypointConfirmed:selected.accessConfirmed,
+        customerPinConfirmed:selected.customerConfirmed,
+        visit:selected.visit==='both'?'pickup_and_dropoff':selected.visit
+      },{
+        geoapifyKey:env.GEOAPIFY_API_KEY,
+        route:staff.transportRoute,fetchFuel:staff.transportFuel
+      });
+      const priced=result.route.ok&&result.fuelLookup==='CURRENT_NOTIFIED_RATE'&&
+        !!result.draft.fuelRateSnapshot&&
+        result.draft.quote.lines.some(l=>l.label==='Pet transport'&&l.totalPkr>0)&&
+        selected.customerConfirmed&&selected.kennelConfirmed&&selected.accessConfirmed;
+      if(selected.action==='save'){
+        if(!priced||!result.route.ok||!result.draft.fuelRateSnapshot)
+          return json({error:'Verified route and current petrol rate required before saving'},409);
+        const snapshot=makeReviewSnapshot({
+          ...review,draft:result.draft,
+          transport:{route:result.route.estimate,fuelRate:result.draft.fuelRateSnapshot}
+        });
+        await (staff.saveReview??saveReviewDraft)(
+          env.DATABASE_URL,snapshot,selected.revision,email
+        );
+        return new Response(null,{status:303,headers:{
+          Location:'/staff/draft/saved?id='+encodeURIComponent(selected.bookingId),
+          'Cache-Control':'private, no-store'
+        }});
+      }
+      return html(renderStaffTransportResult(source,selected,result));
+    }catch(error){
+      if(error instanceof DraftSaveError)return json({error:error.message},error.status);
+      return json({error:'Unable to prepare transport estimate'},500);
+    }
   }
   if(path==='/staff/draft/save'||path==='/staff/draft/saved'||path==='/staff/draft/saved.pdf'){
     const writing=path==='/staff/draft/save';

@@ -107,7 +107,7 @@ function html(body: string):Response {
     'Cache-Control':'private, no-store',
     'X-Content-Type-Options':'nosniff',
     'X-Robots-Tag':'noindex, nofollow',
-    'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+    'Content-Security-Policy':"default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
   }});
 }
 
@@ -230,7 +230,7 @@ export async function handleWorkerRequest(
       headers.set('X-Robots-Tag','noindex, nofollow');
       headers.set('Content-Security-Policy',
         "default-src 'none'; script-src 'self' https://challenges.cloudflare.com; "+
-        "style-src 'self' 'unsafe-inline'; connect-src 'self'; "+
+        "style-src 'self' 'unsafe-inline'; img-src 'self'; connect-src 'self'; "+
         "frame-src https://challenges.cloudflare.com; form-action 'self'; "+
         "base-uri 'none'; frame-ancestors 'none'");
       return new Response(response.body,{status:response.status,headers});

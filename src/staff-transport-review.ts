@@ -1,3 +1,4 @@
+import {APEX_STAFF_THEME_CSS,APEX_STAFF_BRAND} from './apex-brand.ts';
 import {isTransportServiceLocation} from './transport-service-area.ts';
 import type {StaffInvoiceSource,StaffPackageChoice} from './staff-invoice-draft.ts';
 import type {CoordinatedDraft} from './transport-quote-from-pins.ts';
@@ -74,8 +75,8 @@ const layout=(title:string,body:string):string=>
   'button{border:0;background:#204b37;color:white;border-radius:8px;padding:12px 19px;cursor:pointer}'+
   'a{color:#245b43}.muted{color:#6b8074;font-size:13px}.warn{color:#8d4d20}.check{display:flex;gap:10px;align-items:start}'+
   '.check input{margin-top:5px}.result{font-size:22px;font-weight:750}.stat{display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid #e2e9e1;padding:9px 0}'+
-  '@media(max-width:580px){.grid{grid-template-columns:1fr}.panel{padding:17px}}</style></head><body>'+
-  '<main class="wrap">'+body+'</main></body></html>';
+  '@media(max-width:580px){.grid{grid-template-columns:1fr}.panel{padding:17px}}'+APEX_STAFF_THEME_CSS+'</style></head><body>'+
+  '<main class="wrap">'+APEX_STAFF_BRAND+body+'</main></body></html>'
 const hidden=(k:string,v:string|number|boolean):string=>'<input type="hidden" name="'+k+'" value="'+esc(String(v))+'">';
 
 export function renderStaffTransportForm(source:StaffInvoiceSource,

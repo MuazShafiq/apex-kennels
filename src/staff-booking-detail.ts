@@ -1,3 +1,4 @@
+import {APEX_STAFF_THEME_CSS,APEX_STAFF_BRAND} from './apex-brand.ts';
 import {Client} from '@neondatabase/serverless';
 import type {PersonalityTrait} from './boarding-details.ts';
 
@@ -167,8 +168,8 @@ export function renderStaffBookingDetail(b:StaffBookingDetail):string {
    +'.missing,.fine{color:#8b9991;font-weight:400}.fine{font-size:12px;line-height:1.6}.trait{padding:5px 0;font-size:12px;font-weight:400}.trait strong{font-weight:700}'
    +'.banner,.notice{border-radius:10px;padding:14px 18px;margin:18px 0;border:1px solid #edd2a0;background:#fff1d8;color:#7c5623;font-size:12px;font-weight:700}'
    +'.actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.action{background:#1e4937;color:white;border-radius:8px;text-decoration:none;padding:12px 16px;font-size:12px;font-weight:700}'
-   +'@media(max-width:620px){.detail-grid{grid-template-columns:1fr}.panel{padding:18px}}</style></head><body>'
-   +'<main class="wrap"><a href="/staff">← Booking queue</a>'
+   +'@media(max-width:620px){.detail-grid{grid-template-columns:1fr}.panel{padding:18px}}'+APEX_STAFF_THEME_CSS+'</style></head><body>'
+   +'<main class="wrap">'+APEX_STAFF_BRAND+'<a href="/staff">← Booking queue</a>'
    +'<p class="tag" style="margin-top:30px">Apex Kennels / Staff</p>'
    +'<h1>Booking details</h1>'
    +(b.isSynthetic?'<div class="banner">TEST RECORD · DO NOT CONTACT</div>':'')

@@ -1,3 +1,4 @@
+import {APEX_STAFF_THEME_CSS,APEX_STAFF_BRAND} from './apex-brand.ts';
 import {Client} from '@neondatabase/serverless';
 import {buildApexInvoiceDraft,type ApexDraftQuote} from './apex-invoice-draft.ts';
 import {countBilledDays} from './pricing.ts';
@@ -216,8 +217,8 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
     +'.number{text-align:right;white-space:nowrap}.sum{display:flex;justify-content:space-between;margin-top:26px;font-size:18px;font-weight:750}'
     +'ul{line-height:1.8;color:#6a5231;font-size:13px}.muted{color:#708579;font-size:12px}'
     +'.discount{display:flex;justify-content:space-between;gap:12px;margin-top:16px;color:#386d45;font-weight:700;font-size:13px}'
-    +'@media(max-width:620px){.panel{padding:15px}table{font-size:11px}}</style></head><body>'
-    +'<main class="wrap"><a href="'+(site==='staff'?'/staff':'/demo/staff')+'">← Booking queue</a>'
+    +'@media(max-width:620px){.panel{padding:15px}table{font-size:11px}}'+APEX_STAFF_THEME_CSS+'</style></head><body>'
+    +'<main class="wrap">'+APEX_STAFF_BRAND+'<a href="'+(site==='staff'?'/staff':'/demo/staff')+'">← Booking queue</a>'
     +'<div class="tag" style="margin-top:30px">Apex Kennels / Owner review</div>'
     +'<h1>Boarding price estimate</h1>'
     +'<div class="banner">STAFF ESTIMATE · NOT PAYABLE'

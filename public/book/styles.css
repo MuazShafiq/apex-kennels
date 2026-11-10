@@ -96,3 +96,61 @@ footer{border-top:1px solid #e4e7df;padding:24px 0;font-size:11px;letter-spacing
 .pin-link{font-size:12px;color:#286745;text-underline-offset:3px}
 .pin-link[hidden]{display:none}
 @media(max-width:550px){.location-actions{flex-direction:column;align-items:stretch}.location-actions .secondary,.maps-button{width:100%;text-align:center}}
+
+/* Invoice brand v1: sampled from Fatima's original Canva document.
+   Background #DDF4FF, lilac #3E4095, blue stroke #84B7ED, black ink. */
+:root{color:#181b30;background:#f5fbff}
+body{background:linear-gradient(180deg,#ddf4ff 0,#f4fbff 390px,#f8fbfd 100%)}
+.shell{max-width:1180px}
+.topbar{border-bottom-color:#b9d8f2;padding:8px 0 25px;gap:18px}
+.brand{flex-direction:row;align-items:center;gap:12px;color:#3e4095;letter-spacing:.09em}
+.brand-mark{width:54px;height:46px;object-fit:contain;display:block;flex-shrink:0}
+.brand-wordmark{display:flex;flex-direction:column;line-height:1.02}
+.brand strong{font-size:24px;font-weight:850;letter-spacing:.05em}
+.brand span span{font-size:11px;letter-spacing:.13em;font-weight:760;color:#3e4095;margin-top:5px}
+.topbar p{color:#53608a}
+.eyebrow,.step{color:#3e4095}
+h1{letter-spacing:-.067em;color:#161924}
+h1 em{color:#3e4095}
+.intro>p,.lead-grid>p{color:#515c77}
+.benefits{color:#596782}
+.benefits li:before{color:#3e4095}
+.panel{border-color:#cee3f5;border-radius:14px;box-shadow:0 16px 55px rgba(55,78,140,.055)}
+.step-heading{border-color:#d9e8f7}
+.step{border-color:#b7c8eb;background:#eff5ff}
+.step-heading p,.transport p,.fineprint{color:#65728b!important}
+.fields label,.transport>label,.notes label,.field-choice legend,.trait legend,.choice legend,.maps-link-label{color:#434b71}
+input:not([type=radio]):not([type=checkbox]),select,textarea{background:#faffff;border-color:#c5d9ed;color:#252b45}
+input:focus,textarea:focus,select:focus{outline-color:#6976c2}
+input[type=radio],input[type=checkbox]{accent-color:#3e4095}
+.trait{border-color:#dae6f6;background:#f7fbff}
+.traits label,.terms,.finish>.confirm{border-color:#d4e2f3;background:#fbfdff;color:#465071}
+.option>span{border-color:#cbdff0;background:#f9fcff;color:#424b73}
+.option input:checked+span{border-color:#3e4095;background:#e9edff;color:#34358d;box-shadow:inset 0 0 0 1px #3e4095}
+.option input:focus-visible+span{outline-color:#a7b3ef}
+.option-card small{color:#69769a}
+.transport{border-top-color:#dbe8f6}
+.secondary{border-color:#bccced;color:#3e4095}
+.sendrow button,.maps-button{background:#3e4095;color:#fff}
+.maps-button{border-color:#3e4095}
+.maps-button:hover,.maps-button:focus-visible{background:#303274;border-color:#303274}
+.location-status,.pin-link{color:#3e4095!important}
+.location-help{color:#67738c!important}
+.confirm{color:#465074}
+.preview{background:#fff1dc;color:#795027}
+.message{background:#eef2ff;border-color:#b7c8ec;color:#363c83}
+.complete p{color:#5e6884}
+footer{border-top-color:#d0e2f5;color:#7c89a3}
+button:focus-visible,a:focus-visible{outline:3px solid #8ca6e7;outline-offset:3px}
+@media(max-width:700px){
+  .topbar{padding-bottom:18px}
+  .brand-mark{width:44px;height:39px}
+  .brand strong{font-size:20px}
+  .brand span span{font-size:9px}
+  .topbar p{font-size:9px}
+}
+@media(max-width:380px){
+  .topbar p{max-width:95px;line-height:1.45}
+  .shell{padding-left:14px;padding-right:14px}
+  .panel{padding:18px}
+}

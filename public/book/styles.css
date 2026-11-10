@@ -100,7 +100,7 @@ footer{border-top:1px solid #e4e7df;padding:24px 0;font-size:11px;letter-spacing
 /* Invoice brand v1: sampled from Fatima's original Canva document.
    Background #DDF4FF, lilac #3E4095, blue stroke #84B7ED, black ink. */
 :root{color:#181b30;background:#f5fbff}
-body{background:linear-gradient(180deg,#ddf4ff 0,#f4fbff 390px,#f8fbfd 100%)}
+body{min-height:100vh;background:linear-gradient(180deg,#ddf4ff 0,#f4fbff 390px,#f8fbfd 100%)}
 .shell{max-width:1180px}
 .topbar{border-bottom-color:#b9d8f2;padding:8px 0 25px;gap:18px}
 .brand{flex-direction:row;align-items:center;gap:12px;color:#3e4095;letter-spacing:.09em}

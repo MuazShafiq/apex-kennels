@@ -95,7 +95,7 @@ try{
        bodyHeight:body.getBoundingClientRect().height,
        shellWidth:shell?.getBoundingClientRect().width??null,
        shellBackground:shell?getComputedStyle(shell).backgroundImage:null,
-       mainBackground:getComputedStyle(document.querySelector('main')).backgroundImage,
+       mainBackground:document.querySelector('main')?getComputedStyle(document.querySelector('main')).backgroundImage:null,
        bodyBackground:getComputedStyle(body).backgroundImage
      };
    });

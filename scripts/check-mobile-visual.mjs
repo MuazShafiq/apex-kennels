@@ -76,13 +76,13 @@ try{
    results.push({viewport:name,page:label,...size});
   }
   await page.goto('http://127.0.0.1:'+port+'/book',{waitUntil:'domcontentloaded'});
-  await page.locator('input[name="transportChoice"][value="both"]').check();
+  await page.locator('label.option:has(input[name="transportChoice"][value="both"]) > span').click();
   assert(await page.locator('#transport').isVisible(),name+' selecting both did not show location');
   await page.locator('#maps-link').fill('https://www.google.com/maps/search/?api=1&query=33.7%2C73.08');
   await page.waitForTimeout(900);
   assert((await page.locator('#coordinate-status').innerText()).includes('Google Maps location added'),name+' map link not accepted');
   assert(await page.locator('#selected-location-link').isVisible(),name+' selected pin not visible');
-  await page.locator('input[name="transportChoice"][value="none"]').check();
+  await page.locator('label.option:has(input[name="transportChoice"][value="none"]) > span').click();
   assert(!(await page.locator('#transport').isVisible()),name+' no transport did not hide location');
   assert(errors.length===0,name+' JS errors: '+errors.join(';'));
   await page.close();

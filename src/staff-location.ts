@@ -1,3 +1,4 @@
+import {APEX_STAFF_THEME_CSS,APEX_STAFF_BRAND} from './apex-brand.ts';
 import type {SharedPinResolution} from './shared-map-pin.ts';
 
 /** Limit staff-supplied map links before invoking external URL resolution. */
@@ -61,7 +62,7 @@ export function renderStaffPinChecker(result?:SharedPinResolution):string{
     +'button{background:#244b38;color:white;border:0;border-radius:8px;padding:12px 18px;font-weight:700;cursor:pointer}'
     +'.notice,.result{padding:20px;border-radius:10px;background:#f6eddb;color:#694d25;margin:20px 0}'
     +'.result{background:#e8f3eb;color:#225d42}.coords{font-size:22px;font-weight:750;letter-spacing:-.025em;color:#193b2d}'
-    +'.fine{font-size:11px;color:#718577}</style></head><body><main class="shell">'
+    +'.fine{font-size:11px;color:#718577}'+APEX_STAFF_THEME_CSS+'</style></head><body><main class="shell">'+APEX_STAFF_BRAND
     +'<a href="/staff">← Booking queue</a>'
     +'<div class="kicker" style="margin-top:35px">APEX KENNELS / STAFF ONLY</div>'
     +'<h1>Check an older booking’s location</h1>'

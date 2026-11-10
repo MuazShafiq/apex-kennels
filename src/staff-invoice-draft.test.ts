@@ -84,7 +84,8 @@ test('review HTML escapes customer-controlled names, pet names, status and ID',(
   const html=renderStaffDraftReview(r);
   assert.match(html,/&lt;img/);
   assert.match(html,/Dog &amp; &lt;svg/);
-  assert.ok(!html.includes('<img'));
+  assert.ok(!html.includes('<img src=x'));
+  assert.match(html,/<img src="\/book\/apex-dog-mark\.svg"/);
   assert.ok(!html.includes('<svg'));
   assert.ok(!html.includes('<script'));
 });

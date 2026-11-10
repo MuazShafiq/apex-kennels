@@ -49,7 +49,8 @@ test('private booking details show essential animal-care answers, escaped and no
   assert.match(html,/Rover &amp; &lt;script&gt;/);
   assert.match(html,/&lt;img/);
   assert.match(html,/Address &lt;script&gt;/);
-  assert.doesNotMatch(html,/<script|<img/);
+  assert.doesNotMatch(html,/<script|<img src=x|onerror=alert/);
+  assert.match(html,/<img src="\/book\/apex-dog-mark\.svg"/);
   assert.doesNotMatch(html,/Send invoice|Mark paid|Approve booking/);
 });
 

@@ -5,6 +5,9 @@ import {chromium} from 'playwright';
 import {renderStaffConsoleHtml} from '../src/staff-console.ts';
 import {syntheticBookings} from '../src/staff-bookings.ts';
 import {renderStaffTransportForm} from '../src/staff-transport-review.ts';
+import {renderStaffBookingDetail} from '../src/staff-booking-detail.ts';
+import {prepareStaffDraftReview,renderStaffDraftReview} from '../src/staff-invoice-draft.ts';
+import {renderStaffPinChecker} from '../src/staff-location.ts';
 
 const demoSource={
   bookingId:'a2026111-0e00-4c11-8a00-000000000033',
@@ -13,10 +16,24 @@ const demoSource={
   status:'requested',cameraCageRequested:false,transportRequested:true,synthetic:true,
   transportLocation:{latitude:33.70,longitude:73.08,service:'both',customerConfirmed:true}
 };
+const detail={
+  id:demoSource.bookingId,status:'requested',createdAt:'2026-11-10',
+  startDate:demoSource.startDate,endDate:demoSource.endDate,
+  customerName:demoSource.customerName,email:null,phone:'0000000000',
+  accommodationType:null,pets:[{name:demoSource.petNames,breed:'Synthetic'}],
+  isSynthetic:true,hasFormDetails:true,transportLocation:demoSource.transportLocation,
+  ownerAddress:'Synthetic test address',pickupDropoffRequested:true,cameraCageRequested:false,
+  emergencyContactPhone:null,petGender:null,petAgeDescription:null,
+  vaccinationStatus:null,distemperHistory:null,veterinarianPhone:null,personalityTraits:null,
+  specialInstructions:null,medicationFeedingInstructions:null,termsAccepted:true
+};
 const base=process.cwd();
 const pages={
   '/demo/staff':renderStaffConsoleHtml(syntheticBookings,{demo:true,filter:{query:'',status:'all'}}),
-  '/staff/transport':renderStaffTransportForm(demoSource,'daily',0)
+  '/staff/transport':renderStaffTransportForm(demoSource,'daily',0),
+  '/staff/booking':renderStaffBookingDetail(detail),
+  '/staff/draft':renderStaffDraftReview(prepareStaffDraftReview(demoSource,'daily')),
+  '/staff/location':renderStaffPinChecker()
 };
 const server=createServer(async(req,res)=>{
   const url=new URL(req.url??'/', 'http://127.0.0.1');
@@ -56,23 +73,49 @@ try{
    ['iphone',{width:390,height:844}],
    ['large-phone',{width:430,height:932}],
    ['tablet',{width:768,height:1024}],
-   ['desktop',{width:1440,height:900}]
+   ['desktop',{width:1440,height:900}],
+   ['wide-desktop',{width:1920,height:900}]
  ]){
   const page=await browser.newPage({viewport,deviceScaleFactor:1,isMobile:name.includes('phone')||name==='iphone',hasTouch:true});
   await page.route('**/challenges.cloudflare.com/**',route=>route.abort());
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  for(const [route,label] of [['/book','book'],['/demo/staff','dashboard'],['/staff/transport','transport']]){
+  for(const [route,label] of [
+    ['/book','book'],['/demo/staff','dashboard'],['/staff/transport','transport'],
+    ['/staff/booking','booking-detail'],['/staff/draft','draft'],['/staff/location','location']
+  ]){
    await page.goto('http://127.0.0.1:'+port+route,{waitUntil:'domcontentloaded'});
    await page.waitForTimeout(200);
-   const size=await page.evaluate(()=>({
-     window:window.innerWidth,scroll:document.documentElement.scrollWidth,
-     body:document.body.scrollWidth
-   }));
+   const size=await page.evaluate(()=>{
+     const body=document.body.getBoundingClientRect();
+     const main=document.querySelector('main')?.getBoundingClientRect();
+     const sidebar=document.querySelector('.sidebar')?.getBoundingClientRect();
+     return {
+       window:window.innerWidth,scroll:document.documentElement.scrollWidth,
+       body:document.body.scrollWidth,bodyTop:body.top,bodyHeight:body.height,
+       viewportRight:document.documentElement.clientWidth,
+       mainLeft:main?.left,mainRight:main?.right,sidebarRight:sidebar?.right,
+       bodyBackground:getComputedStyle(document.body).backgroundImage
+     };
+   });
    assert(size.scroll<=size.window+2,name+' '+label+' has horizontal overflow '+JSON.stringify(size));
+   // The page's background must cover the viewport, not start below a collapsed margin.
+   assert(Math.abs(size.bodyTop)<1,name+' '+label+' has unpainted top gutter '+JSON.stringify(size));
+   assert(size.bodyHeight>=viewport.height-1,name+' '+label+' body fails to fill the viewport');
+   if(label==='dashboard'){
+     assert(Math.abs(size.mainRight-size.viewportRight)<1,
+       name+' dashboard main leaves an unpainted right strip '+JSON.stringify(size));
+     if(viewport.width>650)assert(Math.abs(size.mainLeft-size.sidebarRight)<1,
+       name+' dashboard main leaves an unpainted strip after sidebar '+JSON.stringify(size));
+   }else{
+     assert(size.bodyBackground.includes('linear-gradient'),
+       name+' '+label+' missing full-bleed body background');
+   }
    const logo=await page.locator('img[src="/book/apex-dog-mark.svg"]').first();
    assert(await logo.count()===1,name+' '+label+' missing Apex mark');
    assert(await logo.evaluate(el=>el.complete&&el.naturalWidth>0),name+' '+label+' logo failed to load');
-   await page.screenshot({path:'mobile-'+name+'-'+label+'.png',fullPage:label!=='book'});
+   if(['book','dashboard','transport'].includes(label)||
+      name==='iphone'||name==='wide-desktop')
+     await page.screenshot({path:'mobile-'+name+'-'+label+'.png',fullPage:label!=='book'});
    results.push({viewport:name,page:label,...size});
   }
   await page.goto('http://127.0.0.1:'+port+'/book',{waitUntil:'domcontentloaded'});

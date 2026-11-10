@@ -5,6 +5,8 @@ import {chromium} from 'playwright';
 import {renderStaffConsoleHtml} from '../src/staff-console.ts';
 import {syntheticBookings} from '../src/staff-bookings.ts';
 import {renderStaffTransportForm} from '../src/staff-transport-review.ts';
+import {renderStaffBookingDetail} from '../src/staff-booking-detail.ts';
+import {renderStaffDraftReview,prepareStaffDraftReview} from '../src/staff-invoice-draft.ts';
 
 const demoSource={
   bookingId:'a2026111-0e00-4c11-8a00-000000000033',
@@ -14,9 +16,22 @@ const demoSource={
   transportLocation:{latitude:33.70,longitude:73.08,service:'both',customerConfirmed:true}
 };
 const base=process.cwd();
+const detail={
+  id:demoSource.bookingId,customerName:demoSource.customerName,status:'requested',
+  createdAt:'2026-11-10T00:00:00Z',startDate:demoSource.startDate,endDate:demoSource.endDate,
+  email:null,phone:'0000000000',accommodationType:null,isSynthetic:true,hasFormDetails:true,
+  pets:[{name:'APEX SYNTHETIC CANARY PET',breed:'Synthetic'}],
+  transportLocation:demoSource.transportLocation,
+  ownerAddress:'Synthetic location',pickupDropoffRequested:true,cameraCageRequested:false,
+  emergencyContactPhone:'0000000000',petGender:null,petAgeDescription:null,
+  vaccinationStatus:null,distemperHistory:null,veterinarianPhone:null,
+  personalityTraits:null,specialInstructions:null,medicationFeedingInstructions:null,termsAccepted:true
+};
 const pages={
   '/demo/staff':renderStaffConsoleHtml(syntheticBookings,{demo:true,filter:{query:'',status:'all'}}),
-  '/staff/transport':renderStaffTransportForm(demoSource,'daily',0)
+  '/staff/transport':renderStaffTransportForm(demoSource,'daily',0),
+  '/staff/booking':renderStaffBookingDetail(detail),
+  '/staff/draft':renderStaffDraftReview(prepareStaffDraftReview(demoSource,'daily'))
 };
 const server=createServer(async(req,res)=>{
   const url=new URL(req.url??'/', 'http://127.0.0.1');
@@ -56,12 +71,13 @@ try{
    ['iphone',{width:390,height:844}],
    ['large-phone',{width:430,height:932}],
    ['tablet',{width:768,height:1024}],
-   ['desktop',{width:1440,height:900}]
+   ['desktop',{width:1440,height:900}],
+   ['wide-desktop',{width:2200,height:1000}]
  ]){
   const page=await browser.newPage({viewport,deviceScaleFactor:1,isMobile:name.includes('phone')||name==='iphone',hasTouch:true});
   await page.route('**/challenges.cloudflare.com/**',route=>route.abort());
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  for(const [route,label] of [['/book','book'],['/demo/staff','dashboard'],['/staff/transport','transport']]){
+  for(const [route,label] of [['/book','book'],['/demo/staff','dashboard'],['/staff/transport','transport'],['/staff/booking','detail'],['/staff/draft','draft']]){
    await page.goto('http://127.0.0.1:'+port+route,{waitUntil:'domcontentloaded'});
    await page.waitForTimeout(200);
    const size=await page.evaluate(()=>({
@@ -69,6 +85,30 @@ try{
      body:document.body.scrollWidth
    }));
    assert(size.scroll<=size.window+2,name+' '+label+' has horizontal overflow '+JSON.stringify(size));
+   // Background is owned by the full-width page surface, not a centered
+   // content panel. Collapsed child margins must not push the body's paint
+   // below the top of the viewport.
+   const paint=await page.evaluate(()=>{
+     const body=document.body,shell=document.querySelector('.shell');
+     return {
+       bodyTop:body.getBoundingClientRect().top,
+       bodyHeight:body.getBoundingClientRect().height,
+       shellWidth:shell?.getBoundingClientRect().width??null,
+       clientWidth:document.documentElement.clientWidth,
+       shellBackground:shell?getComputedStyle(shell).backgroundImage:null,
+       mainBackground:document.querySelector('main')?getComputedStyle(document.querySelector('main')).backgroundImage:null,
+       bodyBackground:getComputedStyle(body).backgroundImage
+     };
+   });
+   if(label==='dashboard'){
+     assert(paint.shellWidth>=paint.clientWidth-1,name+' dashboard surface misses viewport edges');
+     assert(paint.shellBackground?.includes('linear-gradient'),name+' dashboard full-width gradient missing');
+     assert(paint.mainBackground==='none',name+' dashboard gradient must not be on capped main');
+   }else if(label==='detail'||label==='draft'||label==='transport'){
+     assert(Math.abs(paint.bodyTop)<1,name+' '+label+' first-child margin moved the page background');
+     assert(paint.bodyHeight>=viewport.height-1,name+' '+label+' background too short');
+     assert(paint.bodyBackground?.includes('linear-gradient'),name+' '+label+' body gradient missing');
+   }
    const logo=await page.locator('img[src="/book/apex-dog-mark.svg"]').first();
    assert(await logo.count()===1,name+' '+label+' missing Apex mark');
    assert(await logo.evaluate(el=>el.complete&&el.naturalWidth>0),name+' '+label+' logo failed to load');

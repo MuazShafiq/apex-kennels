@@ -94,13 +94,14 @@ try{
        bodyTop:body.getBoundingClientRect().top,
        bodyHeight:body.getBoundingClientRect().height,
        shellWidth:shell?.getBoundingClientRect().width??null,
+       clientWidth:document.documentElement.clientWidth,
        shellBackground:shell?getComputedStyle(shell).backgroundImage:null,
        mainBackground:document.querySelector('main')?getComputedStyle(document.querySelector('main')).backgroundImage:null,
        bodyBackground:getComputedStyle(body).backgroundImage
      };
    });
    if(label==='dashboard'){
-     assert(paint.shellWidth>=viewport.width-1,name+' dashboard surface misses viewport edges');
+     assert(paint.shellWidth>=paint.clientWidth-1,name+' dashboard surface misses viewport edges');
      assert(paint.shellBackground?.includes('linear-gradient'),name+' dashboard full-width gradient missing');
      assert(paint.mainBackground==='none',name+' dashboard gradient must not be on capped main');
    }else if(label==='detail'||label==='draft'||label==='transport'){

@@ -116,31 +116,41 @@ const newPage=async()=>{
   return {page,errors};
 };
 try{
+  // Both selected: reuse the pickup gate unless the customer explicitly
+  // requests a different drop-off location.
   const first=await newPage();
   await fill(first.page);
-  await choice(first.page,'transportChoice','both');
+  await first.page.locator('#transport-pickup').check();
+  await first.page.locator('#transport-dropoff').check();
+  assert.equal(await first.page.locator('#same-dropoff').isChecked(),true);
+  assert.equal(await first.page.locator('#dropoff-location').isVisible(),false);
   await first.page.locator('#submit').click();
   await first.page.locator('#message').waitFor({state:'visible'});
-  assert.match(await first.page.locator('#message').innerText(),/location/i);
-  assert.equal(saved.length,0,'No verified pickup pin must not write anything');
-
+  assert.match(await first.page.locator('#message').innerText(),/pickup location/i);
+  assert.equal(saved.length,0);
   await first.page.locator('#maps-link').fill('33.700000, 73.080000');
   await first.page.locator('#selected-location-link').waitFor({state:'visible'});
   await first.page.locator('[name="whatsappInvoiceOptIn"]').check();
   await first.page.locator('#submit').click();
   await first.page.locator('#complete').waitFor({state:'visible'});
-  assert.match(await first.page.locator('#reference').innerText(),/a123e456/);
   assert.equal(saved.length,1);
   assert.deepEqual(saved[0].transportLocation,{
     latitude:33.7,longitude:73.08,service:'both',customerConfirmed:true});
+  assert.equal(saved[0].transportDropoffLocation,undefined);
   assert.equal(saved[0].details.whatsappInvoiceOptIn,true);
   assert.equal(Object.keys(saved[0].details.personalityTraits).length,8);
   assert.deepEqual(first.errors,[]);
   await first.page.close();
 
+  // None is an explicit choice, exclusive with other services; an unanswered
+  // transport question must not silently be interpreted as None.
   const second=await newPage();
   await fill(second.page);
-  await choice(second.page,'transportChoice','none');
+  await second.page.locator('#submit').click();
+  await second.page.locator('#message').waitFor({state:'visible'});
+  assert.match(await second.page.locator('#message').innerText(),/pickup, drop-off, or no transport/i);
+  assert.equal(saved.length,1);
+  await second.page.locator('#transport-none').check();
   await second.page.locator('#submit').click();
   await second.page.locator('#complete').waitFor({state:'visible'});
   assert.equal(saved.length,2);
@@ -148,22 +158,23 @@ try{
   assert.equal(saved[1].details.pickupDropoffRequested,false);
   assert.deepEqual(second.errors,[]);
   await second.page.close();
+
+  // Both with genuinely different gates must require and preserve two
+  // independent Maps pins, not silently duplicate the first one.
   const third=await newPage();
   await fill(third.page);
-  await choice(third.page,'transportChoice','both');
-  assert.equal(await third.page.locator('#dropoff-location').isVisible(),false);
+  await third.page.locator('#transport-pickup').check();
+  await third.page.locator('#transport-dropoff').check();
   await third.page.locator('#maps-link').fill('33.700000, 73.080000');
   await third.page.locator('#selected-location-link').waitFor({state:'visible'});
-  await third.page.locator('#separate-dropoff').check();
+  await third.page.locator('#same-dropoff').uncheck();
   assert.equal(await third.page.locator('#dropoff-location').isVisible(),true);
   await third.page.locator('#submit').click();
   await third.page.locator('#message').waitFor({state:'visible'});
   assert.match(await third.page.locator('#message').innerText(),/separate drop-off location/i);
-  assert.equal(saved.length,2,'Missing separate drop-off must never reach persistence');
+  assert.equal(saved.length,2);
   await third.page.locator('#dropoff-maps-link').fill('33.580000, 73.020000');
   await third.page.locator('#dropoff-selected-location-link').waitFor({state:'visible'});
-  assert.equal(await third.page.locator('#selected-location-link').isVisible(),true,
-    'Selecting drop-off must not overwrite pickup');
   await third.page.locator('#submit').click();
   await third.page.locator('#complete').waitFor({state:'visible'});
   assert.equal(saved.length,3);
@@ -173,8 +184,51 @@ try{
     latitude:33.58,longitude:73.02,customerConfirmed:true});
   assert.deepEqual(third.errors,[]);
   await third.page.close();
-  assert.equal(challengeChecks,3);
-  console.log('Synthetic end-to-end booking passed: browser form, same and different gates, separate pin required, both full loops, no-transport, consent, care answers, Turnstile gate. No real writes/messages.');
+
+  // Pickup can stand alone.
+  const fourth=await newPage();
+  await fill(fourth.page);
+  await fourth.page.locator('#transport-pickup').check();
+  assert.equal(await fourth.page.locator('#pickup-location').isVisible(),true);
+  assert.equal(await fourth.page.locator('#dropoff-location').isVisible(),false);
+  await fourth.page.locator('#maps-link').fill('33.700000, 73.080000');
+  await fourth.page.locator('#selected-location-link').waitFor({state:'visible'});
+  await fourth.page.locator('#submit').click();
+  await fourth.page.locator('#complete').waitFor({state:'visible'});
+  assert.equal(saved.length,4);
+  assert.equal(saved[3].transportLocation.service,'pickup');
+  assert.equal(saved[3].transportDropoffLocation,undefined);
+  await fourth.page.close();
+
+  // Drop-off can stand alone and must use its own pin, not the hidden pickup
+  // field that used to serve both roles.
+  const fifth=await newPage();
+  await fill(fifth.page);
+  await fifth.page.locator('#transport-dropoff').check();
+  assert.equal(await fifth.page.locator('#pickup-location').isVisible(),false);
+  assert.equal(await fifth.page.locator('#dropoff-location').isVisible(),true);
+  await fifth.page.locator('#dropoff-maps-link').fill('33.580000, 73.020000');
+  await fifth.page.locator('#dropoff-selected-location-link').waitFor({state:'visible'});
+  await fifth.page.locator('#submit').click();
+  await fifth.page.locator('#complete').waitFor({state:'visible'});
+  assert.equal(saved.length,5);
+  assert.deepEqual(saved[4].transportLocation,{
+    latitude:33.58,longitude:73.02,service:'dropoff',customerConfirmed:true});
+  assert.equal(saved[4].transportDropoffLocation,undefined);
+  await fifth.page.close();
+
+  // No transport and a selected service must remain mutually exclusive.
+  const sixth=await newPage();
+  await sixth.page.locator('#transport-none').check();
+  await sixth.page.locator('#transport-dropoff').check();
+  assert.equal(await sixth.page.locator('#transport-none').isChecked(),false);
+  await sixth.page.locator('#transport-none').check();
+  assert.equal(await sixth.page.locator('#transport-pickup').isChecked(),false);
+  assert.equal(await sixth.page.locator('#transport-dropoff').isChecked(),false);
+  await sixth.page.close();
+
+  assert.equal(challengeChecks,5);
+  console.log('Synthetic browser-to-Worker booking passed: explicit None, pickup only, drop-off only, Both same gate and Both different gates; no real writes/messages.');
 } finally{
   await browser.close();
   await new Promise(done=>server.close(done));

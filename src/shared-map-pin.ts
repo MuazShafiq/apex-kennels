@@ -36,9 +36,16 @@ export function parseGooglePlacePin(urlString:string):GeoPin|null{
     // A directions link can contain multiple place data points; do not guess
     // which represents the customer's pickup gate.
     if(pathname.startsWith('/maps/dir/'))return null;
-    const match=pathname.match(/!3d(-?\d{1,2}(?:\.\d+)?)!4d(-?\d{1,3}(?:\.\d+)?)(?:!|\/|$)/);
-    if(!match)return null;
-    return pakistanPin(Number(match[1]),Number(match[2]));
+    // Full Google URLs place the exact marker either in /data=... or
+    // ?data=...; neither is interchangeable with the @viewport centre.
+    const exact=/!3d(-?\d{1,2}(?:\.\d+)?)!4d(-?\d{1,3}(?:\.\d+)?)(?:!|\/|$)/;
+    const marker=pathname.match(exact)??url.searchParams.get('data')?.match(exact);
+    if(marker)return pakistanPin(Number(marker[1]),Number(marker[2]));
+    // A dropped pin can also be encoded as /maps/place/lat,lon.
+    const coordinatePlace=pathname.match(/^\/maps\/place\/(-?\d{1,2}(?:\.\d+)?),\s*(-?\d{1,3}(?:\.\d+)?)(?:\/|$)/);
+    if(coordinatePlace)
+      return pakistanPin(Number(coordinatePlace[1]),Number(coordinatePlace[2]));
+    return null;
   }catch{return null;}
 }
 

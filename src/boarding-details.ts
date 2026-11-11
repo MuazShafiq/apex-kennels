@@ -24,7 +24,7 @@ export type BoardingDetails = {
   /** Optional explicit consent for booking updates and approved invoices via WhatsApp. */
   whatsappInvoiceOptIn?: boolean;
 };
-const TRAITS: readonly PersonalityTrait[] = [
+export const PERSONALITY_TRAITS: readonly PersonalityTrait[] = [
   'friendly','fears','climber','foodSensitivities','barksExcessively',
   'allergies','biteHistory','medicalConditions'
 ];
@@ -71,7 +71,7 @@ export function parseBoardingDetails(value:unknown): BoardingDetails|undefined {
     if(typeof traits!=='object'||Array.isArray(traits)) throw new IntakeError('Invalid personalityTraits');
     personalityTraits={};
     for(const [key,traitValue] of Object.entries(traits as Record<string,unknown>)){
-      if(!TRAITS.includes(key as PersonalityTrait) || typeof traitValue!=='boolean') {
+      if(!PERSONALITY_TRAITS.includes(key as PersonalityTrait) || typeof traitValue!=='boolean') {
         throw new IntakeError('Invalid personalityTraits value');
       }
       personalityTraits[key as PersonalityTrait]=traitValue;

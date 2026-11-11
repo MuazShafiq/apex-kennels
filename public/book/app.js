@@ -67,7 +67,8 @@
         unsetPoint(data?.error||'That link has no precise location. Share a dropped pin in Google Maps.');
         return;
       }
-      putPoint(data.latitude,data.longitude,'Google Maps');
+      const coordinates=/^-?\d{1,2}(?:\.\d+)?,\s*-?\d{1,3}(?:\.\d+)?$/.test(value.trim());
+      putPoint(data.latitude,data.longitude,coordinates?'Pin coordinates':'Google Maps');
     }catch{
       if(version===lookupVersion)
         unsetPoint('Could not read that link. Try pasting it again.');

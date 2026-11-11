@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import {parseBoardingDetails, PERSONALITY_TRAITS, type BoardingDetails} from './boarding-details.ts';
 import {IntakeError} from './intake-error.ts';
-import {validateCustomerLocation,type CustomerLocation} from './customer-location-input.ts';
+import {validateCustomerLocation,validateDropoffLocation,type CustomerLocation,type DropoffLocation} from './customer-location-input.ts';
 export {IntakeError} from './intake-error.ts';
 
 export type IntakeRequest = {
@@ -16,6 +16,7 @@ export type IntakeRequest = {
   accommodationType?: string;
   details?: BoardingDetails;
   transportLocation?: CustomerLocation;
+  transportDropoffLocation?: DropoffLocation;
 };
 
 
@@ -74,17 +75,26 @@ export function parseIntake(value: unknown, expectedSource: 'google_form'|'websi
       throw new IntakeError('Complete all care questions');
   }
   let transportLocation:CustomerLocation|undefined;
+  let transportDropoffLocation:DropoffLocation|undefined;
   if(expectedSource==='website') {
     if(details?.pickupDropoffRequested===true){
       if(row.transportLocation===undefined)throw new IntakeError('Pickup location is required');
       try{transportLocation=validateCustomerLocation(row.transportLocation);}
       catch{throw new IntakeError('Invalid pickup location');}
-    } else if(row.transportLocation!==undefined && row.transportLocation!==null){
+      if(row.transportDropoffLocation!==undefined && row.transportDropoffLocation!==null){
+        if(transportLocation.service!=='both')
+          throw new IntakeError('Separate drop-off is only available with pickup and drop-off');
+        try{transportDropoffLocation=validateDropoffLocation(row.transportDropoffLocation);}
+        catch{throw new IntakeError('Invalid drop-off location');}
+      }
+    } else if(row.transportLocation!==undefined && row.transportLocation!==null ||
+              row.transportDropoffLocation!==undefined && row.transportDropoffLocation!==null){
       throw new IntakeError('Unexpected pickup location');
     }
   }
   return { source:expectedSource, externalResponseId, customerName, email, phone, petName,
-    startDate, endDate, accommodationType, details, ...(transportLocation?{transportLocation}:{}) };
+    startDate, endDate, accommodationType, details, ...(transportLocation?{transportLocation}:{}),
+    ...(transportDropoffLocation?{transportDropoffLocation}:{}) };
 }
 
 /** Canonical immutable import identity; does not contain invoice prices or private tokens. */
@@ -96,6 +106,7 @@ export function fingerprintIntake(input: IntakeRequest): string {
     startDate: input.startDate, endDate: input.endDate,
     accommodationType: input.accommodationType ?? null,
     details: input.details ?? null,
-    ...(input.source==='website' ? {transportLocation:input.transportLocation??null} : {})
+    ...(input.source==='website' ? {transportLocation:input.transportLocation??null,
+      ...(input.transportDropoffLocation?{transportDropoffLocation:input.transportDropoffLocation}:{})} : {})
   })).digest('hex');
 }

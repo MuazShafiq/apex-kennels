@@ -155,6 +155,29 @@ test('browser script parses, uses Google Maps links and has no embedded secrets'
   assert.doesNotMatch(script,/TURNSTILE_SECRET_KEY|DATABASE_URL|INTAKE_API_SECRET/);
 });
 
+test('website booking only accepts independently confirmed second gate when Both is selected',async()=>{
+  const separate={...booking,transportDropoffLocation:{
+    latitude:33.58,longitude:73.02,customerConfirmed:true
+  }};
+  let checks=0,saves=0;
+  const verify=async()=>{checks++;return true;};
+  const good=await handleWorkerRequest(request({booking:separate,turnstileToken:'token'}),env,
+    async(_url,input)=>{
+      saves++;
+      assert.deepEqual(input.transportDropoffLocation,separate.transportDropoffLocation);
+      return {bookingId:id,created:true,status:'requested'};
+    },{verifyChallenge:verify});
+  assert.equal(good.status,201);
+  for(const bad of [
+    {...separate,transportDropoffLocation:{...separate.transportDropoffLocation,customerConfirmed:false}},
+    {...separate,transportDropoffLocation:{...separate.transportDropoffLocation,latitude:31.52}},
+    {...separate,transportLocation:{...separate.transportLocation,service:'dropoff'}}
+  ]) assert.equal((await handleWorkerRequest(
+    request({booking:bad,turnstileToken:'token'}),env,undefined,{verifyChallenge:verify})
+  ).status,400);
+  assert.equal(saves,1);assert.equal(checks,1);
+});
+
 test('booking and selected location are written in the same database transaction',async()=>{
   const input=parseIntake(booking,'website');
   const queries:Array<{sql:string;params:unknown[]|undefined}>=[];
@@ -179,7 +202,7 @@ test('booking and selected location are written in the same database transaction
   assert.equal(queries.at(-1)?.sql,'COMMIT');
   const location=queries.find(x=>x.sql.includes('booking_transport_locations'));
   assert.ok(location,'Must save coordinates with the parent booking');
-  assert.deepEqual(location.params,['booking',33.7,73.1,'both',true]);
+  assert.deepEqual(location.params,['booking',33.7,73.1,'both',true,null,null]);
   assert.equal(queries.filter(x=>x.sql==='BEGIN').length,1);
   assert.equal(queries.filter(x=>x.sql==='COMMIT').length,1);
 });

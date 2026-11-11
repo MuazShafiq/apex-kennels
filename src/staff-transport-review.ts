@@ -7,12 +7,14 @@ const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]
 export type StaffTransportSelection={
   bookingId:string;packageChoice:StaffPackageChoice;visit:'pickup'|'dropoff'|'both';
   customerPin:{lat:number;lon:number};
+  dropoffPin?:{lat:number;lon:number};dropoffConfirmed:boolean;
   customerConfirmed:boolean;kennelConfirmed:boolean;accessConfirmed:boolean;
   action:'quote'|'save';revision:number;
 };
 
 export function parseStaffTransportSelection(form:URLSearchParams):StaffTransportSelection{
   const allowed=new Set(['id','package','visit','latitude','longitude',
+    'dropoffLatitude','dropoffLongitude','dropoffConfirmed',
     'customerConfirmed','kennelConfirmed','accessConfirmed','action','revision']);
   if([...form.keys()].some(k=>!allowed.has(k))||
      [...allowed].some(k=>form.getAll(k).length>1))
@@ -40,11 +42,23 @@ export function parseStaffTransportSelection(form:URLSearchParams):StaffTranspor
   const lat=coordinate('latitude'),lon=coordinate('longitude');
   if(!isTransportServiceLocation(lat,lon))
     throw new Error('Customer pin is outside Islamabad / Rawalpindi transport coverage');
+  const dropLat=form.get('dropoffLatitude'),dropLon=form.get('dropoffLongitude');
+  let dropoffPin:StaffTransportSelection['dropoffPin'];
+  if(dropLat||dropLon){
+    if(visit!=='both'||!dropLat||!dropLon)
+      throw new Error('Different drop-off requires pickup and drop-off and both coordinates');
+    const dLat=coordinate('dropoffLatitude'),dLon=coordinate('dropoffLongitude');
+    if(!isTransportServiceLocation(dLat,dLon))
+      throw new Error('Drop-off pin is outside Islamabad / Rawalpindi transport coverage');
+    dropoffPin={lat:dLat,lon:dLon};
+  }
   const confirmed=(key:string):boolean=>{
     const value=form.get(key);
     if(value!==null&&value!=='yes')throw new Error('Invalid road confirmation');
     return value==='yes';
   };
+  const dropoffConfirmed=confirmed('dropoffConfirmed');
+  if(dropoffConfirmed&&!dropoffPin)throw new Error('Unexpected drop-off confirmation');
   const action=required('action');
   if(action!=='quote'&&action!=='save')throw new Error('Invalid transport action');
   const rawRevision=required('revision');
@@ -52,6 +66,7 @@ export function parseStaffTransportSelection(form:URLSearchParams):StaffTranspor
     throw new Error('Invalid estimate revision');
   return {
     bookingId,packageChoice,visit,customerPin:{lat,lon},
+    ...(dropoffPin?{dropoffPin}:{}),dropoffConfirmed,
     customerConfirmed:confirmed('customerConfirmed'),
     kennelConfirmed:confirmed('kennelConfirmed'),
     accessConfirmed:confirmed('accessConfirmed'),
@@ -105,12 +120,20 @@ export function renderStaffTransportForm(source:StaffInvoiceSource,
     (location?esc(String(location.latitude)):'')+'"></label>'+
     '<label>Customer gate longitude<input name="longitude" type="number" step="any" min="60" max="78" required value="'+
     (location?esc(String(location.longitude)):'')+'"></label></div>'+
-    '<p class="muted">Use the customer-approved Maps pin or enter a staff-verified pin. '+
-    'Old Google Form addresses are not precise enough to price automatically.</p>'+
+    '<p class="muted">The first location is the pickup gate for Both, or the selected service gate for a one-way trip. '+
+    'Use the customer-approved Maps pin; old Google Form addresses must be verified.</p>'+
+    '<details class="panel"'+(location?.dropoffLatitude!=null&&location?.dropoffLongitude!=null?' open':'')+'>'+
+    '<summary><strong>Different drop-off location</strong> (optional for Both)</summary>'+
+    '<p class="muted">Leave blank when the dog will return to the pickup gate.</p>'+
+    '<div class="grid"><label>Drop-off latitude<input name="dropoffLatitude" type="number" step="any" min="23" max="38" value="'+
+      (location?.dropoffLatitude!=null?esc(String(location.dropoffLatitude)):'')+'"></label>'+
+    '<label>Drop-off longitude<input name="dropoffLongitude" type="number" step="any" min="60" max="78" value="'+
+      (location?.dropoffLongitude!=null?esc(String(location.dropoffLongitude)):'')+'"></label></div>'+
+    '<label class="check"><input type="checkbox" name="dropoffConfirmed" value="yes">I verified the separate drop-off gate and vehicle access</label></details>'+
     '<label class="check"><input type="checkbox" name="customerConfirmed" value="yes">I verified the customer gate and vehicle access</label>'+
     '<label class="check"><input type="checkbox" name="kennelConfirmed" value="yes">I verified the kennel entrance pin</label>'+
     '<label class="check"><input type="checkbox" name="accessConfirmed" value="yes">I verified the Bawli road-access waypoint</label>'+
-    '<p class="muted">Each selected service requires kennel → customer → kennel. Two services = two complete loops. '+
+    '<p class="muted">Each selected service requires kennel → customer → kennel. Two services = two complete loops, possibly to different gates. '+
     'The road approach must be checked before the number is used.</p>'+
     '<button type="submit">Calculate transport</button></form></section>'
   );
@@ -122,7 +145,8 @@ export function renderStaffTransportResult(
   const line=result.draft.quote.lines.find(l=>l.label==='Pet transport');
   const ready=result.route.ok&&result.fuelLookup==='CURRENT_NOTIFIED_RATE'&&!!line&&
     !!result.draft.fuelRateSnapshot&&
-    input.customerConfirmed&&input.kennelConfirmed&&input.accessConfirmed;
+    input.customerConfirmed&&input.kennelConfirmed&&input.accessConfirmed&&
+    (!input.dropoffPin||input.dropoffConfirmed);
   const route=result.route.ok?result.route.estimate:null;
   const warnings=[...result.draft.unresolved];
   if(!result.route.ok)warnings.push(result.route.detail);
@@ -132,7 +156,11 @@ export function renderStaffTransportResult(
     id:input.bookingId,package:input.packageChoice,visit:input.visit,
     latitude:input.customerPin.lat,longitude:input.customerPin.lon,revision:input.revision
   };
-  const flags=['customerConfirmed','kennelConfirmed','accessConfirmed'] as const;
+  if(input.dropoffPin){
+    keys.dropoffLatitude=input.dropoffPin.lat;
+    keys.dropoffLongitude=input.dropoffPin.lon;
+  }
+  const flags=['customerConfirmed','kennelConfirmed','accessConfirmed','dropoffConfirmed'] as const;
   const replay=Object.entries(keys).map(([k,v])=>hidden(k,v)).join('')+
     flags.filter(k=>input[k]).map(k=>hidden(k,'yes')).join('')+hidden('action','save');
   return layout('Transport estimate',
@@ -144,8 +172,12 @@ export function renderStaffTransportResult(
     '</strong></div>'+
     '<div class="stat"><span>Transport</span><strong>'+(line?money(line.totalPkr):'Not priced')+'</strong></div>'+
     '<div class="stat result"><span>Review total</span><strong>'+money(result.draft.quote.totalPkr)+'</strong></div>'+
-    (route?'<p>One complete loop: '+esc(String(route.loopDistanceKm))+' km · '+
-      route.plannedRoundTrips+' round trip(s) · Total '+esc(String(route.totalDrivenKm))+' km</p>':'')+
+    (route?'<p>'+(route.dropoffLoopDistanceKm!==undefined
+      ? 'Pickup loop: '+esc(String(route.loopDistanceKm))+' km · Drop-off loop: '+
+        esc(String(route.dropoffLoopDistanceKm))+' km'
+      : 'One complete loop: '+esc(String(route.loopDistanceKm))+' km · '+
+        route.plannedRoundTrips+' round trip(s)')+
+      ' · Total '+esc(String(route.totalDrivenKm))+' km</p>':'')+
     '<p class="muted">Fuel-only charge at 12 km/L + 20% markup. Staff approval still required. '+
     'No customer invoice has been issued.</p></section>'+
     (issues?'<section class="panel"><h2>Review before final approval</h2><ul>'+issues+'</ul></section>':'')+

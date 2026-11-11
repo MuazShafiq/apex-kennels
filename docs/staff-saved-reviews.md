@@ -9,9 +9,9 @@
 ## New transport review
 
 - `/staff/transport?id=<uuid>` is available only for bookings requesting pickup or drop-off. It is protected by Cloudflare Access and the staff email allowlist.
-- The form preloads the website customer's chosen service and pin if `booking_transport_locations` exists. The production table is not yet deployed, so the screen also allows staff to supply confirmed numeric coordinates for old Form bookings.
+- The form preloads the website customer's chosen service and pin if `booking_transport_locations` exists. The production location table and separate-drop-off columns are deployed; the screen also allows staff to supply confirmed numeric coordinates for old Form bookings.
 - Staff explicitly select Pickup, Drop-off, or Both; confirm the customer's vehicle-access gate, the kennel entrance, and the Bawli approach. A regular street address or Maps viewport is never treated as verified coordinates.
-- A same-origin POST recalculates actual driving route: kennel → Bawli → customer → Bawli → kennel for each requested trip. It then fetches the current published fuel baseline, assumes 12 km/L and adds Fatima's confirmed 20% markup on fuel cost.
+- A same-origin POST recalculates a complete kennel → Bawli → customer → Bawli → kennel route for each service. Different pickup and drop-off gates get independent route requests, and their distances are summed. It then fetches the current published fuel baseline, assumes 12 km/L and adds Fatima's confirmed 20% markup on fuel cost.
 - The first result is only a provisional estimate. A separate Save action recomputes route and fuel and saves the amount plus route/fuel provenance with optimistic revision checking.
 - The saved review-only Canva PDF now fills the original Pick-up & Drop-off service row. No official invoice issuance, payment account, automatic sending or customer contact is connected.
 

@@ -67,6 +67,28 @@ test('pinned route automatically applies owner-confirmed 20% fuel-cost markup',a
   assert.equal(result.fuelLookup,'CURRENT_NOTIFIED_RATE');
 });
 
+test('two different stops charge their combined actual km with the existing 20% markup',async()=>{
+  const different:RouteResult={ok:true,estimate:{
+    ...verifiedRoute.estimate,
+    customerPin:{lat:33.704,lon:73.075},
+    dropoffPin:{lat:33.59,lon:73.015},
+    dropoffLoopDistanceKm:24.77,
+    totalDrivenKm:44.22
+  }};
+  const result=await preparePinnedTransportDraft({
+    ...base,transport:{requested:true}
+  },location,{
+    route:async()=>different,
+    fetchFuel:async()=>({ok:true,rate})
+  });
+  const expected=Math.ceil(44.22/12*362*1.2-1e-9);
+  assert.equal(expected,1601);
+  assert.equal(result.draft.quote.totalPkr,7500+expected);
+  assert.equal(result.draft.quote.lines.find(x=>x.label==='Pet transport')?.totalPkr,expected);
+  assert.match(result.draft.unresolved.join(' '),/separate drop-off loop 24.77 km/);
+  assert.equal(result.draft.sendAutomatically,false);
+});
+
 test('non-transport orders never hit route or petrol providers',async()=>{
   const result=await preparePinnedTransportDraft(base,location,{
     route:async()=>{throw new Error('No route needed')},

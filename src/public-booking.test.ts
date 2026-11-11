@@ -99,7 +99,7 @@ test('website booking needs correct origin and real challenge before any databas
 test('public website cannot omit phone or any owner-reported care safety answer',()=>{
   const original=booking;
   assert.doesNotThrow(()=>parseIntake(original,'website'));
-  assert.throws(()=>parseIntake({...original,phone:undefined},'website'),/Phone number is required/);
+  assert.throws(()=>parseIntake({...original,phone:undefined,email:'synthetic@example.test'},'website'),/Phone number is required/);
   const missingTraits={...original,details:{...original.details,personalityTraits:undefined}};
   assert.throws(()=>parseIntake(missingTraits,'website'),/Complete all care questions/);
   const missingBite={...original,details:{...original.details,

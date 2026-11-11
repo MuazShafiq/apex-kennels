@@ -9,7 +9,9 @@ const details={
   breed:'Mixed',gender:'Male',age:'2 years',
   vaccinationStatus:'Fully vaccinated and booster is up to date',
   distemperHistory:'No',pickupDropoffRequested:false,cameraCageRequested:false,
-  termsAccepted:true
+  termsAccepted:true,
+  personalityTraits:{friendly:false,fears:false,climber:false,foodSensitivities:false,
+    barksExcessively:false,allergies:false,biteHistory:false,medicalConditions:false}
 };
 const base={source:'website',externalResponseId:'a123e456-789b-4123-a456-426614174001',
   customerName:'Synthetic Owner',phone:'03001112222',petName:'Synthetic Pet',

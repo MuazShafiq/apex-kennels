@@ -24,7 +24,8 @@ const booking={
     ownerAddress:'Demo Street',pickupDropoffRequested:true,cameraCageRequested:false,
     emergencyContactPhone:'03000000001',breed:'Mixed breed',gender:'Female',age:'2 years',
     vaccinationStatus:'Fully vaccinated and booster is up to date',
-    distemperHistory:'No',termsAccepted:true,personalityTraits:{friendly:true,biteHistory:false}
+    distemperHistory:'No',termsAccepted:true,personalityTraits:{friendly:true,fears:false,climber:false,foodSensitivities:false,
+      barksExcessively:false,allergies:false,biteHistory:false,medicalConditions:false}
   },
   transportLocation:{latitude:33.7,longitude:73.1,service:'both',customerConfirmed:true}
 };
@@ -93,6 +94,21 @@ test('website booking needs correct origin and real challenge before any databas
   assert.equal(allowed.status,201);
   assert.deepEqual(await allowed.json(),{ok:true,reference:id.slice(0,8)});
   assert.equal(saves,1);assert.equal(checks,1);
+});
+
+test('public website cannot omit phone or any owner-reported care safety answer',()=>{
+  const original=booking;
+  assert.doesNotThrow(()=>parseIntake(original,'website'));
+  assert.throws(()=>parseIntake({...original,phone:undefined,email:'synthetic@example.test'},'website'),/Phone number is required/);
+  const missingTraits={...original,details:{...original.details,personalityTraits:undefined}};
+  assert.throws(()=>parseIntake(missingTraits,'website'),/Complete all care questions/);
+  const {biteHistory:_removed,...withoutBite}=original.details.personalityTraits;
+  const missingBite={...original,details:{...original.details,
+    personalityTraits:withoutBite}};
+  assert.throws(()=>parseIntake(missingBite,'website'),/Complete all care questions/);
+  const incomplete={...original,details:{...original.details,
+    personalityTraits:{friendly:false}}};
+  assert.throws(()=>parseIntake(incomplete,'website'),/Complete all care questions/);
 });
 
 test('invalid website payload and unconfirmed gate blocked before verification',async()=>{

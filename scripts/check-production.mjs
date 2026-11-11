@@ -18,6 +18,26 @@ async function runChecks() {
   const health=await response.json();
   if(health.status!=='ok'||health.service!=='apex-intake') throw new Error('Unexpected health identity');
 
+  // Until Fatima signs off, deployment must never accept public bookings.
+  // Read-only checks and a deliberately empty POST cannot create a booking.
+  const configResponse=await get('/api/book/config');
+  if(configResponse.status!==200)throw new Error('Booking config returned '+configResponse.status);
+  const config=await configResponse.json();
+  if(config.enabled!==false||Object.hasOwn(config,'siteKey'))
+    throw new Error('Public booking enabled before final owner approval');
+
+  const page=await get('/book');
+  if(page.status!==200)throw new Error('Customer booking preview unavailable: '+page.status);
+  if(!(await page.text()).includes('Google Maps link or exact pin coordinates'))
+    throw new Error('Customer booking preview is not at the latest release');
+
+  const blocked=await fetch(new URL('/api/book',base),{
+    method:'POST',redirect:'manual',signal:AbortSignal.timeout(12000),
+    headers:{'Content-Type':'application/json','Origin':base.origin},
+    body:'{}'
+  });
+  if(blocked.status!==503)throw new Error('Public booking did not fail closed: '+blocked.status);
+
   const reject=await fetch(new URL('/api/ingest',base),{
     method:'POST',redirect:'manual',signal:AbortSignal.timeout(12000),
     headers:{'Content-Type':'application/json'},
@@ -46,7 +66,7 @@ let failure;
 for(let attempt=1;attempt<=10;attempt++){
   try {
     await runChecks();
-    console.log('Cloudflare production checks passed: health, intake auth, staff denial, synthetic previews');
+    console.log('Cloudflare production checks passed: health, disabled public booking, current preview, intake auth, staff denial, synthetic previews');
     failure=undefined;
     break;
   } catch(error) {

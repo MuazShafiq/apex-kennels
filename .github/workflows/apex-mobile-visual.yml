@@ -7,6 +7,10 @@ on:
       - 'src/staff-transport-review.ts'
       - 'src/apex-brand.ts'
       - 'scripts/check-mobile-visual.mjs'
+      - 'scripts/check-booking-e2e.mjs'
+      - 'src/public-booking.ts'
+      - 'src/intake.ts'
+      - 'src/boarding-details.ts'
       - '.github/workflows/apex-mobile-visual.yml'
 permissions:
   contents: read
@@ -25,6 +29,7 @@ jobs:
       - run: npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund playwright@1.54.2
       - run: npx playwright install --with-deps chromium
       - run: node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/check-mobile-visual.mjs
+      - run: node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/check-booking-e2e.mjs
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

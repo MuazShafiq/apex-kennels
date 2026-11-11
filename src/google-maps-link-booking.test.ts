@@ -99,9 +99,13 @@ test('customer-facing booking retains service details, exact six terms and no re
   const terms=html.match(/<details class="terms"[\s\S]*?<\/details>/)?.[0]??'';
   assert.equal((terms.match(/<li>/g)||[]).length,6);
   assert.match(terms,/I hold Apex Kennels and staff completely harmless/);
-  for(const choice of ['none','pickup','dropoff','both']){
-    assert.match(html,new RegExp('name="transportChoice" value="'+choice+'"'));
+  for(const id of ['transport-pickup','transport-dropoff','transport-none','same-dropoff']){
+    assert.match(html,new RegExp('id="'+id+'"'));
   }
+  assert.match(html,/Which services do you need\?/);
+  assert.match(html,/Use pickup location for drop-off/);
+  assert.doesNotMatch(html,/name="transportChoice" value="both"/);
+  assert.match(js,/noTransport\.checked/);
   assert.doesNotMatch(html,/confirm-gate|Camera cage requested\?|id="place-search"|id="map"|id="place-results"/);
   assert.doesNotMatch(js,/gate\.checked|maplibregl|api\/book\/places/);
   assert.match(js,/customerConfirmed:true/);

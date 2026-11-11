@@ -424,6 +424,7 @@ export async function handleWorkerRequest(
         kennelPin:APEX_KENNEL_LOCATION.pin,
         kennelAccessWaypoint:APEX_KENNEL_ACCESS.pin,
         customerPin:selected.customerPin,
+        dropoffPin:selected.dropoffPin,dropoffPinConfirmed:selected.dropoffConfirmed,
         kennelPinConfirmed:selected.kennelConfirmed,
         kennelAccessWaypointConfirmed:selected.accessConfirmed,
         customerPinConfirmed:selected.customerConfirmed,
@@ -435,7 +436,8 @@ export async function handleWorkerRequest(
       const priced=result.route.ok&&result.fuelLookup==='CURRENT_NOTIFIED_RATE'&&
         !!result.draft.fuelRateSnapshot&&
         result.draft.quote.lines.some(l=>l.label==='Pet transport'&&l.totalPkr>0)&&
-        selected.customerConfirmed&&selected.kennelConfirmed&&selected.accessConfirmed;
+        selected.customerConfirmed&&selected.kennelConfirmed&&selected.accessConfirmed&&
+        (!selected.dropoffPin||selected.dropoffConfirmed);
       if(selected.action==='save'){
         if(!priced||!result.route.ok||!result.draft.fuelRateSnapshot)
           return json({error:'Verified route and current petrol rate required before saving'},409);

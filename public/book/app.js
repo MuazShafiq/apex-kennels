@@ -40,7 +40,7 @@
     }
     point={latitude:Math.round(latitude*1e7)/1e7,
       longitude:Math.round(longitude*1e7)/1e7};
-    status.textContent=source+' location added';
+    status.textContent=source==='Coordinates'?'Exact pin coordinates added':source+' location added';
     selectedLink.href='https://www.google.com/maps/search/?api=1&query='+
       encodeURIComponent(point.latitude+','+point.longitude);
     selectedLink.hidden=false;
@@ -67,7 +67,8 @@
         unsetPoint(data?.error||'That link has no precise location. Share a dropped pin in Google Maps.');
         return;
       }
-      putPoint(data.latitude,data.longitude,'Google Maps');
+      const coordinates=/^-?\d{1,2}(?:\.\d+)?,\s*-?\d{1,3}(?:\.\d+)?$/.test(value.trim());
+      putPoint(data.latitude,data.longitude,coordinates?'Coordinates':'Google Maps');
     }catch{
       if(version===lookupVersion)
         unsetPoint('Could not read that link. Try pasting it again.');

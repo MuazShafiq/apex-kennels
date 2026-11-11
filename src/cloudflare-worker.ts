@@ -252,12 +252,14 @@ export async function handleWorkerRequest(
          typeof (body as {link?:unknown}).link!=='string')throw new Error();
       raw=(body as {link:string}).link.trim();
       if(raw.length<3||raw.length>2048)throw new Error();
-    }catch{return json({error:'Paste a Google Maps location link',code:'INVALID_LINK'},400);}
+    }catch{return json({error:'Paste a Google Maps link or latitude, longitude coordinates.',code:'INVALID_LINK'},400);}
     const resolved=await (staff.resolvePin??resolveSharedGoogleMapsPin)(raw);
     if(!resolved.ok){
       if(resolved.reason==='REDIRECT_UNAVAILABLE')
-        return json({error:'Could not open that Maps link. Try copying the exact pin again.',code:'LINK_UNAVAILABLE'},422);
-      return json({error:'Share a specific pin or place from Google Maps, not a search or directions link.',code:'NOT_EXACT_PIN'},422);
+        return json({error:'This Maps short link could not be opened. Copy the exact latitude, longitude of your gate from Google Maps and paste it here instead.',code:'LINK_UNAVAILABLE'},422);
+      if(resolved.reason==='UNSUPPORTED_LINK')
+        return json({error:'Use a Google Maps location link or latitude, longitude coordinates.',code:'UNSUPPORTED_LINK'},422);
+      return json({error:'This Maps link does not expose an exact pin. Long-press your gate in Google Maps, then paste its latitude, longitude here. We will not guess from the map centre.',code:'NOT_EXACT_PIN'},422);
     }
     if(!isTransportServiceLocation(resolved.pin.lat,resolved.pin.lon))
       return json({error:'Pickup and drop-off are available only within Islamabad and Rawalpindi',code:'OUT_OF_SERVICE_AREA'},422);

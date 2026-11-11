@@ -39,7 +39,28 @@ test('outside service area and invalid links do not produce a customer location'
     resolvePin:async()=>({ok:false,reason:'NOT_EXACT_PIN'})
   });
   assert.equal(notExact.status,422);
-  assert.equal((await notExact.json() as {code:string}).code,'NOT_EXACT_PIN');
+  const unclear=await notExact.json() as {code:string;error:string};
+  assert.equal(unclear.code,'NOT_EXACT_PIN');
+  assert.match(unclear.error,/latitude, longitude/);
+  assert.match(unclear.error,/not expose an exact pin/);
+  const missing=await handleWorkerRequest(post({link:exact}),{},undefined,{
+    resolvePin:async()=>({ok:false,reason:'REDIRECT_UNAVAILABLE'})
+  });
+  assert.equal(missing.status,422);
+  assert.match((await missing.json() as {error:string}).error,/latitude, longitude/);
+  const unsupported=await handleWorkerRequest(post({link:exact}),{},undefined,{
+    resolvePin:async()=>({ok:false,reason:'UNSUPPORTED_LINK'})
+  });
+  assert.equal(unsupported.status,422);
+  assert.equal((await unsupported.json() as {code:string}).code,'UNSUPPORTED_LINK');
+});
+
+test('explicit coordinates remain a supported zero-key fallback for Maps short links without pins',async()=>{
+  const response=await handleWorkerRequest(post({link:'33.700000, 73.080000'}),{});
+  assert.equal(response.status,200);
+  const location=await response.json() as {latitude:number;longitude:number;mapsUrl:string};
+  assert.deepEqual(location,{latitude:33.7,longitude:73.08,
+    mapsUrl:'https://www.google.com/maps/search/?api=1&query=33.7%2C73.08'});
 });
 
 test('link endpoint refuses cross-origin and unrelated fields without resolving anything',async()=>{

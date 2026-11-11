@@ -39,9 +39,17 @@ const server=createServer(async(req,res)=>{
     res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({enabled:false}));return;
   }
   if(url.pathname==='/api/book/location'){
-    res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({
-      latitude:33.7,longitude:73.08
-    }));return;
+    const chunks=[];
+    for await(const chunk of req)chunks.push(chunk);
+    const payload=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    if(payload.link==='https://maps.app.goo.gl/ambiguous'){
+      res.writeHead(422,{'content-type':'application/json'});
+      res.end(JSON.stringify({code:'NOT_EXACT_PIN',
+        error:'This Maps link does not expose an exact pin. Long-press your gate in Google Maps, then paste its latitude, longitude here.'}));
+      return;
+    }
+    res.writeHead(200,{'content-type':'application/json'});
+    res.end(JSON.stringify({latitude:33.7,longitude:73.08}));return;
   }
   if(pages[url.pathname]){
     res.writeHead(200,{'content-type':'text/html; charset=utf-8'});res.end(pages[url.pathname]);return;
@@ -112,6 +120,13 @@ try{
    const logo=await page.locator('img[src="/book/apex-dog-mark.svg"]').first();
    assert(await logo.count()===1,name+' '+label+' missing Apex mark');
    assert(await logo.evaluate(el=>el.complete&&el.naturalWidth>0),name+' '+label+' logo failed to load');
+   if(label==='book'){
+     const heights=await page.locator('label.option-card:has(input[name="cameraCageRequested"]) > span')
+       .evaluateAll(nodes=>nodes.map(el=>el.getBoundingClientRect().height));
+     assert(heights.length===2,name+' boarding choices missing');
+     assert(Math.abs(heights[0]-heights[1])<1,
+       name+' standard and camera cards unequal: '+JSON.stringify(heights));
+   }
    await page.screenshot({path:'mobile-'+name+'-'+label+'.png',fullPage:label!=='book'});
    results.push({viewport:name,page:label,...size});
   }
@@ -122,6 +137,20 @@ try{
   await page.waitForTimeout(900);
   assert((await page.locator('#coordinate-status').innerText()).includes('Google Maps location added'),name+' map link not accepted');
   assert(await page.locator('#selected-location-link').isVisible(),name+' selected pin not visible');
+  // A short link that resolves to a place ID but has no precise pin must
+  // remain unpriced, with clear copy/paste coordinates instructions.
+  await page.locator('#maps-link').fill('https://maps.app.goo.gl/ambiguous');
+  await page.waitForTimeout(900);
+  assert((await page.locator('#coordinate-status').innerText()).includes('latitude, longitude'),
+    name+' ambiguous short link has no actionable coordinates fallback');
+  assert(!(await page.locator('#selected-location-link').isVisible()),
+    name+' ambiguous short link retained a stale customer pin');
+  await page.locator('#maps-link').fill('33.700000, 73.080000');
+  await page.waitForTimeout(900);
+  assert((await page.locator('#coordinate-status').innerText()).includes('Exact pin coordinates added'),
+    name+' coordinate fallback was not accepted');
+  assert(await page.locator('#selected-location-link').isVisible(),
+    name+' confirmed coordinates not displayed');
   await page.locator('label.option:has(input[name="transportChoice"][value="none"]) > span').click();
   assert(!(await page.locator('#transport').isVisible()),name+' no transport did not hide location');
   assert(errors.length===0,name+' JS errors: '+errors.join(';'));

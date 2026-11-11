@@ -11,7 +11,9 @@ const base={
     breed:'Mixed',gender:'Female',age:'2 years',
     vaccinationStatus:'Fully vaccinated and booster is up to date',
     distemperHistory:'No',pickupDropoffRequested:true,cameraCageRequested:false,
-    termsAccepted:true
+    termsAccepted:true,
+    personalityTraits:{friendly:false,fears:false,climber:false,foodSensitivities:false,
+      barksExcessively:false,allergies:false,biteHistory:false,medicalConditions:false}
   },
   transportLocation:{latitude:33.7,longitude:73.1,service:'pickup',customerConfirmed:true}
 };

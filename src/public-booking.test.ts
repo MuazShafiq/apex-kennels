@@ -178,6 +178,29 @@ test('website booking only accepts independently confirmed second gate when Both
   assert.equal(saves,1);assert.equal(checks,1);
 });
 
+test('two confirmed customer gates are committed in one booking transaction',async()=>{
+  const input=parseIntake({...booking,transportDropoffLocation:{
+    latitude:33.58,longitude:73.02,customerConfirmed:true
+  }},'website');
+  const queries:Array<{sql:string;params?:unknown[]}>=[],ids=['event','owner','pet','booking'];
+  const client:DbClient={
+    async query<T>(sql:string,params?:unknown[]):Promise<QueryResult<T>>{
+      queries.push({sql,params});
+      const id=sql.includes('INSERT INTO public.form_ingestion_events')?ids[0]:
+        sql.includes('INSERT INTO public.customers')?ids[1]:
+        sql.includes('INSERT INTO public.pets')?ids[2]:
+        sql.includes('INSERT INTO public.booking_requests')?ids[3]:null;
+      return {rows:id?[{id}] as T[]:[],rowCount:id?1:0};
+    },release(){}
+  };
+  const saved=await saveBooking({connect:async()=>client},input);
+  assert.equal(saved.created,true);
+  const row=queries.find(q=>q.sql.includes('INSERT INTO public.booking_transport_locations'));
+  assert.deepEqual(row?.params,['booking',33.7,73.1,'both',true,33.58,73.02]);
+  assert.equal(queries.filter(q=>q.sql==='COMMIT').length,1);
+  assert.equal(queries.filter(q=>q.sql==='ROLLBACK').length,0);
+});
+
 test('booking and selected location are written in the same database transaction',async()=>{
   const input=parseIntake(booking,'website');
   const queries:Array<{sql:string;params:unknown[]|undefined}>=[];

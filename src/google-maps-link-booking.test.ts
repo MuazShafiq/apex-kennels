@@ -58,8 +58,9 @@ test('outside service area and invalid links do not produce a customer location'
 test('explicit coordinates remain a supported zero-key fallback for Maps short links without pins',async()=>{
   const response=await handleWorkerRequest(post({link:'33.700000, 73.080000'}),{});
   assert.equal(response.status,200);
-  const location=await response.json() as {latitude:number;longitude:number};
-  assert.deepEqual(location,{latitude:33.7,longitude:73.08});
+  const location=await response.json() as {latitude:number;longitude:number;mapsUrl:string};
+  assert.deepEqual(location,{latitude:33.7,longitude:73.08,
+    mapsUrl:'https://www.google.com/maps/search/?api=1&query=33.7%2C73.08'});
 });
 
 test('link endpoint refuses cross-origin and unrelated fields without resolving anything',async()=>{

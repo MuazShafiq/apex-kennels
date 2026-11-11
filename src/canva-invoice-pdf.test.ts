@@ -6,6 +6,7 @@ import {
   renderCanvaStaffPdf,drawCanvaIbanSingleLine,layoutCanvaValue
 } from './canva-invoice-pdf.ts';
 import type {ReviewSnapshot} from './staff-saved-review.ts';
+import {handleWorkerRequest} from './cloudflare-worker.ts';
 import {parseNotifiedPetrolRate} from './islamabad-petrol-rate.ts';
 
 const blank=readFileSync('public/invoice/canva-blank.pdf');
@@ -20,6 +21,23 @@ const sample:ReviewSnapshot={
     lines:[{label:'Standard boarding',quantity:3,unitPricePkr:2500,totalPkr:7500}],
     discounts:[],subtotalPkr:7500,totalPkr:7500}
 };
+
+test('public synthetic invoice route serves one-page Canva PDF, not HTML',async()=>{
+  const response=await handleWorkerRequest(
+    new Request('https://example.workers.dev/demo/invoice'),
+    {ASSETS:{fetch:async()=>new Response(blank,{headers:{'Content-Type':'application/pdf'}})}}
+  );
+  assert.equal(response.status,200);
+  assert.match(response.headers.get('content-type')??'',/^application\/pdf/);
+  assert.match(response.headers.get('content-disposition')??'',/^inline;/);
+  assert.match(response.headers.get('cache-control')??'',/no-store/);
+  const bytes=new Uint8Array(await response.arrayBuffer());
+  assert.equal(new TextDecoder('ascii').decode(bytes.subarray(0,5)),'%PDF-');
+  const pdf=await PDFDocument.load(bytes);
+  assert.equal(pdf.getPageCount(),1);
+  assert.match(pdf.getTitle()??'',/Synthetic preview/i);
+  assert.match(pdf.getSubject()??'',/not an issued invoice/i);
+});
 
 test('template contains original and no-discount Canva artwork, not a reconstructed HTML page',async()=>{
   const pdf=await PDFDocument.load(blank);

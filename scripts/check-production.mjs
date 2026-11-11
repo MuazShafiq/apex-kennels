@@ -51,15 +51,26 @@ async function runChecks() {
     throw new Error('Unauthenticated staff route returned '+staff.status);
   }
 
-  for (const [path,marker] of [
-    ['/demo/staff','SYNTHETIC DEMO'],
-    ['/demo/invoice','NOT A PAYABLE INVOICE']
-  ]) {
-    const preview=await get(path);
-    if(preview.status!==200) throw new Error(path+' returned '+preview.status+' (expected 200)');
-    const page=await preview.text();
-    if(!page.includes(marker)) throw new Error(path+' missing its synthetic preview marker');
-  }
+  const staffPreview=await get('/demo/staff');
+  if(staffPreview.status!==200)
+    throw new Error('/demo/staff returned '+staffPreview.status+' (expected 200)');
+  if(!(await staffPreview.text()).includes('SYNTHETIC DEMO'))
+    throw new Error('/demo/staff missing its synthetic preview marker');
+
+  // The demo invoice is now a real PDF generated from Fatima's Canva
+  // template. Checking for HTML text in its binary bytes is meaningless.
+  const invoice=await get('/demo/invoice');
+  if(invoice.status!==200)
+    throw new Error('/demo/invoice returned '+invoice.status+' (expected 200)');
+  if(!invoice.headers.get('content-type')?.toLowerCase().startsWith('application/pdf'))
+    throw new Error('/demo/invoice did not return a PDF content type');
+  if(!invoice.headers.get('content-disposition')?.toLowerCase().startsWith('inline;'))
+    throw new Error('/demo/invoice is not served as an inline preview');
+  const bytes=new Uint8Array(await invoice.arrayBuffer());
+  if(bytes.length<5000||bytes.length>5_000_000||
+     new TextDecoder('ascii').decode(bytes.subarray(0,5))!=='%PDF-'||
+     !new TextDecoder('ascii').decode(bytes.subarray(-1024)).includes('%%EOF'))
+    throw new Error('/demo/invoice returned an invalid or truncated PDF');
 }
 
 let failure;

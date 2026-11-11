@@ -124,11 +124,19 @@ test('customer-confirmed pickup pin appears only in staff booking details, not i
     latitude:33.7123,longitude:73.1076,service:'both',customerConfirmed:true
   }});
   assert.match(withPin,/Pickup \/ drop-off location/);
-  assert.match(withPin,/Customer-selected pin/);
+  assert.match(withPin,/Pickup pin/);
+  assert.match(withPin,/Same as pickup/);
   assert.doesNotMatch(withPin,/Confirmed by customer/);
   assert.match(withPin,/33\.712300, 73\.107600/);
   assert.match(withPin,/Open in Google Maps/);
   assert.match(withPin,/Check road access/);
+  const different=renderStaffBookingDetail({...detail,transportLocation:{
+    latitude:33.7123,longitude:73.1076,service:'both',customerConfirmed:true,
+    dropoffLatitude:33.58,dropoffLongitude:73.02
+  }});
+  assert.match(different,/Different drop-off pin/);
+  assert.match(different,/33\.580000, 73\.020000/);
+  assert.doesNotMatch(different,/Same as pickup/);
   const noPin=renderStaffBookingDetail({...detail,transportLocation:null});
   assert.doesNotMatch(noPin,/Open in Google Maps/);
 });

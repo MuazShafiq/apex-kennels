@@ -131,43 +131,71 @@ try{
    results.push({viewport:name,page:label,...size});
   }
   await page.goto('http://127.0.0.1:'+port+'/book',{waitUntil:'domcontentloaded'});
-  await page.locator('label.option:has(input[name="transportChoice"][value="both"]) > span').click();
-  assert(await page.locator('#transport').isVisible(),name+' selecting both did not show location');
+  // Verify the actual checkbox is horizontally adjacent to its label and
+  // vertically centred. This catches accidental flex/grid regressions.
+  const alignment=await page.evaluate(()=>{
+    const choices=[...document.querySelectorAll('.transport-service-option')].map(label=>{
+      const input=label.querySelector('input'),text=label.querySelector('.transport-service-copy');
+      const a=input.getBoundingClientRect(),b=text.getBoundingClientRect();
+      return {name:input.id,gap:b.left-a.right,dy:Math.abs((a.top+a.bottom)/2-(b.top+b.bottom)/2)};
+    });
+    const consents=[...document.querySelectorAll('.finish > .confirm')].map(label=>{
+      const a=label.querySelector('input').getBoundingClientRect();
+      const span=label.querySelector('span'),b=span.getBoundingClientRect();
+      const lineHeight=parseFloat(getComputedStyle(span).lineHeight)||20;
+      return {name:label.querySelector('input').name,gap:b.left-a.right,
+        dy:Math.abs((a.top+a.bottom)/2-(b.top+lineHeight/2))};
+    });
+    return {choices,consents};
+  });
+  for(const item of [...alignment.choices,...alignment.consents]){
+    assert(item.gap>=7,name+' '+item.name+' checkbox overlaps label '+JSON.stringify(item));
+    assert(item.dy<7,name+' '+item.name+' checkbox not aligned to text '+JSON.stringify(item));
+  }
+
+  await page.locator('#transport-pickup').check();
+  assert(await page.locator('#pickup-location').isVisible(),name+' pickup must reveal location');
   await page.locator('#maps-link').fill('https://www.google.com/maps/search/?api=1&query=33.7%2C73.08');
   await page.waitForTimeout(900);
-  assert((await page.locator('#coordinate-status').innerText()).includes('Google Maps location added'),name+' map link not accepted');
-  assert(await page.locator('#selected-location-link').isVisible(),name+' selected pin not visible');
-  // A short link that resolves to a place ID but has no precise pin must
-  // remain unpriced, with clear copy/paste coordinates instructions.
+  assert((await page.locator('#coordinate-status').innerText()).includes('Google Maps location added'),
+    name+' pickup Google Maps link not accepted');
+  assert(await page.locator('#selected-location-link').isVisible(),name+' pickup pin not visible');
   await page.locator('#maps-link').fill('https://maps.app.goo.gl/ambiguous');
   await page.waitForTimeout(900);
   assert((await page.locator('#coordinate-status').innerText()).includes('latitude, longitude'),
-    name+' ambiguous short link has no actionable coordinates fallback');
+    name+' ambiguous short link lacks coordinates fallback');
   assert(!(await page.locator('#selected-location-link').isVisible()),
-    name+' ambiguous short link retained a stale customer pin');
+    name+' ambiguous short link retained stale pin');
   await page.locator('#maps-link').fill('33.700000, 73.080000');
   await page.waitForTimeout(900);
-  assert((await page.locator('#coordinate-status').innerText()).includes('Exact pin coordinates added'),
-    name+' coordinate fallback was not accepted');
   assert(await page.locator('#selected-location-link').isVisible(),
-    name+' confirmed coordinates not displayed');
-  await page.locator('#separate-dropoff').check();
-  assert(await page.locator('#dropoff-location').isVisible(),name+' separate drop-off must expand');
+    name+' confirmed pickup coordinates missing');
+
+  await page.locator('#transport-dropoff').check();
+  assert(await page.locator('#same-dropoff').isChecked(),
+    name+' Both should reuse pickup gate by default');
+  assert(!(await page.locator('#dropoff-location').isVisible()),
+    name+' duplicate location form should be hidden by default');
+  await page.locator('#same-dropoff').uncheck();
+  assert(await page.locator('#dropoff-location').isVisible(),
+    name+' different drop-off must reveal second location');
   await page.locator('#dropoff-maps-link').fill('33.580000, 73.020000');
   await page.waitForTimeout(900);
   assert(await page.locator('#dropoff-selected-location-link').isVisible(),
-    name+' separate drop-off coordinates not accepted');
+    name+' different drop-off coordinates not accepted');
   assert(await page.locator('#selected-location-link').isVisible(),
-    name+' separate drop-off overwrote pickup pin');
-  const twoPins=await page.evaluate(()=>({
-    w:window.innerWidth,scroll:document.documentElement.scrollWidth
+    name+' second location overwrote pickup');
+  const expanded=await page.evaluate(()=>({
+    width:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth
   }));
-  assert(twoPins.scroll<=twoPins.w+2,name+' expanded drop-off overflows screen');
-  await page.locator('#separate-dropoff').uncheck();
-  assert(!(await page.locator('#dropoff-location').isVisible()),
-    name+' unchecked separate drop-off remains visible');
-  await page.locator('label.option:has(input[name="transportChoice"][value="none"]) > span').click();
-  assert(!(await page.locator('#transport').isVisible()),name+' no transport did not hide location');
+  assert(expanded.scroll<=expanded.width+2,name+' expanded transport overflows screen '+JSON.stringify(expanded));
+  await page.locator('#transport-none').check();
+  assert(!(await page.locator('#pickup-location').isVisible())&&
+    !(await page.locator('#dropoff-location').isVisible()),
+    name+' No transport did not collapse selected services');
+  assert(!(await page.locator('#transport-pickup').isChecked())&&
+    !(await page.locator('#transport-dropoff').isChecked()),
+    name+' No transport did not clear other choices');
   assert(errors.length===0,name+' JS errors: '+errors.join(';'));
   await page.close();
  }

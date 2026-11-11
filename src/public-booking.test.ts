@@ -102,8 +102,9 @@ test('public website cannot omit phone or any owner-reported care safety answer'
   assert.throws(()=>parseIntake({...original,phone:undefined,email:'synthetic@example.test'},'website'),/Phone number is required/);
   const missingTraits={...original,details:{...original.details,personalityTraits:undefined}};
   assert.throws(()=>parseIntake(missingTraits,'website'),/Complete all care questions/);
+  const {biteHistory:_removed,...withoutBite}=original.details.personalityTraits;
   const missingBite={...original,details:{...original.details,
-    personalityTraits:{...original.details.personalityTraits,biteHistory:undefined}}};
+    personalityTraits:withoutBite}};
   assert.throws(()=>parseIntake(missingBite,'website'),/Complete all care questions/);
   const incomplete={...original,details:{...original.details,
     personalityTraits:{friendly:false}}};

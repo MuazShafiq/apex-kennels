@@ -20,6 +20,21 @@ test('extracts actual Google place pin, not the incorrect URL viewport centre',a
   }
 });
 
+test('extracts explicit pin coordinates from alternate Google Maps place URL formats',()=>{
+  for(const uri of [
+    'https://www.google.com/maps/place/33.2992325,73.2534561',
+    'https://www.google.com/maps/place/33.2992325%2C73.2534561/',
+    'https://www.google.com/maps/place/Apex+Test/?data=!4m3!1m2!3d33.2992325!4d73.2534561'
+  ]) assert.deepEqual(parseGooglePlacePin(uri),kennel,uri);
+  // A centred viewport and place identity without exact markers are not
+  // sufficient to pick up a dog at a specific vehicle-access gate.
+  for(const uri of [
+    'https://www.google.com/maps/place/Some+Kennel/@33.2992325,73.2534561,15z',
+    'https://www.google.com/maps/place//data=!4m2!3m1!1s0x123:0x456',
+    'https://www.google.com/maps/dir/?data=!3d33.2992325!4d73.2534561'
+  ]) assert.equal(parseGooglePlacePin(uri),null,uri);
+});
+
 test('plain coordinates and ?q lat,lon work without any HTTP requests',async()=>{
   for(const value of [
     '33.2992325,73.2534561',

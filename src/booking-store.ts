@@ -113,8 +113,10 @@ export async function saveBooking(pool: DbPool, input: IntakeRequest): Promise<S
     if (input.source === 'website' && input.transportLocation) {
       const point = input.transportLocation;
       await tx.query(
-        'INSERT INTO public.booking_transport_locations (booking_id, latitude, longitude, service, customer_confirmed) VALUES ($1, $2, $3, $4, $5)',
-        [booking.id, point.latitude, point.longitude, point.service, true]
+        'INSERT INTO public.booking_transport_locations (booking_id, latitude, longitude, service, customer_confirmed, dropoff_latitude, dropoff_longitude) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [booking.id, point.latitude, point.longitude, point.service, true,
+         input.transportDropoffLocation?.latitude??null,
+         input.transportDropoffLocation?.longitude??null]
       );
     }
     await tx.query(

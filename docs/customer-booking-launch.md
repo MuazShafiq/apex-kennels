@@ -37,3 +37,11 @@ The customer booking site lives at `/book` on the **existing** Apex Cloudflare W
 ## 2026-11-11 engineering update
 
 See [technical readiness](technical-release-readiness-2026-11-11.md) for the full synthetic browser submission test, validated Neon schema, Turnstile account setup, and strict final owner-approval gate. The old Google Form remains live. No public booking submissions have been enabled.
+
+## 2026-11-12 transport UX revision
+
+- **Independent service selections:** Customers check Pickup, Drop-off or both. An explicit **No transport needed** option is exclusive with the two services; no option is preselected, and unanswered transport selections cannot be submitted.
+- Selecting a service reveals its own Google Maps pin controls, with no second address requirement for one-way bookings.
+- When both are selected, **Use pickup location for drop-off** is checked by default; unchecking it reveals a second independent pin input. If a customer already selected a drop-off-only pin before adding pickup, the separate drop-off is preserved.
+- The existing API contract remains unchanged: `transportLocation` holds the pickup or single-service pin and `transportDropoffLocation` is included only when Both uses different gates. The existing route-calculation and Neon schema require no changes.
+- Transport, legal terms and WhatsApp checkboxes use explicit two-column checkbox/text alignment. Public submissions remain disabled until final owner approval and controlled live verification.

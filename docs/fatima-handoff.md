@@ -13,9 +13,9 @@ The Google Form and staff booking review already exist. These are the **unresolv
 
 ## Transport and customer booking
 
-- Confirm the actual drivable kennel entrance and Bawli approach used for routing; the mapped locations have not yet been verified as entrances.
+- **Engineering verification:** compare the Geoapify route with the actual kennel entrance and Bawli approach before pricing. This is not a new customer-facing pricing decision.
 - Review the six public boarding terms for legal/business accuracy. They are currently displayed in the customer website preview.
-- Review the replacement booking page before launch. Mobile Google Maps share-link testing is tracked in [issue #37](https://github.com/MuazShafiq/apex-kennels/issues/37).
+- Review the replacement booking page before launch. It supports different pickup and drop-off gates; no further approval is needed for that feature. Mobile Google Maps share-link testing is tracked in [issue #37](https://github.com/MuazShafiq/apex-kennels/issues/37).
 
 ## Already confirmed
 

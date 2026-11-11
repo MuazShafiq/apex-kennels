@@ -7,7 +7,7 @@ The customer booking site lives at `/book` on the **existing** Apex Cloudflare W
 
 ## User journey
 1. Customer enters owner, dates, dog, health, emergency, and care details, matching the current mapped Form.
-2. Chooses whether camera cage and transport are requested. If transport is requested: customer chooses pickup, drop-off, or both at the same address. They either tap **Use my current location**, or open Google Maps, find/drop their entrance pin, choose **Share → Copy link** and paste the share link back into Apex. The Worker extracts an explicit pin; no external search engine is embedded in the booking page.
+2. Chooses whether camera cage and transport are requested. If transport is requested: customer chooses pickup, drop-off, or both. For Both, the same gate is the default, with an optional separate drop-off pin field. They either tap **Use my current location**, or open Google Maps, find/drop their entrance pin, choose **Share → Copy link** and paste the share link back into Apex. The Worker extracts an explicit pin; no external search engine is embedded in the booking page.
 3. Completes the Cloudflare Turnstile challenge and submits.
 4. The Worker verifies the exact origin, JSON/body size, all booking answers and confirmed coordinates, and calls Turnstile Siteverify. Turnstile **hostname** and **action** must match.
 5. A single Neon transaction saves the booking, original care information, and private confirmed pin. Existing staff booking queue and `/staff/booking` show it under Cloudflare Access. No amount is charged automatically.
@@ -26,11 +26,12 @@ The customer booking site lives at `/book` on the **existing** Apex Cloudflare W
 - Pickup and drop-off are restricted to the Islamabad–Rawalpindi urban service envelope defined in `src/transport-service-area.ts`. Google Maps share-link resolution, device GPS and server intake enforce it; the envelope is approximate, not an official administrative boundary. Boarding without transport remains available regardless of customer address. This is a **customer-selected location**, not independently proven vehicle access. Geoapify route and petrol baseline calculation are already separate, review-only modules. Do not quote transport until staff confirms the kennel entrance, Bawli access waypoint and selected pickup/drop-off loops. Fatima's pricing basis is now confirmed as 20% markup on fuel cost; the current local petrol price and route still need review.
 - Public `/api/book` cannot accept Google Form webhook requests; `/api/ingest` still requires its existing bearer token and only accepts `source='google_form'`.
 - No public endpoint exposes individual bookings or animal-care records. /staff* remains protected behind Cloudflare Access.
+- A different drop-off pin is kept in two nullable columns on the private transport-location row. Distinct gates receive independently measured complete road loops, not an assumed double-distance.
 - If the new table hasn't been created yet, existing staff booking details still work and simply omit the new location section. The public submission endpoint must remain disabled.
 - No email is required for new customers because current Form submissions have only phone contacts. No mailing platform is added.
 
 ## Known release gaps
-- Confirm owner-facing terms copy/link, existing Form's consent semantics, and whether pickup/drop-off can use different addresses in the same booking. The MVP supports one gate, clearly described.
+- Confirm owner-facing terms copy/link, existing Form's consent semantics, Different pickup and drop-off locations are supported and each must be independently confirmed when selected.
 - [Mobile release check #37](https://github.com/MuazShafiq/apex-kennels/issues/37): review on an actual phone, test Google Maps place links and dropped-pin share links (including `maps.app.goo.gl` short links), no-transport, device GPS, outside-area rejection and Turnstile before enabling. No search key is required for the customer location step. If a Maps URL has no exact pin, ask for a dropped pin rather than guessing coordinates.
 
 ## 2026-11-11 engineering update

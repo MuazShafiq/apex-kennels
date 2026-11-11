@@ -67,6 +67,27 @@ test('transport selections reject missing/duplicate identity, invalid pin and un
   const unexpected=new URLSearchParams(fields);unexpected.set('pricePkr','1');
   assert.throws(()=>parseStaffTransportSelection(unexpected));
 });
+test('staff can confirm a different drop-off gate only for Both, and saved form preserves both',()=>{
+  const withPin={...booking,transportLocation:{...booking.transportLocation!,
+    dropoffLatitude:33.58,dropoffLongitude:73.02}};
+  const html=renderStaffTransportForm(withPin,'daily',0);
+  assert.match(html,/name="dropoffLatitude"/);
+  assert.match(html,/value="33.58"/);
+  assert.match(html,/value="73.02"/);
+  assert.match(html,/<details class="panel" open>/);
+  const parsed=parseStaffTransportSelection(new URLSearchParams({
+    ...fields,dropoffLatitude:'33.58',dropoffLongitude:'73.02',dropoffConfirmed:'yes'
+  }));
+  assert.deepEqual(parsed.dropoffPin,{lat:33.58,lon:73.02});
+  assert.equal(parsed.dropoffConfirmed,true);
+  for(const bad of [
+    {...fields,visit:'pickup',dropoffLatitude:'33.58',dropoffLongitude:'73.02'},
+    {...fields,dropoffLatitude:'33.58'},
+    {...fields,dropoffLatitude:'31.52',dropoffLongitude:'74.35'},
+    {...fields,dropoffConfirmed:'yes'}
+  ]) assert.throws(()=>parseStaffTransportSelection(new URLSearchParams(bad)));
+});
+
 test('GET requires verified staff access and only reads private booking details',async()=>{
   let reads=0;
   const url=origin+'/staff/transport?id='+id;

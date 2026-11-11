@@ -2,16 +2,15 @@
   'use strict';
   const form=document.getElementById('booking');
   const transport=document.getElementById('transport');
-  const mapsLink=document.getElementById('maps-link');
-  const status=document.getElementById('coordinate-status');
-  const selectedLink=document.getElementById('selected-location-link');
   const message=document.getElementById('message');
   const submit=document.getElementById('submit');
   const preview=document.getElementById('preview');
+  const differentDropoff=document.getElementById('separate-dropoff');
+  const dropoffPanel=document.getElementById('dropoff-location');
   const SERVICE_BOUNDS=[[72.81,33.43],[73.30,33.84]];
   const requestId=crypto.randomUUID();
   const traitNames=['friendly','fears','climber','foodSensitivities','barksExcessively','allergies','biteHistory','medicalConditions'];
-  let point=null,challenge=null,turnstileId=null,lookupVersion=0,lookupTimer=null;
+  let challenge=null,turnstileId=null;
 
   function showMessage(text,bad){
     message.textContent=text;
@@ -27,84 +26,98 @@
       latitude>=SERVICE_BOUNDS[0][1]&&latitude<=SERVICE_BOUNDS[1][1]&&
       longitude>=SERVICE_BOUNDS[0][0]&&longitude<=SERVICE_BOUNDS[1][0];
   }
-  function unsetPoint(text){
-    point=null;
-    selectedLink.hidden=true;
-    selectedLink.removeAttribute('href');
-    status.textContent=text||'No location selected';
-  }
-  function putPoint(latitude,longitude,source){
-    if(!inServiceArea(latitude,longitude)){
-      unsetPoint('Pickup and drop-off are available only in Islamabad and Rawalpindi.');
-      return false;
+  // Each location owns its own lookup timer and version so editing the
+  // pickup pin cannot overwrite an in-flight drop-off pin (or vice versa).
+  function locationControl(prefix){
+    const suffix=prefix==='dropoff-'?'dropoff':'primary';
+    const input=document.getElementById(prefix+'maps-link');
+    const status=document.getElementById(prefix+'coordinate-status');
+    const link=document.getElementById(prefix+'selected-location-link');
+    const locate=document.getElementById(prefix+'locate');
+    let point=null,version=0,timer=null;
+    function clear(text){
+      point=null;
+      link.hidden=true;
+      link.removeAttribute('href');
+      status.textContent=text||'No location selected';
     }
-    point={latitude:Math.round(latitude*1e7)/1e7,
-      longitude:Math.round(longitude*1e7)/1e7};
-    status.textContent=source==='Coordinates'?'Exact pin coordinates added':source+' location added';
-    selectedLink.href='https://www.google.com/maps/search/?api=1&query='+
-      encodeURIComponent(point.latitude+','+point.longitude);
-    selectedLink.hidden=false;
-    return true;
-  }
-  function displayTransport(){
-    transport.hidden=!selectedTransport();
-  }
-  form.querySelectorAll('input[name="transportChoice"]').forEach(el=>{
-    el.addEventListener('change',displayTransport);
-  });
-  async function resolveMapsLink(value,version){
-    if(!value)return;
-    try{
-      const response=await fetch('/api/book/location',{
-        method:'POST',credentials:'omit',cache:'no-store',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({link:value})
-      });
-      if(version!==lookupVersion)return;
-      const data=await response.json();
-      if(version!==lookupVersion)return;
-      if(!response.ok){
-        unsetPoint(data?.error||'That link has no precise location. Share a dropped pin in Google Maps.');
+    function update(latitude,longitude,source){
+      if(!inServiceArea(latitude,longitude)){
+        clear('Pickup and drop-off are available only in Islamabad and Rawalpindi.');
         return;
       }
-      const coordinates=/^-?\d{1,2}(?:\.\d+)?,\s*-?\d{1,3}(?:\.\d+)?$/.test(value.trim());
-      putPoint(data.latitude,data.longitude,coordinates?'Coordinates':'Google Maps');
-    }catch{
-      if(version===lookupVersion)
-        unsetPoint('Could not read that link. Try pasting it again.');
+      point={latitude:Math.round(latitude*1e7)/1e7,
+        longitude:Math.round(longitude*1e7)/1e7};
+      status.textContent=source==='Coordinates'?'Exact pin coordinates added':source+' location added';
+      link.href='https://www.google.com/maps/search/?api=1&query='+
+        encodeURIComponent(point.latitude+','+point.longitude);
+      link.hidden=false;
     }
-  }
-  function handleLinkInput(){
-    lookupVersion++;
-    clearTimeout(lookupTimer);
-    const value=mapsLink.value.trim();
-    unsetPoint(value?'Reading location link…':'No location selected');
-    if(!value)return;
-    const version=lookupVersion;
-    lookupTimer=setTimeout(()=>resolveMapsLink(value,version),500);
-  }
-  mapsLink.addEventListener('input',handleLinkInput);
-  // Mobile paste sometimes fires an input event asynchronously.
-  mapsLink.addEventListener('change',()=>{
-    if(mapsLink.value.trim() && !point)handleLinkInput();
-  });
-  document.getElementById('locate').addEventListener('click',function(){
-    lookupVersion++;
-    clearTimeout(lookupTimer);
-    mapsLink.value='';
-    if(!navigator.geolocation){
-      unsetPoint('Device location is unavailable. Use a Google Maps link.');
-      return;
+    async function resolve(value,requestVersion){
+      try{
+        const response=await fetch('/api/book/location',{
+          method:'POST',credentials:'omit',cache:'no-store',
+          headers:{'Content-Type':'application/json'},body:JSON.stringify({link:value})
+        });
+        if(requestVersion!==version)return;
+        const data=await response.json();
+        if(requestVersion!==version)return;
+        if(!response.ok){
+          clear(data?.error||'That link has no precise location. Share a dropped pin in Google Maps.');
+          return;
+        }
+        const coordinates=/^-?\d{1,2}(?:\.\d+)?,\s*-?\d{1,3}(?:\.\d+)?$/.test(value.trim());
+        update(data.latitude,data.longitude,coordinates?'Coordinates':'Google Maps');
+      }catch{
+        if(requestVersion===version)clear('Could not read that link. Try pasting it again.');
+      }
     }
-    const version=lookupVersion;
-    unsetPoint('Finding your location…');
-    navigator.geolocation.getCurrentPosition(function(result){
-      if(version!==lookupVersion)return;
-      putPoint(result.coords.latitude,result.coords.longitude,'Current');
-    },function(){
-      if(version===lookupVersion)
-        unsetPoint('Location permission was not granted. Use a Google Maps link instead.');
-    },{enableHighAccuracy:true,timeout:12000,maximumAge:0});
+    function inputChanged(){
+      version++;clearTimeout(timer);
+      const value=input.value.trim();
+      clear(value?'Reading location link…':'No location selected');
+      if(value)timer=setTimeout(()=>resolve(value,version),500);
+    }
+    input.addEventListener('input',inputChanged);
+    input.addEventListener('change',()=>{if(input.value.trim()&&!point)inputChanged()});
+    locate.addEventListener('click',()=>{
+      version++;clearTimeout(timer);input.value='';
+      if(!navigator.geolocation){
+        clear('Device location is unavailable. Use a Google Maps link.');return;
+      }
+      const requestVersion=version;
+      clear('Finding your location…');
+      navigator.geolocation.getCurrentPosition(result=>{
+        if(requestVersion===version)update(result.coords.latitude,result.coords.longitude,'Current');
+      },()=>{
+        if(requestVersion===version)
+          clear('Location permission was not granted. Use a Google Maps link instead.');
+      },{enableHighAccuracy:true,timeout:12000,maximumAge:0});
+    });
+    return {
+      point:()=>point,
+      focus:()=>input.focus(),
+      reset:()=>{version++;clearTimeout(timer);input.value='';clear(suffix==='dropoff'?'No drop-off location selected':'No location selected');}
+    };
+  }
+  const pickup=locationControl('');
+  const dropoff=locationControl('dropoff-');
+  const dropoffChoice=document.getElementById('dropoff-choice');
+  function displayTransport(){
+    const choice=transportChoice();
+    transport.hidden=choice==='none';
+    dropoffChoice.hidden=choice!=='both';
+    dropoffPanel.hidden=choice!=='both'||!differentDropoff.checked;
+    document.getElementById('primary-location-title').textContent=
+      choice==='dropoff'?'Choose your drop-off location':'Choose your pickup location';
+  }
+  differentDropoff.addEventListener('change',displayTransport);
+  form.querySelectorAll('input[name="transportChoice"]').forEach(el=>{
+    el.addEventListener('change',()=>{
+      // Changing trip type changes what the primary pin represents.
+      pickup.reset();dropoff.reset();differentDropoff.checked=false;
+      displayTransport();
+    });
   });
 
   function field(data,name){return String(data.get(name)||'').trim();}
@@ -119,9 +132,13 @@
     }
     const choice=transportChoice();
     const needsTransport=choice!=='none';
-    if(needsTransport&&!point){
-      mapsLink.focus();
-      throw new Error('Use your current location or paste a Google Maps location link.');
+    if(needsTransport&&!pickup.point()){
+      pickup.focus();
+      throw new Error('Select the '+(choice==='dropoff'?'drop-off':'pickup')+' location using Google Maps or coordinates.');
+    }
+    if(choice==='both'&&differentDropoff.checked&&!dropoff.point()){
+      dropoff.focus();
+      throw new Error('Select the separate drop-off location using Google Maps or coordinates.');
     }
     const details={
       ownerAddress:field(data,'ownerAddress'),
@@ -147,8 +164,10 @@
     };
     if(needsTransport){
       booking.transportLocation={
-        ...point,service:choice,customerConfirmed:true
+        ...pickup.point(),service:choice,customerConfirmed:true
       };
+      if(choice==='both'&&differentDropoff.checked)
+        booking.transportDropoffLocation={...dropoff.point(),customerConfirmed:true};
     }
     return booking;
   }

@@ -13,7 +13,8 @@ export type StaffBookingDetail={
   id:string;status:string;createdAt:string;startDate:string;endDate:string;
   customerName:string;email:string|null;phone:string|null;accommodationType:string|null;
   pets:StaffPet[];isSynthetic:boolean;hasFormDetails:boolean;
-  transportLocation?:{latitude:number;longitude:number;service:string;customerConfirmed:boolean}|null;
+  transportLocation?:{latitude:number;longitude:number;service:string;customerConfirmed:boolean;
+    dropoffLatitude?:number|null;dropoffLongitude?:number|null}|null;
   ownerAddress:string|null;pickupDropoffRequested:boolean|null;cameraCageRequested:boolean|null;
   emergencyContactPhone:string|null;petGender:string|null;petAgeDescription:string|null;
   vaccinationStatus:string|null;distemperHistory:string|null;veterinarianPhone:string|null;
@@ -68,15 +69,17 @@ export async function readStaffBookingDetail(databaseUrl:string,id:string):Promi
     let transportLocation:StaffBookingDetail['transportLocation']=null;
     try{
       const location=await db.query<{
-        latitude:number;longitude:number;service:string;customer_confirmed:boolean
+        latitude:number;longitude:number;service:string;customer_confirmed:boolean;
+        dropoff_latitude:number|null;dropoff_longitude:number|null
       }>(
-        'SELECT latitude,longitude,service,customer_confirmed FROM public.booking_transport_locations WHERE booking_id=$1',
+        'SELECT latitude,longitude,service,customer_confirmed,dropoff_latitude,dropoff_longitude FROM public.booking_transport_locations WHERE booking_id=$1',
         [id]
       );
       if(location.rows[0]){
         const l=location.rows[0];
         transportLocation={latitude:l.latitude,longitude:l.longitude,
-          service:l.service,customerConfirmed:l.customer_confirmed};
+          service:l.service,customerConfirmed:l.customer_confirmed,
+          dropoffLatitude:l.dropoff_latitude,dropoffLongitude:l.dropoff_longitude};
       }
     }catch(error){
       // Existing production still runs the original Google Form until this
@@ -150,9 +153,16 @@ export function renderStaffBookingDetail(b:StaffBookingDetail):string {
     ? section('Pickup / drop-off location',
         value('Requested service',esc(location.service==='both'?'Pickup and drop-off':
           location.service==='pickup'?'Pickup only':location.service==='dropoff'?'Drop-off only':'Unknown'))
-        +value('Customer-selected pin',esc(location.latitude.toFixed(6)+', '+location.longitude.toFixed(6)))
-        +value('View location','<a target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps?q='
+        +value(location.service==='dropoff'?'Drop-off pin':'Pickup pin',
+          esc(location.latitude.toFixed(6)+', '+location.longitude.toFixed(6)))
+        +value('View '+(location.service==='dropoff'?'drop-off':'pickup')+' location',
+          '<a target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps?q='
           +encodeURIComponent(location.latitude+','+location.longitude)+'">Open in Google Maps</a>')
+        +(location.service==='both'&&Number.isFinite(location.dropoffLatitude)&&Number.isFinite(location.dropoffLongitude)
+          ? value('Different drop-off pin',esc(location.dropoffLatitude!.toFixed(6)+', '+location.dropoffLongitude!.toFixed(6)))
+           +value('View drop-off location','<a target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps?q='
+             +encodeURIComponent(location.dropoffLatitude+','+location.dropoffLongitude)+'">Open in Google Maps</a>')
+          :location.service==='both'?value('Drop-off location','Same as pickup'): '')
       )+'<p class="fine">Check road access before confirming the transport price.</p>'
     : '';
   return '<!doctype html><html lang="en"><head><meta charset="utf-8">'

@@ -18,7 +18,8 @@ export type StaffInvoiceSource={
   cameraCageRequested:boolean|null;
   transportRequested:boolean|null;
   /** Optional new website pin; legacy Form records have no confirmed pin. */
-  transportLocation?:{latitude:number;longitude:number;service:'pickup'|'dropoff'|'both';customerConfirmed:boolean}|null;
+  transportLocation?:{latitude:number;longitude:number;service:'pickup'|'dropoff'|'both';customerConfirmed:boolean;
+    dropoffLatitude?:number|null;dropoffLongitude?:number|null}|null;
   synthetic:boolean;
 };
 export type StaffPackageChoice='daily'|'monthly';
@@ -80,14 +81,16 @@ export async function readStaffInvoiceSource(databaseUrl:string,bookingId:string
     let transportLocation:StaffInvoiceSource['transportLocation']=null;
     try{
       const pin=await db.query<{latitude:number;longitude:number;
-        service:'pickup'|'dropoff'|'both';customer_confirmed:boolean}>(
-        'SELECT latitude,longitude,service,customer_confirmed '+
+        service:'pickup'|'dropoff'|'both';customer_confirmed:boolean;
+        dropoff_latitude:number|null;dropoff_longitude:number|null}>(
+        'SELECT latitude,longitude,service,customer_confirmed,dropoff_latitude,dropoff_longitude '+
         'FROM public.booking_transport_locations WHERE booking_id=$1',
         [bookingId]
       );
       if(pin.rows[0])transportLocation={
         latitude:pin.rows[0].latitude,longitude:pin.rows[0].longitude,
-        service:pin.rows[0].service,customerConfirmed:pin.rows[0].customer_confirmed
+        service:pin.rows[0].service,customerConfirmed:pin.rows[0].customer_confirmed,
+        dropoffLatitude:pin.rows[0].dropoff_latitude,dropoffLongitude:pin.rows[0].dropoff_longitude
       };
     }catch(error){
       // The replacement website is not live and this additive table may not exist.

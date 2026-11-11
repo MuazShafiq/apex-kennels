@@ -148,8 +148,33 @@ try{
   assert.equal(saved[1].details.pickupDropoffRequested,false);
   assert.deepEqual(second.errors,[]);
   await second.page.close();
-  assert.equal(challengeChecks,2);
-  console.log('Synthetic end-to-end booking passed: browser form, exact pin, optional WhatsApp opt-in, full care details, Turnstile verification gate, no-transport request. No real writes/messages.');
+  const third=await newPage();
+  await fill(third.page);
+  await choice(third.page,'transportChoice','both');
+  assert.equal(await third.page.locator('#dropoff-location').isVisible(),false);
+  await third.page.locator('#maps-link').fill('33.700000, 73.080000');
+  await third.page.locator('#selected-location-link').waitFor({state:'visible'});
+  await third.page.locator('#separate-dropoff').check();
+  assert.equal(await third.page.locator('#dropoff-location').isVisible(),true);
+  await third.page.locator('#submit').click();
+  await third.page.locator('#message').waitFor({state:'visible'});
+  assert.match(await third.page.locator('#message').innerText(),/separate drop-off location/i);
+  assert.equal(saved.length,2,'Missing separate drop-off must never reach persistence');
+  await third.page.locator('#dropoff-maps-link').fill('33.580000, 73.020000');
+  await third.page.locator('#dropoff-selected-location-link').waitFor({state:'visible'});
+  assert.equal(await third.page.locator('#selected-location-link').isVisible(),true,
+    'Selecting drop-off must not overwrite pickup');
+  await third.page.locator('#submit').click();
+  await third.page.locator('#complete').waitFor({state:'visible'});
+  assert.equal(saved.length,3);
+  assert.deepEqual(saved[2].transportLocation,{
+    latitude:33.7,longitude:73.08,service:'both',customerConfirmed:true});
+  assert.deepEqual(saved[2].transportDropoffLocation,{
+    latitude:33.58,longitude:73.02,customerConfirmed:true});
+  assert.deepEqual(third.errors,[]);
+  await third.page.close();
+  assert.equal(challengeChecks,3);
+  console.log('Synthetic end-to-end booking passed: browser form, same and different gates, separate pin required, both full loops, no-transport, consent, care answers, Turnstile gate. No real writes/messages.');
 } finally{
   await browser.close();
   await new Promise(done=>server.close(done));

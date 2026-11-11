@@ -49,6 +49,29 @@ test('changed location changes the immutable intake fingerprint',()=>{
   assert.notEqual(fingerprintIntake(a),fingerprintIntake(b));
 });
 
+test('Both can use a second exact drop-off gate, with independent validation and identity',()=>{
+  const separate={...base,
+    transportLocation:{...base.transportLocation,service:'both'},
+    transportDropoffLocation:{latitude:33.58,longitude:73.02,customerConfirmed:true}
+  };
+  const parsed=parseIntake(separate,'website');
+  assert.deepEqual(parsed.transportDropoffLocation,separate.transportDropoffLocation);
+  const same={...separate,transportDropoffLocation:undefined};
+  assert.equal(parseIntake(same,'website').transportDropoffLocation,undefined);
+  assert.notEqual(fingerprintIntake(parsed),fingerprintIntake(parseIntake(same,'website')));
+  assert.notEqual(fingerprintIntake(parsed),fingerprintIntake(parseIntake({
+    ...separate,transportDropoffLocation:{...separate.transportDropoffLocation,latitude:33.581}
+  },'website')));
+  for(const invalid of [
+    {...separate,transportDropoffLocation:{...separate.transportDropoffLocation,latitude:31.5}},
+    {...separate,transportDropoffLocation:{...separate.transportDropoffLocation,customerConfirmed:false}},
+    {...separate,transportDropoffLocation:{...separate.transportDropoffLocation,service:'dropoff'}},
+    {...separate,transportLocation:{...separate.transportLocation,service:'pickup'}},
+    {...separate,transportLocation:{...separate.transportLocation,service:'dropoff'}},
+    {...separate,details:{...separate.details,pickupDropoffRequested:false}},
+  ]) assert.throws(()=>parseIntake(invalid,'website'));
+});
+
 test('original Google Form handler retains previous source restrictions and missing pin tolerance',()=>{
   const old={...base,source:'google_form',externalResponseId:'synthetic-original'};
   const {transportLocation,...unmodified}=old;

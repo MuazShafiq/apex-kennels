@@ -151,6 +151,21 @@ try{
     name+' coordinate fallback was not accepted');
   assert(await page.locator('#selected-location-link').isVisible(),
     name+' confirmed coordinates not displayed');
+  await page.locator('#separate-dropoff').check();
+  assert(await page.locator('#dropoff-location').isVisible(),name+' separate drop-off must expand');
+  await page.locator('#dropoff-maps-link').fill('33.580000, 73.020000');
+  await page.waitForTimeout(900);
+  assert(await page.locator('#dropoff-selected-location-link').isVisible(),
+    name+' separate drop-off coordinates not accepted');
+  assert(await page.locator('#selected-location-link').isVisible(),
+    name+' separate drop-off overwrote pickup pin');
+  const twoPins=await page.evaluate(()=>({
+    w:window.innerWidth,scroll:document.documentElement.scrollWidth
+  }));
+  assert(twoPins.scroll<=twoPins.w+2,name+' expanded drop-off overflows screen');
+  await page.locator('#separate-dropoff').uncheck();
+  assert(!(await page.locator('#dropoff-location').isVisible()),
+    name+' unchecked separate drop-off remains visible');
   await page.locator('label.option:has(input[name="transportChoice"][value="none"]) > span').click();
   assert(!(await page.locator('#transport').isVisible()),name+' no transport did not hide location');
   assert(errors.length===0,name+' JS errors: '+errors.join(';'));

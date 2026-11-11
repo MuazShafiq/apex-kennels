@@ -84,6 +84,56 @@ test('explicit pickup AND drop-off require two driven round trips, not one',asyn
   }
 });
 
+test('separate pickup and drop-off gates use two independent road loops, not doubled distance',async()=>{
+  const dropoff={lat:33.59,lon:73.015};
+  const seen:string[]=[];
+  const r=await routeApexTransport({...confirmed,visit:'pickup_and_dropoff',
+    dropoffPin:dropoff,dropoffPinConfirmed:true},{
+    apiKey:key,fetcher:async request=>{
+      const u=new URL(String(request));
+      seen.push(u.searchParams.get('waypoints')??'');
+      const meters=seen.length===1?19450:24770;
+      return new Response(JSON.stringify({features:[{properties:{distance:meters}}]}),{status:200});
+    }
+  });
+  assert.equal(r.ok,true);
+  if(r.ok){
+    assert.equal(r.estimate.loopDistanceKm,19.45);
+    assert.equal(r.estimate.dropoffLoopDistanceKm,24.77);
+    assert.equal(r.estimate.totalDrivenKm,44.22);
+    assert.deepEqual(r.estimate.dropoffPin,dropoff);
+    assert.equal(r.estimate.plannedRoundTrips,2);
+  }
+  assert.equal(seen.length,2);
+  assert.ok(seen[0].includes('33.704,73.075'));
+  assert.ok(seen[1].includes('33.59,73.015'));
+  assert.ok(seen.every(x=>x.startsWith('33.654,73.034|33.69,73.061|')&&
+    x.endsWith('|33.69,73.061|33.654,73.034')));
+});
+test('unverified, out-of-area or unavailable second loop fails closed',async()=>{
+  const dropoff={lat:33.59,lon:73.015};let calls=0;
+  const fetcher:typeof fetch=async()=>{
+    calls++;return new Response(JSON.stringify({features:[{properties:{distance:19450}}]}),{status:200});
+  };
+  for(const input of [
+    {...confirmed,visit:'pickup_and_dropoff' as const,dropoffPin:dropoff,dropoffPinConfirmed:false},
+    {...confirmed,visit:'pickup_and_dropoff' as const,dropoffPin:{lat:31.52,lon:74.35},dropoffPinConfirmed:true},
+    {...confirmed,visit:'pickup' as const,dropoffPin:dropoff,dropoffPinConfirmed:true}
+  ]){
+    assert.equal((await routeApexTransport(input,{apiKey:key,fetcher})).ok,false);
+  }
+  assert.equal(calls,0);
+  const failed=await routeApexTransport({...confirmed,visit:'pickup_and_dropoff',
+    dropoffPin:dropoff,dropoffPinConfirmed:true},{
+      apiKey:key,fetcher:async()=>{
+        calls++;return calls===1
+          ? new Response(JSON.stringify({features:[{properties:{distance:19450}}]}),{status:200})
+          : new Response('down',{status:503});
+      }
+    });
+  assert.equal(failed.ok,false);assert.equal(calls,2);
+});
+
 test('routing API key missing or unusable/unreachable road response fails closed',async()=>{
   const noKey=await routeApexTransport({...confirmed,visit:'pickup'});
   assert.equal(noKey.ok,false);

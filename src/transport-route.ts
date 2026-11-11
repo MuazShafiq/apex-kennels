@@ -11,6 +11,9 @@ export type TransportVisit='pickup'|'dropoff'|'pickup_and_dropoff';
 export type RouteRequest={
   kennelPin?:GeoPin;
   customerPin?:GeoPin;
+  /** Optional distinct return destination for pickup AND drop-off. */
+  dropoffPin?:GeoPin;
+  dropoffPinConfirmed?:boolean;
   kennelPinConfirmed:boolean;
   customerPinConfirmed:boolean;
   /** Mandatory road-access point on all kennel-bound and outward drives. */
@@ -28,6 +31,9 @@ export type RouteEstimate={
   retrievedAt:string;
   kennelPin:GeoPin;
   customerPin:GeoPin;
+  /** Present only when the drop-off gate differs from pickup. */
+  dropoffPin?:GeoPin;
+  dropoffLoopDistanceKm?:number;
   kennelAccessWaypoint:GeoPin;
   needsStaffConfirmation:true;
 };
@@ -82,7 +88,13 @@ export async function routeApexTransport(
   }
   // The legacy Form may contain unverified out-of-area transport requests.
   // Never turn one into a priced route, even if staff can inspect its pin.
-  if(!isTransportServiceLocation(input.customerPin.lat,input.customerPin.lon)){
+  if(input.dropoffPin!==undefined && (tripCount!==2 || !input.dropoffPinConfirmed ||
+      !validPakistanCoordinate(input.dropoffPin))){
+    return {ok:false,reason:'PINS_NOT_VERIFIED',
+      detail:'A separate drop-off gate must be verified before pricing'};
+  }
+  if(!isTransportServiceLocation(input.customerPin.lat,input.customerPin.lon) ||
+     input.dropoffPin && !isTransportServiceLocation(input.dropoffPin.lat,input.dropoffPin.lon)){
     return {ok:false,reason:'OUT_OF_SERVICE_AREA',
       detail:'Pickup and drop-off are available only within Islamabad and Rawalpindi'};
   }
@@ -100,20 +112,20 @@ export async function routeApexTransport(
     ok:false,reason:'ROUTE_NOT_AVAILABLE',
     detail:'Server-side Geoapify API key is not configured; no route distance estimated'
   };
-  const url=new URL('https://api.geoapify.com/v1/routing');
-  // Enforce the access point in BOTH directions. Routing may be asymmetric
-  // around the restaurant, so one-way road distance must never be doubled.
-  // Route: kennel -> access -> customer -> access -> kennel.
-  url.searchParams.set('waypoints',[
-    a,w,b,w,a
-  ].map(p=>p.lat+','+p.lon).join('|'));
-  url.searchParams.set('mode','drive');
-  url.searchParams.set('apiKey',key);
-  try {
+  // Each service is one complete drivable loop, with the mandatory road
+  // approach both outbound and inbound. When gates differ, query Geoapify
+  // independently: doubling the pickup journey would silently over/undercharge.
+  const dropoff=input.dropoffPin??b;
+  const sameGate=Math.abs(b.lat-dropoff.lat)<1e-7&&Math.abs(b.lon-dropoff.lon)<1e-7;
+  async function fetchLoop(destination:GeoPin):Promise<number>{
+    const url=new URL('https://api.geoapify.com/v1/routing');
+    url.searchParams.set('waypoints',[a,w,destination,w,a]
+      .map(p=>p.lat+','+p.lon).join('|'));
+    url.searchParams.set('mode','drive');
+    url.searchParams.set('apiKey',key!);
     const response=await (options.fetcher??fetch)(url.toString(),{
       method:'GET',redirect:'manual',cache:'no-store',
-      signal:AbortSignal.timeout(5000),
-      headers:{Accept:'application/json'},
+      signal:AbortSignal.timeout(5000),headers:{Accept:'application/json'}
     });
     if(!response.ok)throw new Error('Route service error');
     const body=await response.text();
@@ -122,23 +134,26 @@ export async function routeApexTransport(
     const features=json?.features;
     if(!Array.isArray(features)||features.length<1)throw new Error('No drivable route');
     const meters=features[0]?.properties?.distance;
-    if(typeof meters!=='number'||!Number.isFinite(meters)||meters<=0||meters>500000){
+    if(typeof meters!=='number'||!Number.isFinite(meters)||meters<=0||meters>500000)
       throw new Error('Invalid round-trip road distance');
-    }
-    const loopDistanceKm=Math.round(meters)/1000;
-    const totalDrivenKm=Math.round(meters*tripCount)/1000;
+    return meters;
+  }
+  try{
+    const first=await fetchLoop(b);
+    const second=tripCount===2?(sameGate?first:await fetchLoop(dropoff)):0;
+    const totalDrivenKm=Math.round(first+second)/1000;
     return {ok:true,estimate:{
-      status:'ROUTE_REVIEW_REQUIRED',
-      provider:'Geoapify Routing',
+      status:'ROUTE_REVIEW_REQUIRED',provider:'Geoapify Routing',
       routeType:'kennel_access_customer_access_kennel',
-      kennelPin:{...a},customerPin:{...b},
-      kennelAccessWaypoint:{...w},
-      loopDistanceKm,plannedRoundTrips:tripCount,totalDrivenKm,
+      kennelPin:{...a},customerPin:{...b},kennelAccessWaypoint:{...w},
+      ...(!sameGate?{dropoffPin:{...dropoff},dropoffLoopDistanceKm:Math.round(second)/1000}:{}),
+      loopDistanceKm:Math.round(first)/1000,
+      plannedRoundTrips:tripCount,totalDrivenKm,
       retrievedAt:(options.now??new Date()).toISOString(),
-      needsStaffConfirmation:true,
+      needsStaffConfirmation:true
     }};
   }catch{
     return {ok:false,reason:'ROUTE_NOT_AVAILABLE',
-      detail:'No reliable drive route; review both pins and enter verified total vehicle distance manually'};
+      detail:'No reliable drive route for all requested locations; check each gate and its drivable access'};
   }
 }

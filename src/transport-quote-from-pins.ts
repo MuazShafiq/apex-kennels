@@ -49,7 +49,10 @@ export async function preparePinnedTransportDraft(
     totalDrivenKm:route.estimate.totalDrivenKm,
     profitBasis:input.transport.profitBasis,
   }},options.fetchFuel);
-  price.draft.unresolved.push('Route '+route.estimate.loopDistanceKm+' km round trip; '
-    +route.estimate.plannedRoundTrips+' planned trips, review entrance/access and actual vehicle journey');
+  price.draft.unresolved.push('Route '+route.estimate.loopDistanceKm+' km round trip; 
+    +route.estimate.plannedRoundTrips+' planned trips, review entrance/access and actual vehicle journey'+
+    (route.estimate.dropoffLoopDistanceKm!==undefined
+      ? '; separate drop-off loop '+route.estimate.dropoffLoopDistanceKm+' km'
+      : ''));
   return {draft:price.draft,route,fuelLookup:price.fuelLookup};
 }

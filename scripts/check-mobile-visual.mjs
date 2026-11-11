@@ -147,7 +147,7 @@ try{
     name+' ambiguous short link retained a stale customer pin');
   await page.locator('#maps-link').fill('33.700000, 73.080000');
   await page.waitForTimeout(900);
-  assert((await page.locator('#coordinate-status').innerText()).includes('Pin coordinates location added'),
+  assert((await page.locator('#coordinate-status').innerText()).includes('Exact pin coordinates added'),
     name+' coordinate fallback was not accepted');
   assert(await page.locator('#selected-location-link').isVisible(),
     name+' confirmed coordinates not displayed');

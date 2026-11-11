@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import {parseBoardingDetails, type BoardingDetails} from './boarding-details.ts';
+import {parseBoardingDetails, PERSONALITY_TRAITS, type BoardingDetails} from './boarding-details.ts';
 import {IntakeError} from './intake-error.ts';
 import {validateCustomerLocation,type CustomerLocation} from './customer-location-input.ts';
 export {IntakeError} from './intake-error.ts';
@@ -65,6 +65,14 @@ export function parseIntake(value: unknown, expectedSource: 'google_form'|'websi
     throw new IntakeError('WhatsApp consent requires a contact phone number');
   if(expectedSource==='website' && !details)throw new IntakeError('Website booking requires full boarding details');
   if(expectedSource==='website' && details?.termsAccepted!==true)throw new IntakeError('Terms acknowledgement required');
+  // The public form requires a usable phone number and every care-safety answer.
+  // Legacy Google Form intake remains unchanged, including historic partial data.
+  if(expectedSource==='website'){
+    if(!phone)throw new IntakeError('Phone number is required for website bookings');
+    if(!details?.personalityTraits ||
+       PERSONALITY_TRAITS.some(trait=>typeof details.personalityTraits?.[trait]!=='boolean'))
+      throw new IntakeError('Complete all care questions');
+  }
   let transportLocation:CustomerLocation|undefined;
   if(expectedSource==='website') {
     if(details?.pickupDropoffRequested===true){

@@ -65,45 +65,64 @@
       </section>
       <section class="panel">
         <div class="step-heading"><span class="step">03</span><div><h2>Transport</h2><p>Pickup and drop-off are available in Islamabad and Rawalpindi only.</p></div></div>
-        <fieldset class="field-choice"><legend>What would you like?</legend><div class="choice-cards transport-choices">
-          <label class="option option-card"><input type="radio" name="transportChoice" value="none" required><span><strong>No transport</strong></span></label>
-          <label class="option option-card"><input type="radio" name="transportChoice" value="pickup"><span><strong>Pickup</strong></span></label>
-          <label class="option option-card"><input type="radio" name="transportChoice" value="dropoff"><span><strong>Drop-off</strong></span></label>
-          <label class="option option-card"><input type="radio" name="transportChoice" value="both"><span><strong>Both</strong><small>Same or different locations</small></span></label>
-        </div></fieldset>
-        <div id="transport" class="transport" hidden>
-          <h3 id="primary-location-title">Choose your pickup location</h3>
-          <p>Use your current location, or find your exact gate in Google Maps.</p>
-          <div class="location-actions">
-            <button type="button" class="secondary" id="locate">Use my current location</button>
-            <a class="maps-button" id="open-google-maps" href="https://www.google.com/maps/@?api=1&amp;map_action=map&amp;center=33.65%2C73.06&amp;zoom=12" target="_blank" rel="noopener noreferrer">Open Google Maps</a>
-          </div>
-          <label class="maps-link-label" for="maps-link">Google Maps link or exact pin coordinates</label>
-          <input id="maps-link" type="text" autocomplete="off"
-            spellcheck="false" placeholder="Paste a Maps link or 33.700000, 73.080000">
-          <p class="location-help">In Google Maps, find your gate, tap <strong>Share → Copy link</strong>, and paste it above. If the link cannot provide an exact pin, long-press your gate in Maps and paste its <strong>latitude, longitude</strong> coordinates instead.</p>
-          <p id="coordinate-status" class="location-status" aria-live="polite">No location selected</p>
-          <a id="selected-location-link" class="pin-link" target="_blank" rel="noopener noreferrer" hidden>View selected location in Google Maps</a>
-          <div id="dropoff-choice" class="dropoff-choice" hidden>
-            <p class="location-help" id="same-dropoff-note">We'll drop your dog off at the pickup location unless you choose a different one.</p>
-            <label class="confirm separate-dropoff-choice"><input type="checkbox" id="separate-dropoff"> Use a different drop-off location</label>
-          </div>
-          <div id="dropoff-location" class="dropoff-panel" hidden>
-            <h3>Drop-off location</h3>
-            <p>Where should we bring your dog after boarding?</p>
-            <div class="location-actions">
-              <button type="button" class="secondary" id="dropoff-locate">Use my current location</button>
-              <a class="maps-button" href="https://www.google.com/maps/@?api=1&amp;map_action=map&amp;center=33.65%2C73.06&amp;zoom=12" target="_blank" rel="noopener noreferrer">Open Google Maps</a>
+        <fieldset class="field-choice transport-services" aria-describedby="transport-help">
+          <legend>Which services do you need?</legend>
+          <p class="transport-help" id="transport-help">Select pickup, drop-off, or both.</p>
+          <div class="transport-service-list" id="transport">
+            <div class="transport-service-block">
+              <label class="transport-service-option">
+                <input type="checkbox" id="transport-pickup" name="pickupRequested" aria-controls="pickup-location">
+                <span class="transport-service-copy"><strong>Pickup</strong><small>Collect my dog before boarding</small></span>
+              </label>
+              <div id="pickup-location" class="transport-location-panel" hidden>
+                <h3>Pickup location</h3>
+                <p>Where should we collect your dog?</p>
+                <div class="location-actions">
+                  <button type="button" class="secondary" id="locate">Use my current location</button>
+                  <a class="maps-button" id="open-google-maps" href="https://www.google.com/maps/@?api=1&amp;map_action=map&amp;center=33.65%2C73.06&amp;zoom=12" target="_blank" rel="noopener noreferrer">Open Google Maps</a>
+                </div>
+                <label class="maps-link-label" for="maps-link">Google Maps link or exact pin coordinates</label>
+                <input id="maps-link" type="text" autocomplete="off" spellcheck="false"
+                  placeholder="Paste a Maps link or 33.700000, 73.080000">
+                <p class="location-help">In Google Maps, find your gate, tap <strong>Share → Copy link</strong>, and paste it here. If the link has no exact pin, long-press your gate and paste the <strong>latitude, longitude</strong> coordinates instead.</p>
+                <p id="coordinate-status" class="location-status" aria-live="polite">No pickup location selected</p>
+                <a id="selected-location-link" class="pin-link" target="_blank" rel="noopener noreferrer" hidden>View pickup location in Google Maps</a>
+              </div>
             </div>
-            <label class="maps-link-label" for="dropoff-maps-link">Google Maps link or exact pin coordinates</label>
-            <input id="dropoff-maps-link" type="text" autocomplete="off" spellcheck="false"
-              placeholder="Paste a Maps link or 33.700000, 73.080000">
-            <p class="location-help">Share the exact drop-off gate in Google Maps or paste its latitude, longitude coordinates.</p>
-            <p id="dropoff-coordinate-status" class="location-status" aria-live="polite">No drop-off location selected</p>
-            <a id="dropoff-selected-location-link" class="pin-link" target="_blank" rel="noopener noreferrer" hidden>View drop-off location in Google Maps</a>
+            <div class="transport-service-block">
+              <label class="transport-service-option">
+                <input type="checkbox" id="transport-dropoff" name="dropoffRequested" aria-controls="dropoff-location">
+                <span class="transport-service-copy"><strong>Drop-off</strong><small>Bring my dog back after boarding</small></span>
+              </label>
+              <div id="dropoff-reuse" class="transport-location-reuse" hidden>
+                <label class="reuse-checkbox">
+                  <input type="checkbox" id="same-dropoff" checked>
+                  <span>Use pickup location for drop-off</span>
+                </label>
+              </div>
+              <div id="dropoff-location" class="transport-location-panel" hidden>
+                <h3>Drop-off location</h3>
+                <p>Where should we bring your dog after boarding?</p>
+                <div class="location-actions">
+                  <button type="button" class="secondary" id="dropoff-locate">Use my current location</button>
+                  <a class="maps-button" href="https://www.google.com/maps/@?api=1&amp;map_action=map&amp;center=33.65%2C73.06&amp;zoom=12" target="_blank" rel="noopener noreferrer">Open Google Maps</a>
+                </div>
+                <label class="maps-link-label" for="dropoff-maps-link">Google Maps link or exact pin coordinates</label>
+                <input id="dropoff-maps-link" type="text" autocomplete="off" spellcheck="false"
+                  placeholder="Paste a Maps link or 33.700000, 73.080000">
+                <p class="location-help">Share the exact drop-off gate in Google Maps or paste its latitude, longitude coordinates.</p>
+                <p id="dropoff-coordinate-status" class="location-status" aria-live="polite">No drop-off location selected</p>
+                <a id="dropoff-selected-location-link" class="pin-link" target="_blank" rel="noopener noreferrer" hidden>View drop-off location in Google Maps</a>
+              </div>
+            </div>
+            <div class="transport-divider"><span>or</span></div>
+            <label class="transport-service-option transport-service-none">
+              <input type="checkbox" id="transport-none" name="noTransport">
+              <span class="transport-service-copy"><strong>No transport needed</strong></span>
+            </label>
           </div>
-          <p class="fineprint">Pickup and drop-off are available only in Islamabad and Rawalpindi. Transport charges are confirmed separately.</p>
-        </div>
+        </fieldset>
+        <p class="fineprint">We'll confirm transport charges separately before your booking is finalized.</p>
       </section>
       <section class="panel">
         <div class="step-heading"><span class="step">04</span><div><h2>Care details</h2><p>Tell us about their behaviour and health.</p></div></div>
@@ -133,8 +152,8 @@
     <li>I will be completely financially responsible if my dog causes any property damage while boarding at Apex Kennels.</li>
   </ol>
 </details>
-        <label class="confirm"><input name="termsAccepted" type="checkbox" required> I have read and agree to the boarding terms below.</label>
-        <label class="confirm"><input name="whatsappInvoiceOptIn" type="checkbox"> Send me booking updates and my approved invoice on WhatsApp at the number I provided (optional).</label>
+        <label class="confirm"><input name="termsAccepted" type="checkbox" required><span>I have read and agree to the boarding terms below.</span></label>
+        <label class="confirm"><input name="whatsappInvoiceOptIn" type="checkbox"><span>Send me booking updates and my approved invoice on WhatsApp at the number I provided (optional).</span></label>
         <p class="fineprint">This is a booking request, not a confirmed reservation. We will contact you about availability, care needs and any additional charges.</p>
         <div id="turnstile"></div>
         <div class="sendrow"><span>Your request goes to Apex Kennels.</span>

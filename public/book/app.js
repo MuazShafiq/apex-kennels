@@ -1,11 +1,16 @@
 (function(){
   'use strict';
   const form=document.getElementById('booking');
-  const transport=document.getElementById('transport');
+  const pickupRequested=document.getElementById('transport-pickup');
+  const dropoffRequested=document.getElementById('transport-dropoff');
+  const noTransport=document.getElementById('transport-none');
+  const pickupPanel=document.getElementById('pickup-location');
+  const dropoffReuse=document.getElementById('dropoff-reuse');
+  const sameDropoff=document.getElementById('same-dropoff');
   const message=document.getElementById('message');
   const submit=document.getElementById('submit');
   const preview=document.getElementById('preview');
-  const differentDropoff=document.getElementById('separate-dropoff');
+
   const dropoffPanel=document.getElementById('dropoff-location');
   const SERVICE_BOUNDS=[[72.81,33.43],[73.30,33.84]];
   const requestId=crypto.randomUUID();
@@ -17,10 +22,13 @@
     message.className=bad?'message error':'message';
     message.hidden=false;
   }
+  // Map the two independent controls onto the existing validated API contract.
   function transportChoice(){
-    return form.querySelector('input[name="transportChoice"]:checked')?.value||'none';
+    if(pickupRequested.checked&&dropoffRequested.checked)return 'both';
+    if(pickupRequested.checked)return 'pickup';
+    if(dropoffRequested.checked)return 'dropoff';
+    return 'none';
   }
-  function selectedTransport(){return transportChoice()!=='none';}
   function inServiceArea(latitude,longitude){
     return Number.isFinite(latitude)&&Number.isFinite(longitude)&&
       latitude>=SERVICE_BOUNDS[0][1]&&latitude<=SERVICE_BOUNDS[1][1]&&
@@ -102,23 +110,38 @@
   }
   const pickup=locationControl('');
   const dropoff=locationControl('dropoff-');
-  const dropoffChoice=document.getElementById('dropoff-choice');
   function displayTransport(){
-    const choice=transportChoice();
-    transport.hidden=choice==='none';
-    dropoffChoice.hidden=choice!=='both';
-    dropoffPanel.hidden=choice!=='both'||!differentDropoff.checked;
-    document.getElementById('primary-location-title').textContent=
-      choice==='dropoff'?'Choose your drop-off location':'Choose your pickup location';
+    const pickupOn=pickupRequested.checked,dropoffOn=dropoffRequested.checked;
+    pickupPanel.hidden=!pickupOn;
+    dropoffReuse.hidden=!(pickupOn&&dropoffOn);
+    dropoffPanel.hidden=!dropoffOn||(pickupOn&&sameDropoff.checked);
+    pickupRequested.setAttribute('aria-expanded',String(pickupOn));
+    dropoffRequested.setAttribute('aria-expanded',String(!dropoffPanel.hidden));
   }
-  differentDropoff.addEventListener('change',displayTransport);
-  form.querySelectorAll('input[name="transportChoice"]').forEach(el=>{
-    el.addEventListener('change',()=>{
-      // Changing trip type changes what the primary pin represents.
-      pickup.reset();dropoff.reset();differentDropoff.checked=false;
-      displayTransport();
-    });
+  pickupRequested.addEventListener('change',()=>{
+    if(pickupRequested.checked){
+      noTransport.checked=false;
+      // If a drop-off-only customer already chose a pin, retain it when
+      // they add pickup instead of silently overwriting that choice.
+      if(dropoffRequested.checked&&dropoff.point())sameDropoff.checked=false;
+    }
+    displayTransport();
   });
+  dropoffRequested.addEventListener('change',()=>{
+    if(dropoffRequested.checked){
+      noTransport.checked=false;
+      if(pickupRequested.checked)sameDropoff.checked=!dropoff.point();
+    }
+    displayTransport();
+  });
+  noTransport.addEventListener('change',()=>{
+    if(noTransport.checked){
+      pickupRequested.checked=false;
+      dropoffRequested.checked=false;
+    }
+    displayTransport();
+  });
+  sameDropoff.addEventListener('change',displayTransport);
 
   function field(data,name){return String(data.get(name)||'').trim();}
   function optional(data,name){return field(data,name)||undefined;}
@@ -132,11 +155,16 @@
     }
     const choice=transportChoice();
     const needsTransport=choice!=='none';
-    if(needsTransport&&!pickup.point()){
-      pickup.focus();
+    if(!needsTransport&&!noTransport.checked){
+      pickupRequested.focus();
+      throw new Error('Select pickup, drop-off, or no transport needed.');
+    }
+    const primary=choice==='dropoff'?dropoff:pickup;
+    if(needsTransport&&!primary.point()){
+      primary.focus();
       throw new Error('Select the '+(choice==='dropoff'?'drop-off':'pickup')+' location using Google Maps or coordinates.');
     }
-    if(choice==='both'&&differentDropoff.checked&&!dropoff.point()){
+    if(choice==='both'&&!sameDropoff.checked&&!dropoff.point()){
       dropoff.focus();
       throw new Error('Select the separate drop-off location using Google Maps or coordinates.');
     }
@@ -164,9 +192,10 @@
     };
     if(needsTransport){
       booking.transportLocation={
-        ...pickup.point(),service:choice,customerConfirmed:true
+        ...(choice==='dropoff'?dropoff.point():pickup.point()),
+        service:choice,customerConfirmed:true
       };
-      if(choice==='both'&&differentDropoff.checked)
+      if(choice==='both'&&!sameDropoff.checked)
         booking.transportDropoffLocation={...dropoff.point(),customerConfirmed:true};
     }
     return booking;

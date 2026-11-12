@@ -383,7 +383,10 @@ export async function handleWorkerRequest(
     try{
       if(request.method==='GET'){
         const url=new URL(request.url);
-        if([...url.searchParams.keys()].some(k=>k!=='id')||
+        // Chat apps may append attribution fields to staff links.
+        // Ignore only known inert UTM parameters, never duplicate IDs.
+        const attribution=new Set(['utm_source','utm_medium','utm_campaign','utm_term','utm_content']);
+        if([...url.searchParams.keys()].some(k=>k!=='id'&&!attribution.has(k))||
            url.searchParams.getAll('id').length!==1)
           return json({error:'Invalid booking reference'},400);
         let id:string;

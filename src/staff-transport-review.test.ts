@@ -104,6 +104,28 @@ test('GET requires verified staff access and only reads private booking details'
   assert.equal(ok.headers.get('cache-control'),'private, no-store');
   assert.equal(reads,1);
 });
+test('authenticated transport links ignore chat attribution but still reject invalid identity',async()=>{
+  let reads=0;
+  const options={context,draft:async()=>{reads++;return booking;},
+    loadReview:async()=>null};
+  const tracked=origin+'/staff/transport?id='+id+'&utm_source=chatgpt.com&utm_medium=chat';
+  const ok=await handleWorkerRequest(new Request(tracked),env,undefined,options);
+  assert.equal(ok.status,200);
+  assert.match(await ok.text(),/Price pickup & drop-off/);
+  assert.equal(reads,1);
+  for(const suffix of [
+    '?id='+id+'&id='+id,
+    '?id='+id+'&unknown=unexpected',
+    '?utm_source=chatgpt.com',
+    '?id=not-an-id&utm_source=chatgpt.com'
+  ]){
+    const result=await handleWorkerRequest(
+      new Request(origin+'/staff/transport'+suffix),env,undefined,options);
+    assert.equal(result.status,400);
+  }
+  assert.equal(reads,1,'Invalid links must be rejected before any booking read');
+});
+
 test('POST denies forged origin and unauthenticated requests before routing',async()=>{
   let routes=0;
   const opts={...deps,transportRoute:async()=>{routes++;return route;}};

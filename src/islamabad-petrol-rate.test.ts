@@ -98,6 +98,23 @@ test('both stale/invalid providers fail closed; no hardcoded numeric rate',async
   }
 });
 
+test('uses a Cloudflare Workers-supported redirect mode and never follows provider redirects',async()=>{
+  const modes:(RequestRedirect|undefined)[]=[];
+  // Mirror workerd: redirect:'error' throws a TypeError before any request.
+  const workerd:typeof fetch=async(input,init)=>{
+    modes.push(init?.redirect);
+    if(init?.redirect!=='follow'&&init?.redirect!=='manual')
+      throw new TypeError('Invalid redirect value, must be one of "follow" or "manual"');
+    return String(input)===FUEL_SOURCE.primary
+      ? new Response(null,{status:302,headers:{Location:'https://unexpected.example/'}})
+      : new Response(JSON.stringify(mirror),{status:200});
+  };
+  const result=await fetchCurrentIslamabadPetrolBaseline({fetcher:workerd,now:at});
+  assert.deepEqual(modes,['manual','manual']);
+  assert.equal(result.ok,true);
+  if(result.ok)assert.equal(result.rate.sourceUrl,FUEL_SOURCE.mirror);
+});
+
 test('two separate order lookups call provider twice, not reused cache',async()=>{
   let calls=0;
   const f:typeof fetch=async()=>{calls++;return new Response(JSON.stringify(mirror),{status:200});};

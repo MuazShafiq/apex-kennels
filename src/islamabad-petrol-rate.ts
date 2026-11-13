@@ -122,12 +122,16 @@ export async function fetchCurrentIslamabadPetrolBaseline(options:{
   const errors:string[]=[];
   for(const url of attempts) {
     try{
+      // Cloudflare Workers throw on redirect:'error' (only follow/manual are
+      // implemented), which silently disabled every live lookup. Use manual
+      // and reject any 3xx below, so redirects still never reach a new host.
       const response=await f(url,{
-        method:'GET',redirect:'error',cache:'no-store',
+        method:'GET',redirect:'manual',cache:'no-store',
         headers:{Accept:'application/json'},
         signal:AbortSignal.timeout(4500),
       });
-      if(!response.ok) throw new Error('Provider HTTP '+response.status);
+      if(response.status<200||response.status>299)
+        throw new Error('Provider HTTP '+response.status);
       const text=await response.text();
       if(text.length>32768) throw new Error('Oversized price response');
       const rate=parseNotifiedPetrolRate(JSON.parse(text),{

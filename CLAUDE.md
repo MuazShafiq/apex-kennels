@@ -1,6 +1,7 @@
 # Claude Code: Apex Kennels
 
 @AGENTS.md
+@docs/agents/THREAD.md
 
 Use the shared repository contract above. Do not copy or fork its rules into a second long instruction file.
 

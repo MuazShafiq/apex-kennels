@@ -10,10 +10,9 @@ $work=Join-Path ([System.IO.Path]::GetTempPath()) ('apex-codex-profiles-'+[Guid]
 $profile=Join-Path $work 'test-profile.ps1'
 $log=Join-Path $work 'observations.txt'
 try {
-    [System.IO.File]::WriteAllText($profile, @'
-function global:cc-muaz { "muaz-ok" }
-function global:cc-umer { "umer-ok" }
-'@)
+    $fixture = 'function global:cc-muaz { "muaz-ok" }' + [Environment]::NewLine +
+        'function global:cc-umer { "umer-ok" }' + [Environment]::NewLine
+    [System.IO.File]::WriteAllText($profile, $fixture)
     & (Join-Path $root 'scripts\install-codex-profiles.ps1') -ProfilePaths @($profile)
     & (Join-Path $root 'scripts\install-codex-profiles.ps1') -ProfilePaths @($profile)
     $contents=[System.IO.File]::ReadAllText($profile)

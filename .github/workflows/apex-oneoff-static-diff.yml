@@ -1,0 +1,61 @@
+name: One-off Apex static version content audit
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/apex-oneoff-static-diff.yml'
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Compare exact public version assets without touching production
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import {createHash} from 'node:crypto';
+          import {readFileSync} from 'node:fs';
+          const prefix='apex-kennels-api.muaz-shafiq18.workers.dev';
+          const pairs=[['a63c43e0','d15f696d'],['b66a4725','9f8a2240']];
+          const paths=['/book','/book/app.js','/book/styles.css'];
+          const local={'/book':'public/book/index.html','/book/app.js':'public/book/app.js','/book/styles.css':'public/book/styles.css'};
+          const hash=s=>createHash('sha256').update(s).digest('hex').slice(0,16);
+          async function get(version,path){
+            const url='https://'+version+'-'+prefix+path;
+            try{
+              const response=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(15000),headers:{'Cache-Control':'no-cache'}});
+              const content=await response.text();
+              return {status:response.status,content};
+            }catch(e){return {status:'NETWORK_FAILURE',content:''};}
+          }
+          function excerpt(a,b){
+            let n=0;while(n<a.length&&n<b.length&&a[n]===b[n])n++;
+            if(n===a.length&&n===b.length)return 'No text differences';
+            const start=Math.max(0,n-70);
+            return JSON.stringify({firstDifferentOffset:n,older:a.slice(start,n+150),newer:b.slice(start,n+150)});
+          }
+          for(const [a,b] of pairs){
+            console.log('\nPAIR '+a+' -> '+b);
+            for(const path of paths){
+              const [x,y]=await Promise.all([get(a,path),get(b,path)]);
+              console.log('PATH '+path+' HTTP '+x.status+'/'+y.status+' bytes '+Buffer.byteLength(x.content)+'/'+Buffer.byteLength(y.content));
+              if(x.status!==200||y.status!==200)continue;
+              console.log('HASH '+hash(x.content)+' / '+hash(y.content));
+              console.log('DIFF '+excerpt(x.content,y.content));
+              const source=readFileSync(local[path],'utf8');
+              console.log('MATCHES_MAIN '+(x.content===source?'older':y.content===source?'newer':x.content===y.content?'both (not main)':'neither'));
+              if(path==='/book'){
+                for(const [name,marker] of [['Independent Pickup','id="transport-pickup"'],['Independent Drop-off','id="transport-dropoff"'],['Legacy Both radio','value="both"'],['Closed preview text','Booking submissions are not enabled']]){
+                  console.log('FEATURE '+name+' '+x.content.includes(marker)+'/'+y.content.includes(marker));
+                }
+              }
+            }
+          }
+          NODE

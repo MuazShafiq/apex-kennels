@@ -1,5 +1,12 @@
 name: Codex launcher profile checks
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/codex-profiles.ps1'
+      - 'scripts/install-codex-profiles.ps1'
+      - 'scripts/test-codex-profiles.ps1'
+      - '.github/workflows/codex-profile-checks.yml'
   pull_request:
     paths:
       - 'scripts/codex-profiles.ps1'
@@ -11,14 +18,15 @@ permissions:
 jobs:
   windows-powershell:
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shell: ['powershell', 'pwsh']
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - name: Verify Codex profile installation and environment isolation
-        shell: ${{ matrix.shell }}
+      # The shell field does not accept matrix expressions. Keep both runtimes
+      # explicit so GitHub can validate the workflow before creating jobs.
+      - name: Verify Codex profiles with Windows PowerShell 5.1
+        shell: powershell
+        run: .\scripts\test-codex-profiles.ps1
+      - name: Verify Codex profiles with PowerShell 7
+        shell: pwsh
         run: .\scripts\test-codex-profiles.ps1

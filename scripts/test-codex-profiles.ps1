@@ -18,6 +18,10 @@ try {
     $contents=[System.IO.File]::ReadAllText($profile)
     $markers=[regex]::Matches($contents,'# BEGIN APEX CODEX PROFILES')
     if($markers.Count -ne 1){throw 'Non-idempotent install: duplicate launcher block'}
+    $installedLauncher=Join-Path $HOME '.codex-launchers\codex-profiles.ps1'
+    if(-not (Test-Path -LiteralPath $installedLauncher)){
+        throw 'Expected portable user-home launcher copy'
+    }
     . $profile
     if((cc-muaz) -ne 'muaz-ok' -or (cc-umer) -ne 'umer-ok'){
         throw 'Existing Claude launchers were modified'

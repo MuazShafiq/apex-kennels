@@ -42,6 +42,9 @@ test('staff page displays numeric pin but never repeats pasted raw link',()=>{
   assert.match(page,/Check that the pin marks a drivable entrance/);
   assert.match(page,/method="post"/);
   assert.match(page,/staff\/location/);
+  assert.match(page,/class="apex-mini-brand"/);
+  assert.match(page,/src="\/book\/apex-dog-mark\.svg"/);
+  assert.match(page,/min-height:100vh/);
   assert.doesNotMatch(page,/x7KMJZuXFG74HqQg8/);
   assert.doesNotMatch(page,/Send invoice|Generate invoice/);
 });

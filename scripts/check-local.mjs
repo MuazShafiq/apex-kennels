@@ -31,8 +31,16 @@ if (demo.status !== 200 || !(await demo.text()).includes('SYNTHETIC DEMO')) {
 }
 
 const invoice = await request('/demo/invoice');
-if (invoice.status !== 200 || !(await invoice.text()).includes('NOT A PAYABLE INVOICE')) {
-  throw new Error('Synthetic invoice preview unavailable');
+if (invoice.status !== 200 ||
+    !invoice.headers.get('content-type')?.toLowerCase().startsWith('application/pdf') ||
+    !invoice.headers.get('content-disposition')?.toLowerCase().startsWith('inline;')) {
+  throw new Error('Synthetic invoice PDF preview unavailable');
+}
+const pdf = new Uint8Array(await invoice.arrayBuffer());
+if (pdf.byteLength < 5000 || pdf.byteLength > 5_000_000 ||
+    new TextDecoder('ascii').decode(pdf.subarray(0, 5)) !== '%PDF-' ||
+    !new TextDecoder('ascii').decode(pdf.subarray(-1024)).includes('%%EOF')) {
+  throw new Error('Synthetic invoice PDF is invalid or truncated');
 }
 
 const intake = await request('/api/ingest');

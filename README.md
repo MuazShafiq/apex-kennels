@@ -1,38 +1,52 @@
 # Apex Kennels
 
-Booking intake, customer requests, staff review and invoice estimation. **Production runs on Cloudflare Workers and Neon.** The old Vercel project was deleted; its code and build artifacts are no longer maintained.
+Cloudflare Worker + static booking page + Neon PostgreSQL + Google Form / Apps Script. The former Vercel project is retired.
 
-## What works
+## Current operational state (November 14, 2026)
 
-- **Google Form intake:** live, via Apps Script → authenticated Cloudflare Worker → Neon, with an opt-in recovery trigger. Keep it active until the website replaces it.
-- **Staff review:** Cloudflare Access-protected `/staff` queue, private booking details at `/staff/booking?id=<uuid>`, read-only estimate at `/staff/draft?id=<uuid>`. Staff management and invoice sending aren't implemented.
-- **Customer booking preview:** `/book`. Transport customers can use device GPS or open Google Maps and paste a shared exact pin. Apex resolves the link and enforces the Islamabad–Rawalpindi transport area. This is **not yet the live booking channel**.
-- **Routing and pricing:** Geoapify driving-route and current petrol-price logic are separate, review-only calculations. No real invoice is approved, sent, or made payable automatically.
-- **Synthetic demos:** `/demo/staff`, `/demo/invoice`, `/demo/draft` contain only fictional data.
+| Area | State |
+| --- | --- |
+| Existing Google Form → Cloudflare → Neon | Active customer intake, retained during website cutover |
+| Replacement `/book` | Deployed preview, **public submissions disabled**; independent pickup/drop-off configuration |
+| Live Turnstile + website booking | A clearly synthetic production canary succeeded in the November 13 controlled test; the gate was closed again afterward (operator-verified) |
+| Staff dashboard | Cloudflare Access-protected booking queue, booking details and saved review-only drafts |
+| Geoapify + current petrol | A synthetic distinct-gate route and fuel quote were calculated live, saved to Neon and checked (operator-verified). **Physical entrance/Bawli road access still unverified** |
+| Canva-based invoice PDF | Review-only, non-payable PDF; blank-page and alignment defects fixed in [PR #66](https://github.com/MuazShafiq/apex-kennels/pull/66), with live visual verification reported |
+| Owner invoice approval / WhatsApp delivery | **Not enabled**; no payable invoices, customer messages, payment collection or automated booking acceptance |
 
-## Release gates
+The saved synthetic transport quote is an engineering verification, **not** a customer-approved transport rate. National notified petrol rates are not proof of local pump prices.
 
-Public website submission remains disabled unless `APEX_PUBLIC_BOOKING_ENABLED=true` and the configured Turnstile and database prerequisites are satisfied. Before turning it on, complete the production transport-location migration, review the owner-provided boarding terms, test one synthetic website booking end to end, and complete the real-phone Google Maps test in [issue #37](https://github.com/MuazShafiq/apex-kennels/issues/37). The active cutover checklist is [docs/customer-booking-launch.md](docs/customer-booking-launch.md).
+## Remaining release gates
+
+1. Fatima approves the customer form and six owner-provided boarding terms.
+2. Verify Google Maps sharing, geolocation and actual page connectivity on a real customer's phone/network ([issue #37](https://github.com/MuazShafiq/apex-kennels/issues/37)); investigate the previously reported ISP/ECH accessibility failure before replacing the Form.
+3. Independently confirm the kennel's **drivable** entrance, mandatory Bawli approach, and each customer gate before making transport quotes payable.
+4. Enable public booking and replace the Google Form link **only after approval**, then retain the Form as fallback. The existing Form keeps running until this cutover is explicitly authorized.
+5. Build owner approval and customer-safe invoice delivery separately ([issue #39](https://github.com/MuazShafiq/apex-kennels/issues/39)); do not activate messaging without recorded opt-in, Meta integration and reliable delivery status.
+
+Canonical implementation/release reference: [customer booking launch](docs/customer-booking-launch.md). Earlier date-specific handoff documents are preserved as historical checkpoints and may describe already-completed work.
 
 ## Development
 
-Use Node.js 22 or 24. On Windows:
+Use Node 22 or 24. On Windows PowerShell, from your existing local clone:
 
 ```powershell
-cd $HOME\Downloads\apex-kennels
+cd "$HOME\Downloads\Projects\apex-kennels"
 npm.cmd ci
-npm.cmd test
 npm.cmd run cf:check
 npm.cmd run dev
+# In another terminal, while the dev server is running:
+npm.cmd run local:check
 ```
 
-Run `npm.cmd run cf:deploy` only when the reviewed `main` branch is ready. Never commit production environment files, API keys, customer records or payment information.
+The local smoke check verifies a **synthetic PDF**, not obsolete HTML invoice text. For customer/staff UI changes, run the Playwright checks configured by [mobile visual CI](.github/workflows/apex-mobile-visual.yml). GitHub Actions runs tests and the read-only production smoke monitor; **it does not deploy the Worker**.
 
-## Operational references
+Production deploys are explicit Wrangler operations from reviewed code. Do not accidentally enable the public booking gate, rotate intake credentials, or modify live customer records while deploying.
 
-- [Local setup](docs/local-windows.md) · [Cloudflare setup](docs/cloudflare-workers.md) · [Staff access](docs/staff-access.md)
-- [Form automation](docs/form-automation.md) · [Google Maps link handling](docs/customer-shared-map-pins.md) · [Customer website launch](docs/customer-booking-launch.md)
-- [Fatima's approved pricing rules](docs/approved-invoice-rules-2026-11-05.md) · [Invoice review](docs/staff-invoice-drafts.md)
-- [Design/UX release checks](docs/experience-guardrails.md) · [Staff delegation backlog](https://github.com/MuazShafiq/apex-kennels/issues/27)
+## Architecture and operating references
 
-**Guardrails:** Booking submission does not confirm a stay. Only staff can accept bookings and manually send an owner-reviewed invoice. A map pin is not proof of a drivable gate. Keep the original Google Form running until the replacement is independently verified.
+- [Coding agent instructions](AGENTS.md) · [Windows setup](docs/local-windows.md) · [Cloudflare](docs/cloudflare-workers.md) · [Staff authorization](docs/staff-access.md)
+- [Google Form intake](docs/form-automation.md) · [Google Maps selection](docs/customer-shared-map-pins.md) · [Customer booking cutover](docs/customer-booking-launch.md)
+- [Confirmed invoice rules](docs/approved-invoice-rules-2026-11-05.md) · [Saved estimate workflow](docs/staff-saved-reviews.md) · [WhatsApp rollout gates](docs/whatsapp-rollout.md)
+
+**Do not confuse a submitted booking request, a saved review estimate and an approved payable invoice.** They are distinct states.

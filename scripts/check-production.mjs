@@ -28,8 +28,17 @@ async function runChecks() {
 
   const page=await get('/book');
   if(page.status!==200)throw new Error('Customer booking preview unavailable: '+page.status);
-  if(!(await page.text()).includes('Google Maps link or exact pin coordinates'))
-    throw new Error('Customer booking preview is not at the latest release');
+  const bookingHtml=await page.text();
+  for(const marker of [
+    'Google Maps link or exact pin coordinates',
+    'id="transport-pickup"','id="transport-dropoff"',
+    'id="transport-none"','id="same-dropoff"'
+  ]){
+    if(!bookingHtml.includes(marker))
+      throw new Error('Customer booking preview missing required release control: '+marker);
+  }
+  if(bookingHtml.includes('name="transportChoice"'))
+    throw new Error('Customer booking preview reverted to obsolete four-way transport radio');
 
   const blocked=await fetch(new URL('/api/book',base),{
     method:'POST',redirect:'manual',signal:AbortSignal.timeout(12000),

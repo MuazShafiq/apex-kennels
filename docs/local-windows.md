@@ -1,6 +1,6 @@
 # Windows local development (PowerShell 5.1 / Node 22 or 24)
 
-**Target:** edit Apex in **VS Code at `C:\Users\<YOU>\Downloads\apex-kennels`** and run the *same Cloudflare Workers code* locally using Wrangler. No production deployment, no live Google Form, no approved pricing, no customer messages.
+**Target:** edit Apex in **VS Code at `C:\Users\<YOU>\Downloads\Projects\apex-kennels`** and run the *same Cloudflare Workers code* locally using Wrangler. No production deployment, no live Google Form, no approved pricing, no customer messages.
 
 ## First-time setup
 
@@ -10,13 +10,13 @@
 ```powershell
 node -v       # v22.x or v24.x
 git --version
-cd "$HOME\Downloads"
+cd "$HOME\Downloads\Projects"
 git clone https://github.com/MuazShafiq/apex-kennels.git
 cd apex-kennels
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-local.ps1
 ```
 
-If you already cloned the repo elsewhere, move its folder into `C:\Users\<YOU>\Downloads\apex-kennels` (with VS Code closed), then open it, run `git pull --ff-only`, and rerun setup. Never clone a second copy over an existing folder.
+If you already have a clone, keep using that directory. Do not clone over it, move it during an active agent session, or discard uncommitted work; synchronize only when the worktree is safe.
 
 The setup script is PowerShell 5.1-compatible, uses `npm.cmd` (avoids Windows `npm.ps1` execution-policy problems), installs dependencies, then validates TypeScript, automated tests and Wrangler bundling. It creates `.dev.vars` with **empty, disabled values** if missing and never overwrites an existing secrets file.
 
@@ -40,7 +40,7 @@ Worker listens at `http://127.0.0.1:8787` with hot reload. Open:
 In a **second** PowerShell terminal:
 
 ```powershell
-cd "$HOME\Downloads\apex-kennels"
+cd "$HOME\Downloads\Projects\apex-kennels"
 npm.cmd run local:check
 ```
 
@@ -72,7 +72,7 @@ Never commit `.dev.vars`, paste the connection string in a chat, or put producti
 4. Open another terminal and run:
 
 ```powershell
-cd "$HOME\Downloads\apex-kennels"
+cd "$HOME\Downloads\Projects\apex-kennels"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-local-ingest.ps1
 ```
 
@@ -92,4 +92,4 @@ The script asks for the **local** token and sends one clearly synthetic booking 
 
 ## Boundaries
 
-Do not run `npx wrangler deploy` for local work; deployments are already handled by Cloudflare GitHub integration. Do not reapply `db/schema.sql` to an existing Neon branch. Do not enable live Google Form import before Fatima confirms the form mapping and operational rules. Avoid seeding or testing against the production Neon URL.
+Do not run Wrangler deploy commands for local work. Production deployments currently use an explicitly authorized Wrangler session; GitHub CI does **not** automatically deploy. Do not reapply `db/schema.sql` to an existing Neon branch, change the already-active Google Form forwarding or recovery rules, or seed/test production Neon without a narrowly authorized synthetic procedure.

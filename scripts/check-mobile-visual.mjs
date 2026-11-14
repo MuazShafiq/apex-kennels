@@ -7,6 +7,7 @@ import {syntheticBookings} from '../src/staff-bookings.ts';
 import {renderStaffTransportForm} from '../src/staff-transport-review.ts';
 import {renderStaffBookingDetail} from '../src/staff-booking-detail.ts';
 import {renderStaffDraftReview,prepareStaffDraftReview} from '../src/staff-invoice-draft.ts';
+import {renderStaffPinChecker} from '../src/staff-location.ts';
 
 const demoSource={
   bookingId:'a2026111-0e00-4c11-8a00-000000000033',
@@ -31,7 +32,8 @@ const pages={
   '/demo/staff':renderStaffConsoleHtml(syntheticBookings,{demo:true,filter:{query:'',status:'all'}}),
   '/staff/transport':renderStaffTransportForm(demoSource,'daily',0),
   '/staff/booking':renderStaffBookingDetail(detail),
-  '/staff/draft':renderStaffDraftReview(prepareStaffDraftReview(demoSource,'daily'))
+  '/staff/draft':renderStaffDraftReview(prepareStaffDraftReview(demoSource,'daily')),
+  '/staff/location':renderStaffPinChecker()
 };
 const server=createServer(async(req,res)=>{
   const url=new URL(req.url??'/', 'http://127.0.0.1');
@@ -85,7 +87,7 @@ try{
   const page=await browser.newPage({viewport,deviceScaleFactor:1,isMobile:name.includes('phone')||name==='iphone',hasTouch:true});
   await page.route('**/challenges.cloudflare.com/**',route=>route.abort());
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  for(const [route,label] of [['/book','book'],['/demo/staff','dashboard'],['/staff/transport','transport'],['/staff/booking','detail'],['/staff/draft','draft']]){
+  for(const [route,label] of [['/book','book'],['/demo/staff','dashboard'],['/staff/transport','transport'],['/staff/booking','detail'],['/staff/draft','draft'],['/staff/location','location']]){
    await page.goto('http://127.0.0.1:'+port+route,{waitUntil:'domcontentloaded'});
    await page.waitForTimeout(200);
    const size=await page.evaluate(()=>({
@@ -112,7 +114,21 @@ try{
      assert(paint.shellWidth>=paint.clientWidth-1,name+' dashboard surface misses viewport edges');
      assert(paint.shellBackground?.includes('linear-gradient'),name+' dashboard full-width gradient missing');
      assert(paint.mainBackground==='none',name+' dashboard gradient must not be on capped main');
-   }else if(label==='detail'||label==='draft'||label==='transport'){
+     const seam=await page.evaluate(()=>{
+       const shell=document.querySelector('.shell')?.getBoundingClientRect();
+       const sidebar=document.querySelector('.sidebar');
+       const sb=sidebar?.getBoundingClientRect();
+       const main=document.querySelector('main')?.getBoundingClientRect();
+       const sidebarVisible=sidebar&&getComputedStyle(sidebar).display!=='none';
+       return {left:main?.left,right:main?.right,
+         expectedLeft:sidebarVisible?sb?.right:shell?.left,
+         expectedRight:shell?.right};
+     });
+     assert(Math.abs(seam.right-seam.expectedRight)<2,
+       name+' dashboard leaves an unpainted right gutter '+JSON.stringify(seam));
+     assert(Math.abs(seam.left-seam.expectedLeft)<2,
+       name+' dashboard leaves an unpainted sidebar seam '+JSON.stringify(seam));
+   }else if(['detail','draft','transport','location'].includes(label)){
      assert(Math.abs(paint.bodyTop)<1,name+' '+label+' first-child margin moved the page background');
      assert(paint.bodyHeight>=viewport.height-1,name+' '+label+' background too short');
      assert(paint.bodyBackground?.includes('linear-gradient'),name+' '+label+' body gradient missing');

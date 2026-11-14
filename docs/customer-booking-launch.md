@@ -3,7 +3,7 @@
 ## State
 The customer booking site lives at `/book` on the **existing** Apex Cloudflare Worker. It replaces the repeated request for a Google Maps pin by collecting the exact pickup/drop-off point during booking. The legacy Google Form and its hourly recovery remain operational and separate.
 
-**Default: preview-only, not accepting submissions.** Founder reports desktop link-location flow working. Founder confirmed the two most recent mobile UX fixes on an actual phone (equal-height boarding cards and location pin fallback). Full real Turnstile + actual website booking submission are **not yet verified**; see [issue #37](https://github.com/MuazShafiq/apex-kennels/issues/37). No payment, invoice, booking approval, customer notification, or outbound WhatsApp message runs from this feature. PR #29 is an implementation, not Fatima's approval of the form design or terms.
+**As of 2026-11-14: deployed preview; public submissions remain disabled.** A real Turnstile and production website submission were exercised using explicitly synthetic data during a controlled temporary gate opening on 2026-11-13; the gate was subsequently closed and HTTP 503 was verified (operator-reported live results). This is **not customer launch approval**. Visual/mobile browser CI passed, but real-phone Google Maps flow and network connectivity still need acceptance under [issue #37](https://github.com/MuazShafiq/apex-kennels/issues/37). No payment, automatic approval, customer messages, or invoice issuance is enabled.
 
 ## User journey
 1. Customer enters owner, dates, dog, health, emergency, and care details, matching the current mapped Form.
@@ -13,12 +13,12 @@ The customer booking site lives at `/book` on the **existing** Apex Cloudflare W
 5. A single Neon transaction saves the booking, original care information, and private confirmed pin. Existing staff booking queue and `/staff/booking` show it under Cloudflare Access. No amount is charged automatically.
 
 ## Setup, in order
-1. Review the preview (not an active customer channel): update and deploy the Worker from the latest main, and open `https://apex-kennels-api.muaz-shafiq18.workers.dev/book`. Submission stays disabled with no flag.
+1. Review the **already-deployed** preview at `https://apex-kennels-api.muaz-shafiq18.workers.dev/book`. Confirm public submissions remain disabled until owner-approved launch.
 2. Owner reviews the exact public copy and **actual boarding terms**. Before accepting real submissions, the terms must be linked or shown in full. The six owner-provided clauses are displayed in an expandable terms section; Fatima should review the exact legal wording before activation.
 3. **Done (2026-11-10/11):** Applied the additive `booking_transport_locations` and `booking_whatsapp_consents` tables in production Neon. Both are present and the consent table was empty when verified; no historical WhatsApp consent was inferred.
-4. In Cloudflare Turnstile, create a site widget scoped to the actual Worker hostname. Store the **public** widget key as `TURNSTILE_SITE_KEY` and the private server validation key as `TURNSTILE_SECRET_KEY` in Worker secrets. Do not place the private key in code or customer HTML.
-5. Only after tests and Fatima's approval, set `APEX_PUBLIC_BOOKING_ENABLED=true` in the Worker environment and redeploy. `GET /api/book/config` returns `{enabled:false}` until that flag and both Turnstile keys and `DATABASE_URL` are present.
-6. Make one explicitly synthetic test booking through the real new form, confirm the booking and its pin in authenticated staff detail, and verify `/api/health` and the original Form intake remain operational. Never send an invoice or customer message for the test.
+4. **Verified in the controlled 2026-11-13 test:** the real Cloudflare Turnstile widget, hostname/action checks, and production Neon write succeeded for a synthetic booking (operator report). Preserve the existing `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` Worker secrets; do not copy them into GitHub or customer HTML.
+5. Only after Fatima's explicit form/terms approval and the remaining mobile/connectivity checks, set `APEX_PUBLIC_BOOKING_ENABLED=true` through the authorized Worker configuration procedure. Confirm the full booking-to-staff path. A temporary test authorization is **not** approval to leave the public gate enabled.
+6. **Completed for a controlled synthetic production booking (2026-11-13):** real Turnstile, production Neon save and staff review were verified by the operator. The gate was closed afterward. For launch, still verify an actual mobile customer journey and that `/api/health` plus the original Google Form remain functional. Never send an invoice or customer message during synthetic tests.
 7. Finally switch the customer-facing booking link from the existing Google Form to `/book`. Keep Google Form as a fallback until the replacement is independently verified.
 
 ## Operational boundaries
@@ -31,12 +31,12 @@ The customer booking site lives at `/book` on the **existing** Apex Cloudflare W
 - No email is required for new customers because current Form submissions have only phone contacts. No mailing platform is added.
 
 ## Known release gaps
-- Confirm owner-facing terms copy/link, existing Form's consent semantics, Different pickup and drop-off locations are supported and each must be independently confirmed when selected.
-- [Mobile release check #37](https://github.com/MuazShafiq/apex-kennels/issues/37): review on an actual phone, test Google Maps place links and dropped-pin share links (including `maps.app.goo.gl` short links), no-transport, device GPS, outside-area rejection and Turnstile before enabling. No search key is required for the customer location step. If a Maps URL has no exact pin, ask for a dropped pin rather than guessing coordinates.
+- Obtain Fatima's final approval of customer-facing copy, six boarding terms and consent wording. Separate pickup and drop-off locations are already supported; they are not another business decision.
+- [Mobile release check #37](https://github.com/MuazShafiq/apex-kennels/issues/37): verify on a real phone/network, including Google Maps place links and dropped-pin shares (including `maps.app.goo.gl`), no transport, GPS permission handling and outside-area rejection. The real Turnstile/backend canary already passed; do not mistake that for real-phone acceptance. Test connectivity on the previously affected ISP as well as mobile data before cutover. Vague links still require a dropped pin, never guessed coordinates.
 
-## 2026-11-11 engineering update
+## Historical 2026-11-11 checkpoint
 
-See [technical readiness](technical-release-readiness-2026-11-11.md) for the full synthetic browser submission test, validated Neon schema, Turnstile account setup, and strict final owner-approval gate. The old Google Form remains live. No public booking submissions have been enabled.
+[Technical readiness](technical-release-readiness-2026-11-11.md) describes the pre-live-test state. It is retained as history, not the current production verification result. The old Google Form remains active; public website submissions were only enabled temporarily for the 2026-11-13 synthetic test and are currently disabled.
 
 ## 2026-11-12 transport UX revision
 

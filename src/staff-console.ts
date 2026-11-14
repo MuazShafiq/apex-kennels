@@ -17,7 +17,7 @@ const styles = [
   '.brand{font-size:19px;letter-spacing:.2em;font-weight:800}.under{font-size:10px;color:#a6bab2;letter-spacing:.21em;margin-top:2px}',
   '.secondarynav{display:block;margin:12px 0 0;color:#d5e5d9;padding:12px 15px;font-size:12px}.navlabel{font-size:10px;text-transform:uppercase;letter-spacing:.16em;color:#a1b1a8;margin:70px 0 17px}.nav{background:#344e46;padding:15px;border-radius:9px;font-weight:700}',
   '.sidebarfoot{margin-top:auto;font-size:12px;color:#afc0b8;line-height:1.9;border-top:1px solid #3b544b;padding-top:22px}',
-  'main{flex:1;padding:44px clamp(18px,4.6vw,72px);max-width:1600px;margin:0 auto;min-width:0}',
+  'main{flex:1;padding:44px clamp(18px,4.6vw,72px);min-width:0}',
   '.top{display:flex;justify-content:space-between;color:#8a9a91;font-size:12px;margin-bottom:50px;gap:12px}',
   '.tag{font-size:10px;font-weight:800;letter-spacing:.1em;border-radius:40px;background:#e6efe8;color:#547362;padding:9px 12px;white-space:nowrap}',
   '.kicker{font-size:11px;font-weight:800;letter-spacing:.2em;color:#8da097}.heading{display:flex;justify-content:space-between;align-items:end;margin:13px 0 34px;gap:15px}',

@@ -48,6 +48,13 @@ jobs:
               console.log('PATH '+path+' HTTP '+x.status+'/'+y.status+' bytes '+Buffer.byteLength(x.content)+'/'+Buffer.byteLength(y.content));
               if(x.status!==200||y.status!==200)continue;
               console.log('HASH '+hash(x.content)+' / '+hash(y.content));
+              const normalize=s=>s.replace(/\r\n/g,'\n');
+              const oldNormalized=normalize(x.content),newNormalized=normalize(y.content);
+              console.log('NORMALIZED_EQUAL '+(oldNormalized===newNormalized));
+              console.log('LINE_ENDINGS_CRLF '+(x.content.match(/\r\n/g)||[]).length+
+                ' / '+(y.content.match(/\r\n/g)||[]).length);
+              console.log('NORMALIZED_MATCHES_MAIN '+(oldNormalized===normalize(readFileSync(local[path],'utf8')))+
+                ' / '+(newNormalized===normalize(readFileSync(local[path],'utf8'))));
               console.log('DIFF '+excerpt(x.content,y.content));
               const source=readFileSync(local[path],'utf8');
               console.log('MATCHES_MAIN '+(x.content===source?'older':y.content===source?'newer':x.content===y.content?'both (not main)':'neither'));

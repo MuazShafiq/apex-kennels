@@ -6,6 +6,8 @@ node_modules/
 .neon/
 
 # Generated demo artifacts, local files and credentials
+# Private unredacted agent conversation exports; never push these to GitHub.
+.agent-conversations/
 output/
 *.log
 .DS_Store

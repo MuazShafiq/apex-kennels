@@ -1,5 +1,7 @@
 # Apex customer booking: technical release readiness (2026-11-11)
 
+> **Historical checkpoint.** Since this document was written, a real Turnstile + production Neon synthetic booking passed on 2026-11-13, the gate was closed again, and a saved transport estimate/PDF was verified on 2026-11-14. See [customer booking launch](customer-booking-launch.md) for the remaining owner/mobile/connectivity gates. Preserve the analysis below as the pre-test record; its statements that a live canary has not occurred are no longer current.
+
 ## Technical state
 
 - Replacement booking UI, Maps pin/coordinate fallback, responsive cards and staff review screens are implemented. Founder reported real-phone verification of the previously failing two UI cases. This is not evidence that a public booking was submitted on a phone.

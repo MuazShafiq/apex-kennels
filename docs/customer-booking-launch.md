@@ -5,6 +5,8 @@ The customer booking site lives at `/book` on the **existing** Apex Cloudflare W
 
 **As of 2026-11-14: deployed preview; public submissions remain disabled.** A real Turnstile and production website submission were exercised using explicitly synthetic data during a controlled temporary gate opening on 2026-11-13; the gate was subsequently closed and HTTP 503 was verified (operator-reported live results). This is **not customer launch approval**. Visual/mobile browser CI passed, but real-phone Google Maps flow and network connectivity still need acceptance under [issue #37](https://github.com/MuazShafiq/apex-kennels/issues/37). No payment, automatic approval, customer messages, or invoice issuance is enabled.
 
+This dated state is not a current remote check. Before relying on gate/deployment state or launch evidence, use the [production release readiness checklist](production-release-readiness-2026-11-15.md) and recheck live configuration.
+
 ## User journey
 1. Customer enters owner, dates, dog, health, emergency, and care details, matching the current mapped Form.
 2. Chooses whether camera cage and transport are requested. If transport is requested: customer chooses pickup, drop-off, or both. For Both, the same gate is the default, with an optional separate drop-off pin field. They either tap **Use my current location**, or open Google Maps, find/drop their entrance pin, choose **Share → Copy link** and paste the share link back into Apex. The Worker extracts an explicit pin; no external search engine is embedded in the booking page.

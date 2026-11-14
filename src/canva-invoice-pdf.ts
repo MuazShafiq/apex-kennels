@@ -90,7 +90,10 @@ function insert(page:PDFPage,font:PDFFont,value:string,
   const v=clean(value);
   if(width!==undefined&&font.widthOfTextAtSize(v,size)>width+0.02)
     throw new Error('Invoice field would overlap the adjacent Canva field');
-  page.drawText(v,{x,y:H-topBaseline,size,font,color});
+  // Canva's MediaBox starts at y=7.83, not 0: measure from the real top edge
+  // (850.08pt), or every value lands 7.83pt low and overlaps the labels.
+  const box=page.getMediaBox();
+  page.drawText(v,{x,y:box.y+box.height-topBaseline,size,font,color});
 }
 function insertRight(page:PDFPage,font:PDFFont,value:string,
   right:number,baseline:number,size=12,maxWidth=86,color=BLACK):void {
@@ -171,8 +174,13 @@ export async function renderCanvaStaffPdf(
   const discount=q.discounts.reduce((s,d)=>s+d.amountPkr,0);
   // Page 1 is the original Canva discount layout. Page 2 is its authentic
   // no-discount sibling, with the old DISCOUNT artwork physically removed.
-  pdf.removePage(discount===0?0:1);
-  const page=pdf.getPage(0);
+  // Take the kept page BEFORE removing its sibling: pdf-lib 1.17.1 keeps a
+  // stale page cache, so getPage(0) after removePage(0) returns the REMOVED
+  // page and every drawn value is silently discarded from the saved PDF.
+  const keep=discount===0?1:0;
+  const page=pdf.getPage(keep);
+  pdf.removePage(1-keep);
+  if(pdf.getPageCount()!==1)throw new Error('Unexpected Canva invoice page count');
   if(Math.abs(page.getWidth()-W)>.2||Math.abs(page.getHeight()-H)>.2)
     throw new Error('Canva invoice template size changed');
   pdf.registerFontkit(fontkit);

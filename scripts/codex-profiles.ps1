@@ -38,7 +38,9 @@ function global:Invoke-ApexCodexProfile {
 
     try {
         foreach ($name in $names) {
-            [Environment]::SetEnvironmentVariable($name, $null, 'Process')
+            # PowerShell 7.5+ converts $null to an empty string for this .NET
+            # setter. Remove the entry explicitly so absence stays absence.
+            Remove-Item -LiteralPath ('Env:' + $name) -ErrorAction SilentlyContinue
         }
         [Environment]::SetEnvironmentVariable('CODEX_HOME', $codexHome, 'Process')
         [Environment]::SetEnvironmentVariable('CODEX_SQLITE_HOME', $codexHome, 'Process')
@@ -46,7 +48,11 @@ function global:Invoke-ApexCodexProfile {
     }
     finally {
         foreach ($name in $names) {
-            [Environment]::SetEnvironmentVariable($name, $previous[$name], 'Process')
+            if ($null -eq $previous[$name]) {
+                Remove-Item -LiteralPath ('Env:' + $name) -ErrorAction SilentlyContinue
+            } else {
+                [Environment]::SetEnvironmentVariable($name, $previous[$name], 'Process')
+            }
         }
     }
 }

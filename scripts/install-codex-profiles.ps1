@@ -16,7 +16,14 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$launchers = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot 'codex-profiles.ps1')).Path
+# Install a user-home copy so aliases keep working even if this repo moves.
+$source = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot 'codex-profiles.ps1')).Path
+$binDir = Join-Path $HOME '.codex-launchers'
+if (-not (Test-Path -LiteralPath $binDir -PathType Container)) {
+    [void][System.IO.Directory]::CreateDirectory($binDir)
+}
+$launchers = Join-Path $binDir 'codex-profiles.ps1'
+[System.IO.File]::Copy($source, $launchers, $true)
 
 foreach ($account in @('18', '74')) {
     $directory = Join-Path $HOME ('.codex-' + $account)

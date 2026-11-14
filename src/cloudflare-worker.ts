@@ -1,5 +1,6 @@
 import {renderCanvaStaffPdf} from './canva-invoice-pdf.ts';
 import {invoiceStaffRoute,invoiceWebhookRoute,type InvoiceWorkflowDeps} from './invoice-workflow-routes.ts';
+import {whatsappWebhookRoute} from './whatsapp-webhook.ts';
 import {renderStaffTransportForm,renderStaffTransportResult,
   parseStaffTransportSelection} from './staff-transport-review.ts';
 import {preparePinnedTransportDraft} from './transport-quote-from-pins.ts';
@@ -52,6 +53,8 @@ export type WorkerEnv = {
   WHATSAPP_OWNER_CONSENT_EVIDENCE?:string;
   WHATSAPP_ALERT_WEBHOOK_SECRET?:string;
   WHATSAPP_ALERT_WEBHOOK_VERIFY_TOKEN?:string;
+  WHATSAPP_WEBHOOK_SECRET?:string;
+  WHATSAPP_WEBHOOK_VERIFY_TOKEN?:string;
   WHATSAPP_ACCESS_TOKEN?: string;
   WHATSAPP_PHONE_NUMBER_ID?: string;
   WHATSAPP_GRAPH_VERSION?: string;
@@ -215,6 +218,10 @@ export async function handleWorkerRequest(
   staff: StaffOptions = {},
 ): Promise<Response> {
   const path = new URL(request.url).pathname;
+  if(path==='/api/whatsapp/webhook')return whatsappWebhookRoute(request,env,{
+    applyInvoiceWebhook:staff.invoiceWorkflow?.applyInvoiceWebhook,
+    applyOwnerAlertWebhook:staff.ownerAlerts?.applyOwnerAlertWebhook,
+  });
   if(path==='/api/owner-alerts/webhook')return ownerAlertRoute(request,env,undefined,staff.ownerAlerts);
   if(path.startsWith('/staff/owner-alerts')){
     const email=await authorizedStaff(env,staff.context,request);

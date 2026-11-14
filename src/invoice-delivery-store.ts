@@ -77,6 +77,7 @@ export async function dispatchInvoiceDelivery(url:string,invoiceId:string,config
       const updated=await db.query("UPDATE public.invoice_delivery_outbox SET state=$2,error_kind=$2,updated_at=now() WHERE invoice_id=$1 AND attempts=$3 AND state IN ('sending','ambiguous') RETURNING invoice_id",[invoiceId,outcome.kind,claimed.attempt]);
       if(updated.rows.length)await audit(db,invoiceId,outcome.kind,'system');
     }else{
+      await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,43))',[outcome.messageId]);
       const updated=await db.query("UPDATE public.invoice_delivery_outbox SET state='provider_accepted',provider_message_id=$2,error_kind=NULL,updated_at=now() WHERE invoice_id=$1 AND attempts=$3 AND state IN ('sending','ambiguous') RETURNING invoice_id",[invoiceId,outcome.messageId,claimed.attempt]);
       if(updated.rows.length){await audit(db,invoiceId,'provider_accepted','system');await db.query(APPLY_EVENTS,[outcome.messageId]);}
     }
@@ -99,6 +100,7 @@ export async function reconcileInvoiceDelivery(url:string,invoiceId:string,by:st
     (!!input.messageId===(input.confirmedNotSent===true))||
     (input.messageId&&!/^wamid\.[A-Za-z0-9+/=_-]{8,500}$/.test(input.messageId)))throw new Error('Explicit provider reconciliation evidence required');
   await connected(url,async db=>{await db.query('BEGIN');try{
+    if(input.messageId)await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,43))',[input.messageId]);
     const changed=await db.query("UPDATE public.invoice_delivery_outbox SET state=$2,provider_message_id=$3,error_kind=$4,updated_at=now() WHERE invoice_id=$1 AND provider_message_id IS NULL AND (state='ambiguous' OR (state='sending' AND updated_at<now()-interval '2 minutes')) RETURNING invoice_id",
       [invoiceId,input.messageId?'provider_accepted':'failed',input.messageId??null,input.messageId?null:'failed']);
     if(!changed.rows.length)throw new Error('Only unresolved provider outcomes can be reconciled');
@@ -111,12 +113,14 @@ export async function reconcileInvoiceDelivery(url:string,invoiceId:string,by:st
 /** Signature must already be verified. Replays are deduplicated transactionally. */
 export async function applyInvoiceWebhook(url:string,events:DeliveryWebhookEvent[],makeDb:DeliveryDbFactory=factory):Promise<void>{
   await connected(url,async db=>{await db.query('BEGIN');try{
-    for(const event of events){
+    // Use the same provider-ID lock as acceptance/reconciliation so neither
+    // transaction can miss status evidence still uncommitted in the other.
+    for(const event of [...events].sort((a,b)=>a.messageId.localeCompare(b.messageId))){
+      await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,43))',[event.messageId]);
       const result=await db.query('INSERT INTO public.invoice_delivery_events(provider_message_id,recipient,state,provider_timestamp,error_code) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING RETURNING provider_message_id',
         [event.messageId,event.recipient,event.state,event.timestamp,event.errorCode??null]);
-      if(!result.rows.length)continue;
       await db.query(APPLY_EVENTS,[event.messageId]);
-      await db.query('INSERT INTO public.invoice_delivery_audit(invoice_id,action,actor) SELECT invoice_id,$2,$3 FROM public.invoice_delivery_outbox WHERE provider_message_id=$1 AND recipient=$4',
+      if(result.rows.length)await db.query('INSERT INTO public.invoice_delivery_audit(invoice_id,action,actor) SELECT invoice_id,$2,$3 FROM public.invoice_delivery_outbox WHERE provider_message_id=$1 AND recipient=$4',
         [event.messageId,'webhook_'+event.state,'meta',event.recipient]);
     }
     await db.query('COMMIT');

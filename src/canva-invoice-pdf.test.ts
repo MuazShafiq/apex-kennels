@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {PDFArray, PDFDocument, PDFName, type PDFRawStream, StandardFonts} from 'pdf-lib';
+import {PDFArray, PDFDict, PDFDocument, PDFName, type PDFRawStream, StandardFonts} from 'pdf-lib';
 import {inflateSync} from 'node:zlib';
 import {
-  renderCanvaStaffPdf,drawCanvaIbanSingleLine,layoutCanvaValue
+  renderCanvaStaffPdf,renderCanvaApprovedPdf,drawCanvaIbanSingleLine,layoutCanvaValue
 } from './canva-invoice-pdf.ts';
 import type {ReviewSnapshot} from './staff-saved-review.ts';
 import {handleWorkerRequest} from './cloudflare-worker.ts';
@@ -192,4 +192,107 @@ test('values are positioned from the Canva MediaBox top edge, not y=0',async()=>
   // "Number # ..." baseline 267.663pt below the real top edge.
   assert.ok(ys.some(y=>Math.abs(y-(850.07998-267.663))<.01),'Number line at Canva baseline');
   assert.ok(!ys.some(y=>Math.abs(y-(842.25-267.663))<.01),'not offset by the MediaBox origin');
+});
+
+/** Decode actual saved overlay text via its embedded font's ToUnicode map. */
+async function savedText(bytes:Uint8Array):Promise<{text:string;x:number;y:number}[]> {
+  const pdf=await PDFDocument.load(bytes),page=pdf.getPage(0);
+  const fonts=page.node.Resources()!.lookup(PDFName.of('Font'),PDFDict);
+  const maps=new Map<string,Map<string,string>>();
+  const streamText=(stream:PDFRawStream)=>Buffer.from(
+    String(stream.dict.get(PDFName.of('Filter'))??'').includes('FlateDecode')?
+      inflateSync(stream.contents):stream.contents).toString('latin1');
+  for(const [key,ref] of fonts.entries()){
+    const font=pdf.context.lookup(ref,PDFDict);
+    const unicode=font.lookup(PDFName.of('ToUnicode')) as PDFRawStream|undefined;
+    if(!unicode)continue;
+    const map=new Map<string,string>();
+    const cmap=streamText(unicode);
+    for(const block of cmap.matchAll(/beginbfchar([\s\S]*?)endbfchar/g))
+      for(const m of block[1].matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g)){
+        const units=m[2].match(/.{4}/g)??[];
+        map.set(m[1].toUpperCase(),String.fromCharCode(...units.map(x=>parseInt(x,16))));
+      }
+    maps.set(key.toString().slice(1),map);
+  }
+  const contents=page.node.Contents();
+  const streams=contents instanceof PDFArray?contents.asArray():[contents];
+  const result:{text:string;x:number;y:number}[]=[];
+  for(const ref of streams){
+    const raw=streamText(pdf.context.lookup(ref) as PDFRawStream);
+    let font='',x=0,y=0;
+    for(const m of raw.matchAll(/\/([^\s]+) [\d.]+ Tf|1 0 0 1 ([\d.]+) ([\d.]+) Tm|<([0-9A-Fa-f]+)> Tj/g)){
+      if(m[1])font=m[1];
+      else if(m[2]){x=Number(m[2]);y=Number(m[3]);}
+      else if(m[4]){
+        const map=maps.get(font);
+        if(map)result.push({text:(m[4].match(/.{4}/g)??[]).map(c=>map.get(c.toUpperCase())??'?').join(''),x,y});
+      }
+    }
+  }
+  return result;
+}
+
+const approvedSample=()=>({
+  version:1 as const,review:{...structuredClone(sample),booking:{...sample.booking,
+    customerName:'Synthetic PDF Fixture',petNames:'Test Pet',petBreeds:'Test Breed',synthetic:false}},
+  reviewRevision:2,invoiceNumber:'0123',approvedBy:'owner@example.test',
+  approvedAt:'2026-11-07T12:00:00.000Z',payment:{bank:'HBL' as const,
+    accountTitle:'TEST ACCOUNT ONLY',accountNumber:'00000000000000',iban:'PK00HABB0000000000000000'},
+  transportVerified:false,fuelVerified:false,deliveryRequested:false
+});
+
+test('approved PDF contains exact frozen money, number and payment at original Canva baselines',async()=>{
+  const snapshot=approvedSample();
+  const before=structuredClone(snapshot);
+  const bytes=await renderCanvaApprovedPdf(snapshot,blank);
+  assert.deepEqual(snapshot,before,'renderer does not mutate frozen snapshot');
+  const pdf=await PDFDocument.load(bytes);
+  assert.equal(pdf.getPageCount(),1);
+  const rows=await savedText(bytes);
+  for(const [text,x,baseline] of [
+    ['Number # 0123',54.2455,267.663],['TEST ACCOUNT ONLY',130,658.443],
+    ['00000000000000',146,671.948],['PK00HABB0000000000000000',130,685.453],
+    ['HBL',120,698.958],['7,500',undefined,669.247]
+  ] as const){
+    assert.ok(rows.some(r=>r.text===text&&(x===undefined||Math.abs(r.x-x)<.01)&&
+      Math.abs(r.y-(850.07998-baseline))<.02),`saved text and baseline: ${text}`);
+  }
+  assert.ok(!rows.some(r=>/REVIEW-|NOT PAYABLE|SYNTHETIC EXAMPLE/.test(r.text)));
+  assert.ok(!rows.some(r=>r.text.includes(snapshot.approvedBy)),'no internal approver identity in customer PDF');
+});
+
+test('review PDF visibly says not payable and never contains bank or official invoice values',async()=>{
+  const rows=await savedText(await renderCanvaStaffPdf(sample,'2026-11-07',blank));
+  assert.ok(rows.some(r=>r.text==='INTERNAL / NOT PAYABLE'));
+  assert.ok(rows.some(r=>r.text.startsWith('Number # REVIEW-')));
+  assert.ok(!rows.some(r=>r.text==='TEST ACCOUNT ONLY'||r.text.startsWith('PK00HABB')));
+});
+
+test('approved PDF rejects synthetic records, malformed payment and invalid invoice numbers',async()=>{
+  const snapshot=approvedSample();
+  snapshot.review.booking.synthetic=true;
+  await assert.rejects(renderCanvaApprovedPdf(snapshot,blank),/Invalid approved/);
+  snapshot.review.booking.synthetic=false;
+  snapshot.payment.iban='PK00OTHER0000000000000000';
+  await assert.rejects(renderCanvaApprovedPdf(snapshot,blank),/Invalid approved/);
+  snapshot.payment.iban='PK00HABB0000000000000000';
+  snapshot.invoiceNumber='12345';
+  await assert.rejects(renderCanvaApprovedPdf(snapshot,blank),/Invalid approved/);
+});
+
+
+test('approved monthly PDF preserves exact package discount and distinct total baseline',async()=>{
+  const approved=approvedSample(),s=approved.review;
+  s.packageChoice='monthly';
+  s.booking.startDate='2026-11-01';s.booking.endDate='2026-11-30';
+  s.quote.startDate=s.booking.startDate;s.quote.endDate=s.booking.endDate;
+  s.quote.billedDays=30;
+  s.quote.lines[0]={label:'Standard boarding',quantity:30,unitPricePkr:2500,totalPkr:75000};
+  s.quote.subtotalPkr=75000;s.quote.totalPkr=65000;
+  s.quote.discounts=[{source:'package',label:'30-day boarding discount',amountPkr:10000}];
+  const rows=await savedText(await renderCanvaApprovedPdf(approved,blank));
+  for(const [text,baseline] of [['75,000',630.232],['10,000',669.247],['65,000',709.012]] as const)
+    assert.ok(rows.some(r=>r.text===text&&Math.abs(r.y-(850.07998-baseline))<.02),
+      `frozen package money at original baseline: ${text}`);
 });

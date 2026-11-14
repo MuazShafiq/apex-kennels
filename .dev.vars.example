@@ -3,3 +3,13 @@
 DATABASE_URL=
 # Generate a DIFFERENT local token. Do not reuse Cloudflare's production INTAKE_API_SECRET.
 INTAKE_API_SECRET=
+
+# Invoice engineering is disabled until a separately authorized release.
+APEX_INVOICE_APPROVAL_ENABLED=false
+APEX_INVOICE_ISSUANCE_ENABLED=false
+APEX_INVOICE_WHATSAPP_ENABLED=false
+# Exact owner Access identity; secure HBL JSON, manual-number floor and Meta
+# credentials must be configured privately. See docs/invoice-approval-delivery.md.
+APEX_INVOICE_OWNER_EMAIL=
+APEX_INVOICE_BANK_JSON=
+APEX_INVOICE_MANUAL_NUMBER_FLOOR=

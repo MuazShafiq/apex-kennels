@@ -1,5 +1,7 @@
 # Implementation handoff: owner invoice approval and WhatsApp PDF delivery
 
+**Engineering update (2026-11-15):** Implementation, additive migrations, synthetic provider/browser tests and disposable local PostgreSQL verification are prepared on `feat/invoice-approval-delivery`. See [operator guide](../invoice-approval-delivery.md) and [shared thread](THREAD.md) for exact PR/check evidence. The baseline below describes the assignment checkpoint; it is not a claim that this branch has been deployed. All production activation prerequisites remain explicit release gates.
+
 **Assigned coding agent:** `cdx-74` (secondary Codex). **Repo:** Apex Kennels. **Tracking:** GitHub issue #39; notification alert integration #43 is a separate lane.
 
 **Goal:** Implement a production-quality, behind-flags **invoice approval and customer WhatsApp PDF delivery system** that Fatima can eventually operate with minimal manual work. Do not enable or deploy financial/customer-message functionality before explicit release approvals and live provider credentials. This task is code, tests, and a reviewable PR first.

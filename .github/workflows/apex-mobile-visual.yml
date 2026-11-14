@@ -4,6 +4,9 @@ on:
     paths:
       - 'public/book/**'
       - 'src/staff-console.ts'
+      - 'src/staff-invoice-approval.ts'
+      - 'src/invoice-workflow-routes.ts'
+      - 'src/cloudflare-worker.ts'
       - 'src/staff-transport-review.ts'
       - 'src/staff-booking-detail.ts'
       - 'src/staff-invoice-draft.ts'
@@ -11,6 +14,9 @@ on:
       - 'src/apex-brand.ts'
       - 'scripts/check-mobile-visual.mjs'
       - 'scripts/check-booking-e2e.mjs'
+      - 'scripts/check-invoice-e2e.mjs'
+      - 'src/invoice-approval*.ts'
+      - 'src/invoice-delivery*.ts'
       - 'src/public-booking.ts'
       - 'src/intake.ts'
       - 'src/boarding-details.ts'
@@ -33,6 +39,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/check-mobile-visual.mjs
       - run: node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/check-booking-e2e.mjs
+      - run: node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/check-invoice-e2e.mjs
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

@@ -9,6 +9,7 @@ node_modules/
 # Private unredacted agent conversation exports; never push these to GitHub.
 .agent-conversations/
 output/
+mobile-*.png
 *.log
 .DS_Store
 *.pem

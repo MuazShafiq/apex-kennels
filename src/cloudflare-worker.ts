@@ -1,4 +1,5 @@
 import {renderCanvaStaffPdf} from './canva-invoice-pdf.ts';
+import {invoiceStaffRoute,invoiceWebhookRoute,type InvoiceWorkflowDeps} from './invoice-workflow-routes.ts';
 import {renderStaffTransportForm,renderStaffTransportResult,
   parseStaffTransportSelection} from './staff-transport-review.ts';
 import {preparePinnedTransportDraft} from './transport-quote-from-pins.ts';
@@ -22,6 +23,16 @@ import {readPinForm,renderStaffPinChecker} from './staff-location.ts';
 import {readStaffBookingDetail,renderStaffBookingDetail,parseStaffBookingId,type StaffBookingDetail} from './staff-booking-detail.ts';
 
 export type WorkerEnv = {
+  APEX_INVOICE_APPROVAL_ENABLED?:string;
+  APEX_INVOICE_ISSUANCE_ENABLED?:string;
+  APEX_INVOICE_OWNER_EMAIL?:string;
+  APEX_INVOICE_BANK_JSON?:string;
+  APEX_INVOICE_MANUAL_NUMBER_FLOOR?:string;
+  APEX_INVOICE_WHATSAPP_ENABLED?:string;
+  APEX_INVOICE_WHATSAPP_TEMPLATE?:string;
+  APEX_INVOICE_WHATSAPP_LANGUAGE?:string;
+  APEX_INVOICE_WEBHOOK_SECRET?:string;
+  APEX_INVOICE_WEBHOOK_VERIFY_TOKEN?:string;
   DATABASE_URL?: string;
   INTAKE_API_SECRET?: string;
   STAFF_ACCESS_AUD?: string;
@@ -48,6 +59,7 @@ export type StaffDraftReader=(databaseUrl:string,bookingId:string)=>Promise<Staf
 export type StaffDetailReader=(databaseUrl:string,bookingId:string)=>Promise<StaffBookingDetail|null>;
 export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; sendWhatsApp?:(config:WhatsappConfig,to:string,template:string,values:string[])=>Promise<WhatsappAccepted>; saveReview?:(url:string,snapshot:ReviewSnapshot,revision:number,email:string)=>Promise<SaveReviewResult>; loadReview?:(url:string,bookingId:string)=>Promise<SavedReview|null>;
   transportRoute?:()=>Promise<RouteResult>; transportFuel?:()=>Promise<PetrolRateResult>;
+  invoiceWorkflow?:InvoiceWorkflowDeps;
 };
 
 async function authorizedStaff(env: WorkerEnv, context: StaffContext|undefined, request:Request): Promise<string|null> {
@@ -214,6 +226,18 @@ export async function handleWorkerRequest(
   staff: StaffOptions = {},
 ): Promise<Response> {
   const path = new URL(request.url).pathname;
+  if(path==='/api/invoice-delivery/webhook')return invoiceWebhookRoute(request,env,staff.invoiceWorkflow);
+  if(path.startsWith('/staff/invoices/')){
+    if(env.APEX_INVOICE_APPROVAL_ENABLED!=='true')return json({error:'Invoice workflow is disabled'},503);
+    const email=await authorizedStaff(env,staff.context,request);
+    if(!email||!env.APEX_INVOICE_OWNER_EMAIL||email!==env.APEX_INVOICE_OWNER_EMAIL.trim().toLowerCase())return json({error:'Forbidden'},403);
+    if(request.method==='POST'){
+      // A fresh signed Access assertion is mandatory even when ctx.access exists.
+      const recent=await verifiedAccessEmail(request.headers.get('Cf-Access-Jwt-Assertion'),env.STAFF_ACCESS_ISSUER,env.STAFF_ACCESS_AUD??'',fetch,300);
+      if(recent!==email)return json({error:'Reauthenticate with Cloudflare Access before approving, issuing or sending an invoice'},403);
+    }
+    return invoiceStaffRoute(request,env,email,staff.invoiceWorkflow);
+  }
   if (path === '/api/health') {
     if (request.method !== 'GET') return json({error:'Method not allowed'}, 405, {Allow:'GET'});
     return json({status:'ok',service:'apex-intake'});
@@ -448,6 +472,8 @@ export async function handleWorkerRequest(
           ...review,draft:result.draft,
           transport:{route:result.route.estimate,fuelRate:result.draft.fuelRateSnapshot}
         });
+        snapshot.transportService=selected.visit;
+        snapshot.transportLocationSource=source.transportLocation?'customer_record':'staff_confirmed';
         await (staff.saveReview??saveReviewDraft)(
           env.DATABASE_URL,snapshot,selected.revision,email
         );

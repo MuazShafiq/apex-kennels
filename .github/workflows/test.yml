@@ -7,6 +7,20 @@ permissions:
 jobs:
   tests:
     runs-on: ubuntu-latest
+    services:
+      invoice-postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: apex_synthetic
+          POSTGRES_PASSWORD: synthetic-local-ci-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U apex_synthetic -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     strategy:
       fail-fast: false
       matrix:
@@ -22,3 +36,7 @@ jobs:
       - run: node --check scripts/check-local.mjs
       - run: npm run form:check
       - run: npm run cf:check
+      - run: npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund pg@8.16.3
+      - run: node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/check-invoice-db.mjs
+        env:
+          INVOICE_TEST_POSTGRES_URL: postgresql://apex_synthetic:synthetic-local-ci-only@127.0.0.1:5432/postgres

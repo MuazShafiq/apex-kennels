@@ -58,7 +58,7 @@ async function loadKeys(issuer:string,fetcher:typeof fetch,force=false):Promise<
 
 export async function verifiedAccessEmail(
   token:string|null,configuredIssuer:string|undefined,expectedAudience:string,
-  fetcher:typeof fetch=fetch
+  fetcher:typeof fetch=fetch,maxAgeSeconds?:number
 ):Promise<string|null>{
   const issuer=trustedIssuer(configuredIssuer);
   if(!issuer||!token||token.length>8192||expectedAudience.length<10)return null;
@@ -74,6 +74,8 @@ export async function verifiedAccessEmail(
   if(claims.aud!==expectedAudience&&
     !(Array.isArray(claims.aud)&&claims.aud.includes(expectedAudience)))return null;
   const now=Math.floor(Date.now()/1000);
+  if(maxAgeSeconds!==undefined&&(typeof claims.iat!=='number'||
+     !Number.isSafeInteger(claims.iat)||claims.iat>now||now-claims.iat>maxAgeSeconds))return null;
   if(typeof claims.exp!=='number'||!Number.isFinite(claims.exp)||claims.exp<=now)return null;
   if(claims.nbf!==undefined&&(typeof claims.nbf!=='number'||claims.nbf>now+30))return null;
   if(claims.iat!==undefined&&(typeof claims.iat!=='number'||claims.iat>now+30))return null;

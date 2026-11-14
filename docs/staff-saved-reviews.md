@@ -1,5 +1,7 @@
 # Saved staff estimates and Canva PDF reviews
 
+**Production update (2026-11-14):** A synthetic transport estimate for booking ending `…033` was saved to production Neon (revision 1) and its Canva review PDF was inspected live after the blank-page and alignment fix in [PR #66](https://github.com/MuazShafiq/apex-kennels/pull/66). The operator verified a distinct-gate route total of 201.108 km, a November 14 national petrol baseline of PKR 330/L, transport PKR 6,637 and review total PKR 14,137. This is **not** a payable invoice or confirmation of the physical entrance/road approach.
+
 ## Existing boarding-only flow
 
 - `/staff/draft?id=<uuid>` shows the protected boarding estimate and package selection.
@@ -22,4 +24,4 @@
 - The known kennel and Bawli points are location candidates, not independently verified road entrances. Confirmation remains necessary. The private Worker `GEOAPIFY_API_KEY` is required for live routing.
 - Historical Google Form intake is unchanged. The replacement `/book` form already contains None, Pickup, Drop-off and Both plus a pin, but is not yet enabled. No new database migration is needed for staff reviews.
 - Esperanza/Camden was handled manually by Fatima: do not reprice, alter her booking or contact her.
-- This feature branch is not deployed until tests, CI and Worker configuration are verified. Existing invoice approvals and WhatsApp delivery remain separate work.
+- The review-only transport estimate and Canva PDF are deployed and have passed a controlled synthetic live verification. Invoice approvals, customer WhatsApp delivery, payments and automatic issuance remain separate, disabled work.

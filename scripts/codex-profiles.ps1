@@ -9,7 +9,12 @@ function global:Invoke-ApexCodexProfile {
         [string[]]$CodexArguments = @()
     )
 
-    $command = Get-Command codex -ErrorAction SilentlyContinue
+    # npm on Windows often installs both codex.ps1 and codex.cmd; prefer
+    # the .cmd shim to avoid PowerShell execution-policy restrictions.
+    $command = Get-Command codex.cmd -ErrorAction SilentlyContinue
+    if ($null -eq $command) {
+        $command = Get-Command codex -ErrorAction SilentlyContinue
+    }
     if ($null -eq $command) {
         throw 'Codex CLI was not found on PATH. Install Codex CLI, then retry.'
     }

@@ -54,10 +54,23 @@ async function runChecks() {
   });
   if(reject.status!==401) throw new Error('Unauthenticated intake returned '+reject.status+' (expected 401)');
 
-  const staff=await get('/staff/api/bookings');
-  // 503 means access is intentionally not activated, 403 denied, 30x is Access login.
-  if(![301,302,303,307,308,403,503].includes(staff.status)) {
-    throw new Error('Unauthenticated staff route returned '+staff.status);
+  // Exercise each private lane, including a forged assertion. These GETs use
+  // no record identifiers and cannot approve, issue, retry or send anything.
+  for(const path of ['/staff','/staff/api/bookings','/staff/booking',
+    '/staff/draft/saved.pdf','/staff/transport','/staff/invoices/',
+    '/staff/owner-alerts']) {
+    for(const forged of [false,true]) {
+      const staff=await fetch(new URL(path,base),{
+        method:'GET',redirect:'manual',signal:AbortSignal.timeout(12000),
+        headers:{'Cache-Control':'no-cache',
+          ...(forged?{'Cf-Access-Jwt-Assertion':'synthetic-invalid-assertion'}:{})}
+      });
+      // 503 means intentionally unavailable, 403 denied, 30x is Access login.
+      if(![301,302,303,307,308,403,503].includes(staff.status)) {
+        throw new Error((forged?'Forged-assertion':'Unauthenticated')+
+          ' staff route '+path+' returned '+staff.status);
+      }
+    }
   }
 
   const staffPreview=await get('/demo/staff');

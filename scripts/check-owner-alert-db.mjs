@@ -1,26 +1,16 @@
-/** Disposable loopback PostgreSQL only. All provider calls are fakes; no Neon or Meta credentials read. */
+/** Standalone CLI: disposable loopback PostgreSQL only. Exported suite also serves
+ * the guarded development runner. All providers are fakes; no Meta credentials read. */
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {Client} from 'pg';
+import {pathToFileURL} from 'node:url';
 import {saveBooking} from '../src/booking-store.ts';
 import {validateOwnerAlertConfig} from '../src/owner-booking-alerts.ts';
 import {dispatchOwnerAlert,sweepOwnerAlerts,loadOwnerAlert,retryOwnerAlert,reconcileOwnerAlert,applyOwnerAlertWebhook,listOwnerAlerts} from '../src/owner-alert-store.ts';
-const adminRaw=process.env.OWNER_ALERT_TEST_POSTGRES_URL;
-if(!adminRaw)throw new Error('Set OWNER_ALERT_TEST_POSTGRES_URL to an explicit loopback PostgreSQL /postgres admin database.');
-const adminUrl=new URL(adminRaw);
-if(!['postgres:','postgresql:'].includes(adminUrl.protocol)||
-  !['localhost','127.0.0.1','[::1]'].includes(adminUrl.hostname)||
-  adminUrl.pathname!=='/postgres'||adminUrl.search||adminUrl.hash)
-  throw new Error('This checker only accepts loopback PostgreSQL /postgres without query overrides.');
-const database='apex_owner_alert_test_'+Date.now()+'_'+randomUUID().replaceAll('-','').slice(0,8);
-assert.match(database,/^apex_owner_alert_test_[0-9]+_[a-f0-9]{8}$/);
-const url=new URL(adminUrl);url.pathname='/'+database;const dbUrl=url.toString();
-const admin=new Client({connectionString:adminRaw});await admin.connect();
-try{await admin.query('CREATE DATABASE '+database);}finally{await admin.end();}
-console.log('Synthetic LOCAL database: '+database+' (retained; no Neon branch used)');
-const db=new Client({connectionString:dbUrl});await db.connect();
-const factory=connectionString=>new Client({connectionString});
+export async function runOwnerAlertDbChecks({dbUrl,database,applySchema=true,clientFactory=connectionString=>new Client({connectionString})}){
+const db=clientFactory(dbUrl);await db.connect();
+const factory=clientFactory;
 
 const owner='owner@example.test';
 const config={enabled:'true',accessToken:'synthetic-test-token-'.repeat(3),phoneNumberId:'123456789012',apiVersion:'v26.0',template:'synthetic_owner_alert',recipient:'923000000000',consentedAt:'2026-01-01T00:00:00Z',consentEvidence:'Synthetic explicit owner alert opt-in'};
@@ -49,10 +39,10 @@ function provider({reject=false,timeout=false,malformed=false,beforeAccept}={}){
 const dispatch=(id,p,c=config)=>dispatchOwnerAlert(dbUrl,id,c,p.fetcher,factory);
 const event=(messageId,state,recipient=intent.recipient)=>({messageId,recipient,state,timestamp:1794700000});
 try{
-  for(const file of ['db/schema.sql','db/migrations/001_full_form_details.sql','db/migrations/002_whatsapp_consent.sql','db/migrations/003_invoice_draft_reviews.sql','migrations/20261106_customer_transport_locations.sql','migrations/20261111_distinct_dropoff_location.sql','db/migrations/004_invoice_approval.sql','db/migrations/005_invoice_delivery.sql','db/migrations/006_owner_booking_alerts.sql'])
+  if(applySchema)for(const file of ['db/schema.sql','db/migrations/001_full_form_details.sql','db/migrations/002_whatsapp_consent.sql','db/migrations/003_invoice_draft_reviews.sql','migrations/20261106_customer_transport_locations.sql','migrations/20261111_distinct_dropoff_location.sql','db/migrations/004_invoice_approval.sql','db/migrations/005_invoice_delivery.sql','db/migrations/006_owner_booking_alerts.sql'])
     await db.query(await readFile(new URL('../'+file,import.meta.url),'utf8'));
 
-  pass('baseline and additive owner alert migration apply to new loopback database');
+  pass(applySchema?'baseline and additive owner alert migration apply to new loopback database':'existing development schema supports owner alert checks');
   const replay=input();const saved=await saveBooking(pool,replay,intent);
   const copies=await Promise.all([saveBooking(pool,replay,intent),saveBooking(pool,replay,intent)]);
   assert(copies.every(b=>!b.created&&b.bookingId===saved.bookingId));
@@ -152,3 +142,22 @@ try{
   pass('booking and durable intent commit atomically or roll back together');
   console.log('PASS '+checks+' owner alert PostgreSQL integration groups; fake provider only');
 }finally{await db.end();}
+
+}
+
+if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
+const adminRaw=process.env.OWNER_ALERT_TEST_POSTGRES_URL;
+if(!adminRaw)throw new Error('Set OWNER_ALERT_TEST_POSTGRES_URL to an explicit loopback PostgreSQL /postgres admin database.');
+const adminUrl=new URL(adminRaw);
+if(!['postgres:','postgresql:'].includes(adminUrl.protocol)||
+  !['localhost','127.0.0.1','[::1]'].includes(adminUrl.hostname)||
+  adminUrl.pathname!=='/postgres'||adminUrl.search||adminUrl.hash)
+  throw new Error('This checker only accepts loopback PostgreSQL /postgres without query overrides.');
+const database='apex_owner_alert_test_'+Date.now()+'_'+randomUUID().replaceAll('-','').slice(0,8);
+assert.match(database,/^apex_owner_alert_test_[0-9]+_[a-f0-9]{8}$/);
+const url=new URL(adminUrl);url.pathname='/'+database;const dbUrl=url.toString();
+const admin=new Client({connectionString:adminRaw});await admin.connect();
+try{await admin.query('CREATE DATABASE '+database);}finally{await admin.end();}
+console.log('Synthetic LOCAL database: '+database+' (retained; no Neon branch used)');
+await runOwnerAlertDbChecks({dbUrl,database});
+}

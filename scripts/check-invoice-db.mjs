@@ -1,6 +1,7 @@
 /**
- * Synthetic PostgreSQL integration proof. Never accepts a remote host or an
- * existing application database. Requires an independently installed `pg` test
+ * Synthetic PostgreSQL integration proof. Standalone CLI never accepts a remote
+ * host or existing database; guarded development runner may reuse the suite.
+ * Requires an independently installed `pg` test
  * driver (npm install --no-save --package-lock=false pg), not a runtime dependency.
  * Each invocation creates a NEW local database and retains it for inspection.
  * All provider calls use explicit fakes; no environment Meta credentials are read.
@@ -9,6 +10,7 @@ import assert from 'node:assert/strict';
 import {randomUUID,createHash,createHmac} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {Client} from 'pg';
+import {pathToFileURL} from 'node:url';
 import {prepareStaffDraftReview} from '../src/staff-invoice-draft.ts';
 import {makeReviewSnapshot} from '../src/staff-saved-review.ts';
 import {approveInvoice,issueInvoice,loadApprovedInvoice,loadIssuedInvoicePdf} from '../src/invoice-approval-store.ts';
@@ -16,21 +18,9 @@ import {renderCanvaApprovedPdf} from '../src/canva-invoice-pdf.ts';
 import {enqueueInvoiceDelivery,dispatchInvoiceDelivery,loadInvoiceDelivery,retryInvoiceDelivery,reconcileInvoiceDelivery,applyInvoiceWebhook} from '../src/invoice-delivery-store.ts';
 import {verifyInvoiceWebhook,parseInvoiceWebhook} from '../src/invoice-delivery.ts';
 
-const adminRaw=process.env.INVOICE_TEST_POSTGRES_URL;
-if(!adminRaw)throw new Error('Set INVOICE_TEST_POSTGRES_URL to an explicit loopback PostgreSQL /postgres admin database.');
-const adminUrl=new URL(adminRaw);
-if(!['postgres:','postgresql:'].includes(adminUrl.protocol)||
-  !['localhost','127.0.0.1','[::1]'].includes(adminUrl.hostname)||
-  adminUrl.pathname!=='/postgres'||adminUrl.search||adminUrl.hash)
-  throw new Error('This checker only accepts loopback PostgreSQL /postgres without query overrides.');
-const database='apex_invoice_test_'+Date.now()+'_'+randomUUID().replaceAll('-','').slice(0,8);
-assert.match(database,/^apex_invoice_test_[0-9]+_[a-f0-9]{8}$/);
-const url=new URL(adminUrl);url.pathname='/'+database;const dbUrl=url.toString();
-const admin=new Client({connectionString:adminRaw});await admin.connect();
-try{await admin.query('CREATE DATABASE '+database);}finally{await admin.end();}
-console.log('Synthetic LOCAL database: '+database+' (retained; no Neon branch used)');
-const db=new Client({connectionString:dbUrl});await db.connect();
-const factory=connectionString=>new Client({connectionString});
+export async function runInvoiceDbChecks({dbUrl,database,applySchema=true,clientFactory=connectionString=>new Client({connectionString})}){
+const db=clientFactory(dbUrl);await db.connect();
+const factory=clientFactory;
 const owner='owner@example.test';
 const config={enabled:'true',issuanceEnabled:'true',deliveryEnabled:'true',ownerEmail:owner,manualNumberFloor:'0100',
   bankDetailsJson:JSON.stringify({bank:'HBL',accountTitle:'SYNTHETIC TEST ONLY',accountNumber:'00000000000000',iban:'PK00HABB0000000000000000'})};
@@ -91,9 +81,9 @@ function provider({messageId='wamid.synthetic_'+randomUUID().replaceAll('-',''),
   return {calls,fetcher,messageId};
 }
 try{
-  for(const file of ['db/schema.sql','db/migrations/001_full_form_details.sql','db/migrations/002_whatsapp_consent.sql','db/migrations/003_invoice_draft_reviews.sql','migrations/20261106_customer_transport_locations.sql','migrations/20261111_distinct_dropoff_location.sql','db/migrations/004_invoice_approval.sql','db/migrations/005_invoice_delivery.sql'])
+  if(applySchema)for(const file of ['db/schema.sql','db/migrations/001_full_form_details.sql','db/migrations/002_whatsapp_consent.sql','db/migrations/003_invoice_draft_reviews.sql','migrations/20261106_customer_transport_locations.sql','migrations/20261111_distinct_dropoff_location.sql','db/migrations/004_invoice_approval.sql','db/migrations/005_invoice_delivery.sql'])
     await db.query(await readFile(new URL('../'+file,import.meta.url),'utf8'));
-  pass('baseline plus additive migrations applied to new local database');
+  pass(applySchema?'baseline plus additive migrations applied to new local database':'existing development schema supports invoice approval/delivery checks');
 
   const first=await fixture();
   const approvals=await Promise.all([approve(first),approve(first)]);
@@ -228,9 +218,30 @@ try{
     await db.query('CREATE ROLE '+role);
     await db.query('GRANT USAGE ON SCHEMA public TO '+role);
     await db.query('GRANT SELECT ON '+tables.map(t=>'public.'+t).join(',')+' TO '+role);
+    // PostgreSQL 16+ CREATEROLE owners need explicit SET membership (Neon is not superuser).
+    await db.query('GRANT '+role+' TO CURRENT_USER');
     await db.query('SET LOCAL ROLE '+role);
     for(const table of tables)assert.equal((await db.query('SELECT count(*)::integer AS n FROM public.'+table)).rows[0].n,0);
   }finally{await db.query('ROLLBACK');}
   pass('append-only evidence, monotonic transitions and deny-by-default RLS verified with untrusted role');
   console.log('PASS '+checks+' integration groups; all provider interactions fake; database '+database);
 }finally{await db.end();}
+
+}
+
+if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
+const adminRaw=process.env.INVOICE_TEST_POSTGRES_URL;
+if(!adminRaw)throw new Error('Set INVOICE_TEST_POSTGRES_URL to an explicit loopback PostgreSQL /postgres admin database.');
+const adminUrl=new URL(adminRaw);
+if(!['postgres:','postgresql:'].includes(adminUrl.protocol)||
+  !['localhost','127.0.0.1','[::1]'].includes(adminUrl.hostname)||
+  adminUrl.pathname!=='/postgres'||adminUrl.search||adminUrl.hash)
+  throw new Error('This checker only accepts loopback PostgreSQL /postgres without query overrides.');
+const database='apex_invoice_test_'+Date.now()+'_'+randomUUID().replaceAll('-','').slice(0,8);
+assert.match(database,/^apex_invoice_test_[0-9]+_[a-f0-9]{8}$/);
+const url=new URL(adminUrl);url.pathname='/'+database;const dbUrl=url.toString();
+const admin=new Client({connectionString:adminRaw});await admin.connect();
+try{await admin.query('CREATE DATABASE '+database);}finally{await admin.end();}
+console.log('Synthetic LOCAL database: '+database+' (retained; no Neon branch used)');
+await runInvoiceDbChecks({dbUrl,database});
+}

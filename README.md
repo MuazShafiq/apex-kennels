@@ -43,6 +43,10 @@ The local smoke check verifies a **synthetic PDF**, not obsolete HTML invoice te
 
 Production deploys are explicit Wrangler operations from reviewed code. Do not accidentally enable the public booking gate, rotate intake credentials, or modify live customer records while deploying.
 
+## Coding agent accounts and shared context
+
+The per-account Windows Codex launchers (`cdx-18`, `cdx-74`), shared four-agent conversation thread, and secondary Codex invoice-delivery handoff are documented in [docs/agents/README.md](docs/agents/README.md). Existing Claude aliases (`cc-muaz`, `cc-umer`) remain independent. No credentials are stored in the repository.
+
 ## Architecture and operating references
 
 - [Coding agent instructions](AGENTS.md) · [Windows setup](docs/local-windows.md) · [Cloudflare](docs/cloudflare-workers.md) · [Staff authorization](docs/staff-access.md)

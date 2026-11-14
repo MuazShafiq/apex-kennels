@@ -28,6 +28,7 @@ try {
     }
     $env:APEX_PROFILE_TEST_LOG=$log
     function global:codex {
+        if ($args[0] -eq '--synthetic-failure') { throw 'SYNTHETIC_CODEX_FAILURE' }
         $data=@(
             $env:CODEX_HOME,
             $env:CODEX_SQLITE_HOME,
@@ -38,6 +39,8 @@ try {
         [System.IO.File]::AppendAllText($env:APEX_PROFILE_TEST_LOG,
             ($data -join ';')+[Environment]::NewLine)
     }
+    # Mock the preferred Windows shim too, even when a real CLI is installed.
+    function global:codex.cmd { codex @args }
     $env:CODEX_HOME='PREVIOUS_HOME'
     $env:CODEX_SQLITE_HOME='PREVIOUS_SQLITE'
     $env:OPENAI_API_KEY='DUMMY_SENTINEL_NOT_A_SECRET'
@@ -60,6 +63,25 @@ try {
         $env:CODEX_ACCESS_TOKEN -ne 'DUMMY_SENTINEL_NOT_A_SECRET'){
         throw 'Codex launcher did not restore parent shell environment'
     }
+    try {
+        cdx-18 --synthetic-failure
+        throw 'Expected synthetic command failure'
+    } catch {
+        if ($_.Exception.Message -ne 'SYNTHETIC_CODEX_FAILURE') { throw }
+    }
+    if($env:CODEX_HOME -ne 'PREVIOUS_HOME' -or
+        $env:OPENAI_API_KEY -ne 'DUMMY_SENTINEL_NOT_A_SECRET'){
+        throw 'Codex launcher did not restore environment after command failure'
+    }
+    foreach($name in @('CODEX_HOME','CODEX_SQLITE_HOME','OPENAI_API_KEY','CODEX_ACCESS_TOKEN')){
+        Remove-Item -LiteralPath ('Env:'+$name) -ErrorAction SilentlyContinue
+    }
+    cdx-74 login status
+    foreach($name in @('CODEX_HOME','CODEX_SQLITE_HOME','OPENAI_API_KEY','CODEX_ACCESS_TOKEN')){
+        if($null -ne [Environment]::GetEnvironmentVariable($name,'Process')){
+            throw ('Codex launcher did not restore absent environment variable: '+$name)
+        }
+    }
     foreach($account in @('18','74')){
         $config=Join-Path (Join-Path $HOME ('.codex-'+$account)) 'config.toml'
         if(-not (Test-Path -LiteralPath $config)){
@@ -79,6 +101,7 @@ finally {
     Remove-Item Env:OPENAI_API_KEY -ErrorAction SilentlyContinue
     Remove-Item Env:CODEX_ACCESS_TOKEN -ErrorAction SilentlyContinue
     Remove-Item Function:codex -ErrorAction SilentlyContinue
+    Remove-Item Function:codex.cmd -ErrorAction SilentlyContinue
     Remove-Item Function:cdx-18 -ErrorAction SilentlyContinue
     Remove-Item Function:cdx-74 -ErrorAction SilentlyContinue
     Remove-Item Function:Invoke-ApexCodexProfile -ErrorAction SilentlyContinue

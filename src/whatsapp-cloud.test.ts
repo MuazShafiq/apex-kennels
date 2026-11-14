@@ -57,12 +57,14 @@ test('provider rejection or invalid accepted message cannot be described as deli
 const origin='https://example.workers.dev';
 const intake={
   source:'google_form',externalResponseId:'wa-alert-synthetic-test-1',
-  customerName:'SYNTHETIC OWNER',phone:'03001234567',petName:'Demo pet',
+  customerName:'Example Owner',phone:'03001234567',petName:'Demo pet',
   startDate:'2026-12-01',endDate:'2026-12-02'
 };
 const intakeEnv:WorkerEnv={
   DATABASE_URL:'postgres://invalid/synthetic',INTAKE_API_SECRET:'x'.repeat(48),
   WHATSAPP_ALERTS_ENABLED:'true',
+  WHATSAPP_OWNER_CONSENT_AT:'2026-01-01T00:00:00Z',
+  WHATSAPP_OWNER_CONSENT_EVIDENCE:'Synthetic test consent',
   WHATSAPP_ACCESS_TOKEN:config.accessToken,
   WHATSAPP_PHONE_NUMBER_ID:config.phoneNumberId,
   WHATSAPP_GRAPH_VERSION:'v26.0',
@@ -80,10 +82,9 @@ test('a newly saved Google Form request queues one owner alert without blocking 
   const result=await handleWorkerRequest(authorized(intake),intakeEnv,
     async()=>({bookingId:'123e4567-e89b-42d3-a456-426614174001',created:true,status:'requested'}),{
       context:{waitUntil:(promise)=>{pending.push(promise);}},
-      sendWhatsApp:async(_,number,template,parameters)=>{
-        calls.push([number,template,...parameters].join('/'));
-        return {accepted:true,messageId:wamid};
-      }
+      ownerAlerts:{dispatchOwnerAlert:async(_,id,config)=>{
+        calls.push([config.recipient,config.template,id.slice(0,8).toUpperCase()].join('/'));
+      }}
     });
   assert.equal(result.status,201);
   await Promise.all(pending);
@@ -100,7 +101,7 @@ test('replayed or canary submissions never notify; no config means no API call',
     const res=await handleWorkerRequest(authorized(scenario.input),scenario.env,
       async()=>({bookingId:'123e4567-e89b-42d3-a456-426614174001',
         created:scenario.created,status:'requested'}),{
-        sendWhatsApp:async()=>{sent++;return {accepted:true,messageId:wamid};}
+        ownerAlerts:{dispatchOwnerAlert:async()=>{sent++;}}
       });
     assert.equal(res.status,scenario.created?201:200);
   }
@@ -110,7 +111,7 @@ test('WhatsApp network failure cannot roll back an already persisted booking',as
   const response=await handleWorkerRequest(authorized(intake),intakeEnv,
     async()=>({bookingId:'123e4567-e89b-42d3-a456-426614174001',
       created:true,status:'requested'}),{
-      sendWhatsApp:async()=>{throw new WhatsappError(503);}
+      ownerAlerts:{dispatchOwnerAlert:async()=>{throw new WhatsappError(503);}}
     });
   assert.equal(response.status,201);
 });

@@ -1,3 +1,4 @@
+import {isSyntheticAlertBooking,type OwnerAlertIntent} from './owner-booking-alerts.ts';
 import type { IntakeRequest } from './intake.ts';
 import { IntakeError, fingerprintIntake } from './intake.ts';
 
@@ -23,7 +24,7 @@ function requiredRow<T>(result: QueryResult<T>, label: string): T {
 }
 
 /** All changes happen in one transaction; unique form ID makes concurrent retries safe. */
-export async function saveBooking(pool: DbPool, input: IntakeRequest): Promise<SavedBooking> {
+export async function saveBooking(pool: DbPool, input: IntakeRequest, alert?:OwnerAlertIntent): Promise<SavedBooking> {
   const tx = await pool.connect();
   let committed = false;
   try {
@@ -123,6 +124,11 @@ export async function saveBooking(pool: DbPool, input: IntakeRequest): Promise<S
       'UPDATE public.form_ingestion_events SET booking_id=$1 WHERE id=$2',
       [booking.id,event.rows[0].id]
     );
+    // Intent and booking commit together. No provider call participates in this transaction.
+    // Enrollment occurs only while explicitly enabled; no historical backfill on activation.
+    if(alert&&!isSyntheticAlertBooking(input))await tx.query(
+      'INSERT INTO public.owner_alert_outbox(booking_id,recipient,consent,template,sender_id) VALUES($1,$2,$3::jsonb,$4,$5)',
+      [booking.id,alert.recipient,JSON.stringify(alert.consent),alert.template,alert.senderId]);
     await tx.query('COMMIT');
     committed=true;
     return {bookingId:booking.id,created:true,status:'requested'};

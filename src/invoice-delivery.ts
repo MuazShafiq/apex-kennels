@@ -1,5 +1,5 @@
 import {createHmac,timingSafeEqual} from 'node:crypto';
-import {normalizePakistanWhatsappPhone,type WhatsappConfig} from './whatsapp-cloud.ts';
+import {normalizePakistanWhatsappPhone,boundedMetaJson,type WhatsappConfig} from './whatsapp-cloud.ts';
 
 export type DeliveryConfig=WhatsappConfig&{enabled?:string;template:string;language:string};
 export type DeliveryState='queued'|'sending'|'provider_accepted'|'delivered'|'failed'|'ambiguous';
@@ -12,17 +12,6 @@ export function validateDeliveryConfig(config:DeliveryConfig):void {
   if(!/^v\d{2}\.0$/.test(config.apiVersion)||!/^\d{8,30}$/.test(config.phoneNumberId)||
     config.accessToken.length<30||! /^[a-z][a-z0-9_]{2,127}$/.test(config.template)||
     !/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(config.language))throw new DeliveryError('failed');
-}
-async function boundedJson(response:Response):Promise<Record<string,unknown>>{
-  if(!response.body)throw new Error('Missing response');
-  const reader=response.body.getReader();let size=0;const parts:Uint8Array[]=[];
-  try{for(;;){const {done,value}=await reader.read();if(done)break;size+=value.length;
-    if(size>16000)throw new Error('Oversized response');parts.push(value);}}
-  finally{await reader.cancel().catch(()=>{});}
-  const bytes=new Uint8Array(size);let offset=0;for(const p of parts){bytes.set(p,offset);offset+=p.length;}
-  const data:unknown=JSON.parse(new TextDecoder().decode(bytes));
-  if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('Invalid response');
-  return data as Record<string,unknown>;
 }
 /** Uploads only the immutable issued PDF; no publicly reachable document URL. */
 export async function sendInvoiceDocument(config:DeliveryConfig,input:{recipient:string;invoiceNumber:string;pdf:Uint8Array},
@@ -39,7 +28,7 @@ export async function sendInvoiceDocument(config:DeliveryConfig,input:{recipient
   try{
     const uploaded=await fetcher(base+'/media',{method:'POST',headers,body:form,redirect:'manual',signal:AbortSignal.timeout(15000)});
     if(!uploaded.ok)throw new Error('Upload rejected');
-    const media=await boundedJson(uploaded);
+    const media=await boundedMetaJson(uploaded);
     if(typeof media.id!=='string'||!/^\d{5,40}$/.test(media.id))throw new Error('Invalid media ID');mediaId=media.id;
   }catch{throw new DeliveryError('failed');} // Media upload cannot send a customer message.
   let response:Response;
@@ -54,13 +43,13 @@ export async function sendInvoiceDocument(config:DeliveryConfig,input:{recipient
   if(!response.ok){
     let rejected=false;
     if(response.status>=400&&response.status<500&&response.status!==408){
-      try{const data=await boundedJson(response);const e=data.error as {code?:unknown;type?:unknown}|undefined;
+      try{const data=await boundedMetaJson(response);const e=data.error as {code?:unknown;type?:unknown}|undefined;
         rejected=!data.messages&&!!e&&Number.isSafeInteger(e.code)&&typeof e.type==='string'&&e.type.length>0;
       }catch{/* Unknown response remains ambiguous. */}
     }
     throw new DeliveryError(rejected?'failed':'ambiguous');
   }
-  try{const data=await boundedJson(response);const messages=data.messages;
+  try{const data=await boundedMetaJson(response);const messages=data.messages;
     if(!Array.isArray(messages)||messages.length!==1||typeof messages[0]?.id!=='string'||
       !/^wamid\.[A-Za-z0-9+/=_-]{8,500}$/.test(messages[0].id))throw new Error('Missing message ID');
     return {messageId:messages[0].id};

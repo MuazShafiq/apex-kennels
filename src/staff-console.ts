@@ -79,5 +79,5 @@ export function renderStaffConsoleHtml(rows:StaffBooking[], page:StaffPage):stri
     + '<div class="overflow"><table><thead><tr><th>Owner / reference</th><th>Dog / space</th><th>Boarding dates</th><th>Status</th><th>Contact</th><th>Action</th></tr></thead><tbody>'
     + (tr || '<tr><td colspan="6" style="padding:45px;text-align:center;color:#8d9d91">No matching bookings.</td></tr>')
     + '</tbody></table></div><div class="panelbottom"><span>'+visible.length+' requests Â· newest first</span></div></section>'
-    + '<p class="foot">Estimates are for staff review, not payment. '+(page.demo?'':'<a href="/staff/location">Check a location from the old Google Form</a>')+'</p></main></div></body></html>';
+    + '<p class="foot">Estimates are for staff review, not payment. '+(page.demo?'':'<a href="/staff/location">Check a location from the old Google Form</a> · <a href="/staff/owner-alerts">Owner alert status</a>')+'</p></main></div></body></html>';
 }

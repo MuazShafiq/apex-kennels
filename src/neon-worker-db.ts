@@ -1,3 +1,4 @@
+import type {OwnerAlertIntent} from './owner-booking-alerts.ts';
 import { Client } from '@neondatabase/serverless';
 import type { IntakeRequest } from './intake.ts';
 import { saveBooking, type DbPool, type SavedBooking } from './booking-store.ts';
@@ -10,6 +11,7 @@ import { saveBooking, type DbPool, type SavedBooking } from './booking-store.ts'
 export async function persistBookingWithNeon(
   databaseUrl: string,
   booking: IntakeRequest,
+  alert?:OwnerAlertIntent,
 ): Promise<SavedBooking> {
   const client = new Client(databaseUrl);
   await client.connect();
@@ -26,7 +28,7 @@ export async function persistBookingWithNeon(
         };
       }
     };
-    return await saveBooking(pool, booking);
+    return await saveBooking(pool, booking, alert);
   } finally {
     await client.end();
   }

@@ -2,13 +2,13 @@
 
 ## State
 
-Owner notification code is prepared but disabled. No WhatsApp is sent in production, and no customer invoice approval/send route is implemented yet. The existing Google Form intake remains operational.
+Owner notification code is prepared but disabled. Customer invoice approval, immutable PDFs, a durable delivery outbox and signed status webhooks are implemented behind separate disabled-by-default gates; see [invoice operator guide](invoice-approval-delivery.md). This engineering change is not deployed or live-provider verification. The existing Google Form intake remains operational.
 
 ## Desired workflow
 
 New Google Form or website booking → saved successfully → WhatsApp alert to Fatima with only the booking reference → private staff review.
 
-After staff booking and pricing checks, Fatima will eventually click **Approve & send invoice** → freeze amount, customer, payment recipient and invoice number → generate customer-safe PDF → send it via approved WhatsApp utility/document template to a customer who opted in → record provider status. Nothing automatically marks payments received.
+After staff booking and pricing checks and an authorized release, Fatima can click **Approve, issue & send** → freeze amount, customer, payment recipient, invoice number and explicit consent → generate customer-safe PDF → atomically persist issued PDF and outbox → send via approved WhatsApp utility/document template → record provider status. Approval-only and separate issuance remain available. Nothing automatically marks payments received.
 
 ## Direct Meta Cloud API setup
 
@@ -35,7 +35,7 @@ Confirm supported WhatsApp Business app coexistence before connecting Apex's exi
 3. Explicit customer consent for booking updates and invoices via WhatsApp. The current Google Form only collects a phone number, which is **not** a sufficient documented WhatsApp opt-in. Add one clear choice to the original Form and store it in booking intake before automatic customer sending; old responses need separately recorded consent.
 4. A Meta-approved utility template with invoice PDF document header, document generation from approved snapshot, delivery-status webhook, and a manual retry/repair action. Never send sensitive pet-health notes.
 5. Securely configure Fatima's HBL account; do not hardcode private account numbers. Confirm the latest manually issued four-digit invoice number before enabling automated numbering.
-6. 30 inclusive billed days qualify for the Rs. 10,000 per-dog package discount: standard 75K → 65K; camera 90K → 80K. Unusual durations require review. Provisional transport is verified driven fuel cost + editable 20% markup.
+6. Exactly 30 inclusive billed days may use the staff-selected Rs. 10,000 per-dog package discount: standard 75K → 65K; camera 90K → 80K. Unusual durations require review. Transport uses verified driven fuel cost + the fixed confirmed 20% markup, with actual road access and current local fuel reviewed by the owner.
 
 ## Costs and tests
 

@@ -1,5 +1,7 @@
 # Saved staff estimates and Canva PDF reviews
 
+**Engineering update (2026-11-15, not deployed):** Saved estimates now link to a separate [owner approval/delivery workflow](invoice-approval-delivery.md), disabled by default. Transport saves also record the exact service and gate provenance; older transport snapshots must be refreshed before approval. Review PDFs remain visibly `INTERNAL / NOT PAYABLE` and contain no payment recipient details.
+
 **Production update (2026-11-14):** A synthetic transport estimate for booking ending `…033` was saved to production Neon (revision 1) and its Canva review PDF was inspected live after the blank-page and alignment fix in [PR #66](https://github.com/MuazShafiq/apex-kennels/pull/66). The operator verified a distinct-gate route total of 201.108 km, a November 14 national petrol baseline of PKR 330/L, transport PKR 6,637 and review total PKR 14,137. This is **not** a payable invoice or confirmation of the physical entrance/road approach.
 
 ## Existing boarding-only flow

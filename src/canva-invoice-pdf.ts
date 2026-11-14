@@ -10,6 +10,7 @@ import {
 } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import {validateSnapshot, type ReviewSnapshot} from './staff-saved-review.ts';
+import type {ApprovalSnapshot} from './invoice-approval.ts';
 
 const W=595.5, H=842.25;
 const BLACK=rgb(30/255,30/255,30/255);
@@ -152,6 +153,28 @@ export function drawCanvaIbanSingleLine(page:PDFPage,font:PDFFont,iban:string):v
 export async function renderCanvaStaffPdf(
   input:ReviewSnapshot,reviewDate:string,blankPdf:Uint8Array
 ):Promise<Uint8Array> {
+  return renderCanvaPdf(input,reviewDate,blankPdf);
+}
+
+/** Render only the frozen approved values. Issuance stores these bytes once. */
+export async function renderCanvaApprovedPdf(
+  approved:ApprovalSnapshot,blankPdf:Uint8Array
+):Promise<Uint8Array> {
+  if(approved.version!==1||!/^\d{4}$/.test(approved.invoiceNumber)||
+     !Number.isSafeInteger(approved.reviewRevision)||approved.reviewRevision<1||
+     !approved.approvedBy||!Number.isFinite(Date.parse(approved.approvedAt))||
+     approved.review.booking.synthetic||
+     (approved.review.transport&&(!approved.transportVerified||!approved.fuelVerified))||
+     approved.payment?.bank!=='HBL'||!approved.payment.accountTitle||
+     !/^[0-9]{8,24}$/.test(approved.payment.accountNumber)||
+     !/^PK[0-9]{2}HABB[A-Z0-9]{16}$/.test(approved.payment.iban))
+    throw new Error('Invalid approved invoice snapshot');
+  return renderCanvaPdf(approved.review,approved.approvedAt.slice(0,10),blankPdf,approved);
+}
+
+async function renderCanvaPdf(
+  input:ReviewSnapshot,reviewDate:string,blankPdf:Uint8Array,approved?:ApprovalSnapshot
+):Promise<Uint8Array> {
   const snapshot=validateSnapshot(input),q=snapshot.quote;
   if(q.currency!=='PKR'||q.billedDays<1||q.lines.length===0||
     !q.lines.every(l=>Number.isSafeInteger(l.totalPkr)&&l.totalPkr===l.quantity*l.unitPricePkr)||
@@ -187,7 +210,7 @@ export async function renderCanvaStaffPdf(
   const regular=await pdf.embedFont(rawFontAttachment(pdf,ALT_FONT_FILES[0]),{subset:true});
   const bold=await pdf.embedFont(rawFontAttachment(pdf,ALT_FONT_FILES[1]),{subset:true});
   const b=snapshot.booking;
-  const no=clean('REVIEW-'+b.id.slice(0,8).toUpperCase());
+  const no=clean(approved?.invoiceNumber??('REVIEW-'+b.id.slice(0,8).toUpperCase()));
   insert(page,regular,'Number # '+no,54.2455,267.663,10,BLACK,191);
   insert(page,regular,dateLong(reviewDate),86,281.17,10,BLACK,157);
   identity(page,bold,b.customerName,264.9975,151,true);
@@ -221,8 +244,19 @@ export async function renderCanvaStaffPdf(
   }
   if(b.synthetic)
     insert(page,bold,'SYNTHETIC EXAMPLE',54.2455,321,8,GRAY,150);
-  pdf.setTitle(b.synthetic?'Apex Kennels | Synthetic preview':'Apex Kennels | Staff review');
+  if(approved){
+    // Keep the payment block within the original left column, clear of totals.
+    insert(page,regular,approved.payment.accountTitle,130,658.443,10,BLACK,216);
+    insert(page,regular,approved.payment.accountNumber,146,671.948,10,BLACK,200);
+    drawCanvaIbanSingleLine(page,regular,approved.payment.iban);
+    insert(page,regular,approved.payment.bank,120,698.958,10,BLACK,226);
+  }else{
+    insert(page,bold,'INTERNAL / NOT PAYABLE',54.2455,307,9,GRAY,200);
+  }
+  pdf.setTitle(approved?'Apex Kennels | Invoice '+approved.invoiceNumber:
+    b.synthetic?'Apex Kennels | Synthetic preview':'Apex Kennels | Staff review');
   pdf.setAuthor('Apex Kennels');
-  pdf.setSubject('Internal booking estimate; not an issued invoice');
+  pdf.setSubject(approved?'Approved invoice; payment status is not tracked':
+    'Internal booking estimate; not an issued invoice');
   return pdf.save({useObjectStreams:false});
 }

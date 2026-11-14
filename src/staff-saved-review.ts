@@ -15,6 +15,9 @@ export type ReviewSnapshot={
   quote:Quote;
   /** Immutable transport route + petrol evidence for priced transport drafts. */
   transport?:NonNullable<StaffDraftReview['transport']>;
+  /** Exact selected service; older saved estimates must be refreshed for approval. */
+  transportService?:'pickup'|'dropoff'|'both';
+  transportLocationSource?:'customer_record'|'staff_confirmed';
 };
 export type SavedReview={snapshot:ReviewSnapshot;revision:number;updatedBy:string;updatedAt:string};
 export type SaveReviewResult={revision:number};

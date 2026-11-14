@@ -250,7 +250,7 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
             +'<input type="hidden" name="revision" value="'+String(options.savedRevision??0)+'">'
             +'<button type="submit">'+(source.synthetic?(options.savedRevision?'Update synthetic test draft':'Save synthetic test draft')
               :(options.savedRevision?'Update saved draft':'Save internal draft'))+'</button></form>'
-            +(options.savedRevision?'<p><a href="/staff/draft/saved?id='
+            +(options.savedRevision?'<p><a href="/staff/invoices/review?id='+encodeURIComponent(source.bookingId)+'">Owner approval</a></p><p><a href="/staff/draft/saved?id='
               +encodeURIComponent(source.bookingId)+'">View saved Canva invoice</a> · <a href="/staff/draft/saved.pdf?id='+encodeURIComponent(source.bookingId)+'&amp;download=1">Download Canva PDF</a></p>':'')
           :'')
         +'</div>'

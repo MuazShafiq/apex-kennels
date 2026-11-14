@@ -1,6 +1,6 @@
 import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
-import {resolve} from 'node:path';
+import {resolve,sep} from 'node:path';
 import {chromium} from 'playwright';
 import {renderStaffConsoleHtml} from '../src/staff-console.ts';
 import {syntheticBookings} from '../src/staff-bookings.ts';
@@ -8,6 +8,8 @@ import {renderStaffTransportForm} from '../src/staff-transport-review.ts';
 import {renderStaffBookingDetail} from '../src/staff-booking-detail.ts';
 import {renderStaffDraftReview,prepareStaffDraftReview} from '../src/staff-invoice-draft.ts';
 import {renderStaffPinChecker} from '../src/staff-location.ts';
+import {renderInvoiceApprovalPage} from '../src/staff-invoice-approval.ts';
+import {makeReviewSnapshot} from '../src/staff-saved-review.ts';
 
 const demoSource={
   bookingId:'a2026111-0e00-4c11-8a00-000000000033',
@@ -29,6 +31,7 @@ const detail={
   personalityTraits:null,specialInstructions:null,medicationFeedingInstructions:null,termsAccepted:true
 };
 const pages={
+  '/staff/invoices/review':renderInvoiceApprovalPage({saved:{snapshot:makeReviewSnapshot(prepareStaffDraftReview({...demoSource,transportRequested:false,transportLocation:undefined},'daily')),revision:1,updatedBy:'owner@example.test',updatedAt:new Date().toISOString()},approvalEnabled:true,issuanceEnabled:false,sendEnabled:false}),
   '/demo/staff':renderStaffConsoleHtml(syntheticBookings,{demo:true,filter:{query:'',status:'all'}}),
   '/staff/transport':renderStaffTransportForm(demoSource,'daily',0),
   '/staff/booking':renderStaffBookingDetail(detail),
@@ -62,7 +65,7 @@ const server=createServer(async(req,res)=>{
     res.writeHead(404);res.end();return;
   }
   const filename=resolve(base,'public',route.slice(1));
-  if(!filename.startsWith(resolve(base,'public')+'/')){res.writeHead(404);res.end();return;}
+  if(!filename.startsWith(resolve(base,'public')+sep)){res.writeHead(404);res.end();return;}
   try{
     const bytes=await readFile(filename);
     const mime=route.endsWith('.css')?'text/css':route.endsWith('.js')?'application/javascript':
@@ -87,7 +90,7 @@ try{
   const page=await browser.newPage({viewport,deviceScaleFactor:1,isMobile:name.includes('phone')||name==='iphone',hasTouch:true});
   await page.route('**/challenges.cloudflare.com/**',route=>route.abort());
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  for(const [route,label] of [['/book','book'],['/demo/staff','dashboard'],['/staff/transport','transport'],['/staff/booking','detail'],['/staff/draft','draft'],['/staff/location','location']]){
+  for(const [route,label] of [['/book','book'],['/demo/staff','dashboard'],['/staff/transport','transport'],['/staff/booking','detail'],['/staff/draft','draft'],['/staff/location','location'],['/staff/invoices/review','approval']]){
    await page.goto('http://127.0.0.1:'+port+route,{waitUntil:'domcontentloaded'});
    await page.waitForTimeout(200);
    const size=await page.evaluate(()=>({
@@ -128,7 +131,7 @@ try{
        name+' dashboard leaves an unpainted right gutter '+JSON.stringify(seam));
      assert(Math.abs(seam.left-seam.expectedLeft)<2,
        name+' dashboard leaves an unpainted sidebar seam '+JSON.stringify(seam));
-   }else if(['detail','draft','transport','location'].includes(label)){
+   }else if(['detail','draft','transport','location','approval'].includes(label)){
      assert(Math.abs(paint.bodyTop)<1,name+' '+label+' first-child margin moved the page background');
      assert(paint.bodyHeight>=viewport.height-1,name+' '+label+' background too short');
      assert(paint.bodyBackground?.includes('linear-gradient'),name+' '+label+' body gradient missing');
@@ -142,6 +145,15 @@ try{
      assert(heights.length===2,name+' boarding choices missing');
      assert(Math.abs(heights[0]-heights[1])<1,
        name+' standard and camera cards unequal: '+JSON.stringify(heights));
+   }
+   if(label==='approval'){
+     await page.locator('#invoiceNumber').focus();
+     assert(await page.locator('#invoiceNumber').evaluate(el=>el===document.activeElement),name+' approval number cannot receive focus');
+     assert(await page.getByLabel('Four-digit invoice number').count()===1,name+' invoice label missing');
+     const checks=await page.locator('.check').evaluateAll(nodes=>nodes.map(node=>{const a=node.querySelector('input').getBoundingClientRect(),b=node.querySelector('span').getBoundingClientRect();return {right:a.right,left:b.left};}));
+     assert(checks.every(x=>x.right<=x.left),name+' approval checkbox overlaps label');
+     await page.getByRole('button',{name:'Approve snapshot'}).click();
+     assert(await page.locator('#invoiceNumber').evaluate(el=>!el.validity.valid),name+' empty invoice number accepted');
    }
    await page.screenshot({path:'mobile-'+name+'-'+label+'.png',fullPage:label!=='book'});
    results.push({viewport:name,page:label,...size});
@@ -172,18 +184,18 @@ try{
   await page.locator('#transport-pickup').check();
   assert(await page.locator('#pickup-location').isVisible(),name+' pickup must reveal location');
   await page.locator('#maps-link').fill('https://www.google.com/maps/search/?api=1&query=33.7%2C73.08');
-  await page.waitForTimeout(900);
+  await page.waitForFunction(()=>document.querySelector('#coordinate-status')?.textContent.includes('Google Maps location added'));
   assert((await page.locator('#coordinate-status').innerText()).includes('Google Maps location added'),
     name+' pickup Google Maps link not accepted');
   assert(await page.locator('#selected-location-link').isVisible(),name+' pickup pin not visible');
   await page.locator('#maps-link').fill('https://maps.app.goo.gl/ambiguous');
-  await page.waitForTimeout(900);
+  await page.waitForFunction(()=>document.querySelector('#coordinate-status')?.textContent.includes('latitude, longitude'));
   assert((await page.locator('#coordinate-status').innerText()).includes('latitude, longitude'),
     name+' ambiguous short link lacks coordinates fallback');
   assert(!(await page.locator('#selected-location-link').isVisible()),
     name+' ambiguous short link retained stale pin');
   await page.locator('#maps-link').fill('33.700000, 73.080000');
-  await page.waitForTimeout(900);
+  await page.locator('#selected-location-link').waitFor({state:'visible'});
   assert(await page.locator('#selected-location-link').isVisible(),
     name+' confirmed pickup coordinates missing');
 
@@ -196,7 +208,7 @@ try{
   assert(await page.locator('#dropoff-location').isVisible(),
     name+' different drop-off must reveal second location');
   await page.locator('#dropoff-maps-link').fill('33.580000, 73.020000');
-  await page.waitForTimeout(900);
+  await page.locator('#dropoff-selected-location-link').waitFor({state:'visible'});
   assert(await page.locator('#dropoff-selected-location-link').isVisible(),
     name+' different drop-off coordinates not accepted');
   assert(await page.locator('#selected-location-link').isVisible(),

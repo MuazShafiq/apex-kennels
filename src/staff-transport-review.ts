@@ -103,6 +103,7 @@ export function renderStaffTransportForm(source:StaffInvoiceSource,
   return layout('Transport review',
     '<a href="/staff/draft?id='+encodeURIComponent(source.bookingId)+'">← Boarding estimate</a>'+
     '<h1>Price pickup & drop-off</h1>'+
+    (revision>0?'<p><a href="/staff/invoices/review?id='+encodeURIComponent(source.bookingId)+'">Owner approval of saved estimate</a></p>':'')+
     '<p class="muted">Staff estimate only. No customer message, invoice approval, or payment request.</p>'+
     '<section class="panel"><strong>'+esc(source.customerName)+'</strong> · '+esc(source.petNames)+
     '<p class="muted">Booking '+esc(source.bookingId.slice(0,8))+

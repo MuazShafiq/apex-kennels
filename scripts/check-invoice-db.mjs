@@ -170,6 +170,69 @@ try{
   assert.equal((await state(early.invoice.id)).state,'delivered');
   pass('webhook arriving before HTTP acceptance is retained and applied');
 
+  // Pause the real callback after its outbox UPDATE saw no attached provider
+  // ID, before COMMIT. Acceptance/reconciliation must wait for that transaction.
+  async function overlapCallback(attach,messageId){
+    let ready,release,attempted;
+    const callbackReady=new Promise(resolve=>{ready=resolve;});
+    const hold=new Promise(resolve=>{release=resolve;});
+    const lockAttempted=new Promise(resolve=>{attempted=resolve;});
+    const event={messageId,recipient,state:'delivered',timestamp:1794700000};
+    const pausedFactory=url=>{
+      const client=factory(url),query=client.query.bind(client);
+      client.query=async(sql,params)=>{
+        const result=await query(sql,params);
+        if(sql.startsWith('UPDATE public.invoice_delivery_outbox o SET')){ready();await hold;}
+        return result;
+      };return client;
+    };
+    let locked=false;
+    const observingFactory=url=>{
+      const client=factory(url),query=client.query.bind(client);
+      client.query=(sql,params)=>{
+        if(sql.includes('pg_advisory_xact_lock')){locked=true;attempted();}
+        if(sql.startsWith('UPDATE public.invoice_delivery_outbox SET')&&sql.includes('provider_message_id=')&&!locked)throw new Error('Provider-ID attachment must lock before UPDATE');
+        return query(sql,params);
+      };return client;
+    };
+    const callback=applyInvoiceWebhook(dbUrl,[event],pausedFactory);
+    let pending;
+    const bounded=promise=>Promise.race([promise,new Promise((_,reject)=>{const timer=setTimeout(()=>reject(new Error('Invoice overlap rendezvous timed out')),10000);timer.unref();})]);
+    try{
+      await bounded(Promise.race([callbackReady,callback.then(()=>{throw new Error('Callback did not pause');})]));
+      pending=attach(observingFactory);
+      await bounded(Promise.race([lockAttempted,pending.then(()=>{throw new Error('Attachment completed without waiting for callback');})]));
+      release();await Promise.all([callback,pending]);
+    }finally{release();await Promise.allSettled([callback,...(pending?[pending]:[])]);}
+  }
+  const acceptanceOverlap=await issued(),acceptanceProvider=provider();
+  await overlapCallback(makeDb=>dispatchInvoiceDelivery(dbUrl,acceptanceOverlap.invoice.id,deliveryConfig,acceptanceProvider.fetcher,makeDb),acceptanceProvider.messageId);
+  assert.equal((await state(acceptanceOverlap.invoice.id)).state,'delivered');
+  assert.equal(acceptanceProvider.calls.messages,1);
+  pass('overlapping real callback/acceptance transactions serialize without losing delivery');
+
+  const reconciliationOverlap=await issued();
+  await dispatchInvoiceDelivery(dbUrl,reconciliationOverlap.invoice.id,deliveryConfig,provider({timeout:true}).fetcher,factory);
+  const reconciliationId='wamid.synthetic_overlap_'+randomUUID().replaceAll('-','');
+  await overlapCallback(makeDb=>reconcileInvoiceDelivery(dbUrl,reconciliationOverlap.invoice.id,owner,{messageId:reconciliationId,evidence:'Synthetic overlapping provider-ID recovery'},makeDb),reconciliationId);
+  assert.equal((await state(reconciliationOverlap.invoice.id)).state,'delivered');
+  pass('overlapping real callback/reconciliation transactions serialize without losing delivery');
+
+  const duplicateRepair=await issued(),duplicateProvider=provider();
+  await dispatchInvoiceDelivery(dbUrl,duplicateRepair.invoice.id,deliveryConfig,duplicateProvider.fetcher,factory);
+  const retained={messageId:duplicateProvider.messageId,recipient,state:'delivered',timestamp:1794700000};
+  // Reproduce evidence retained by the old race: event committed, outbox stale.
+  await db.query("INSERT INTO public.invoice_delivery_events(provider_message_id,recipient,state,provider_timestamp) VALUES($1,$2,'delivered',$3)",[retained.messageId,recipient,retained.timestamp]);
+  assert.equal((await state(duplicateRepair.invoice.id)).state,'provider_accepted');
+  const auditCount=async()=>(await db.query('SELECT count(*)::int AS n FROM public.invoice_delivery_audit WHERE invoice_id=$1',[duplicateRepair.invoice.id])).rows[0].n;
+  const auditBefore=await auditCount();
+  await applyInvoiceWebhook(dbUrl,[retained],factory);
+  assert.equal((await state(duplicateRepair.invoice.id)).state,'delivered');
+  await applyInvoiceWebhook(dbUrl,[retained],factory);
+  assert.equal(await auditCount(),auditBefore);
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM public.invoice_delivery_events WHERE provider_message_id=$1',[retained.messageId])).rows[0].n,1);
+  pass('duplicate callback repairs retained delivery evidence without duplicate event or audit');
+
   const rejected=await issued();await enqueueInvoiceDelivery(dbUrl,rejected.invoice.id,owner,factory);
   const reject=provider({reject:true});
   for(let attempt=1;attempt<=3;attempt++){

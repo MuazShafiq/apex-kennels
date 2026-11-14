@@ -18,14 +18,15 @@ Worker variables:
 - WHATSAPP_ALERTS_ENABLED: false until live acceptance.
 - WHATSAPP_ACCESS_TOKEN: private long-lived Meta token (Secret).
 - WHATSAPP_PHONE_NUMBER_ID: registered API sender phone ID.
-- WHATSAPP_GRAPH_VERSION: v26.0.
+- WHATSAPP_GRAPH_VERSION: an explicitly selected supported Graph API version, verified by the operator against the Meta app and current official documentation. No live version is verified here.
 - WHATSAPP_OWNER_PHONE: Fatima's receiving WhatsApp number (Secret).
 - WHATSAPP_OWNER_ALERT_TEMPLATE: approved en_US utility template name, one body parameter containing the booking reference only.
 - WHATSAPP_OWNER_EMAIL: exact owner Access identity, also present in STAFF_ALLOWED_EMAILS. This is independent of the invoice owner setting.
 - WHATSAPP_OWNER_CONSENT_AT: explicit owner booking-alert opt-in time (ISO timestamp, not a future date).
 - WHATSAPP_OWNER_CONSENT_EVIDENCE: bounded consent evidence reference (protected configuration, no private contact/health data).
-- WHATSAPP_ALERT_WEBHOOK_SECRET: Meta app signing secret (Secret).
-- WHATSAPP_ALERT_WEBHOOK_VERIFY_TOKEN: separate unpredictable subscription verification token (Secret).
+- WHATSAPP_WEBHOOK_SECRET: Meta app signing secret for the shared callback (Secret, at least 20 characters).
+- WHATSAPP_WEBHOOK_VERIFY_TOKEN: separate unpredictable subscription verification token for the shared callback (Secret).
+- WHATSAPP_ALERT_WEBHOOK_SECRET / WHATSAPP_ALERT_WEBHOOK_VERIFY_TOKEN: legacy owner-only callback configuration, needed only if retaining that separate callback.
 
 Never put real numbers, identities, tokens or evidence in Git. Configured sender/recipient/template/consent are frozen in each enrolled alert; a later configuration change does not redirect old alerts.
 
@@ -33,7 +34,11 @@ Suggested owner template: New Apex boarding request #{{1}}. Open the secure Apex
 
 New eligible bookings enroll an immutable alert intent in the same transaction as the booking, only while sending is enabled and consent/configuration are valid. After commit the Worker dispatches without affecting booking success. The five-minute scheduled handler recovers undispatched intents. Unchanged submissions, existing bookings and synthetic canaries do not enroll; there is no activation backfill. Apply migration 006 before configuring enablement. With alerts disabled/absent, legacy intake has no dependency on the new tables.
 
-Meta returning a message ID means accepted, **not delivered**. The independent `/api/owner-alerts/webhook` endpoint verifies the GET subscription token and exact POST HMAC, parses only statuses for the configured sender and persists minimal replay-safe evidence. It remains available while sending is disabled. If the same Meta app also handles invoice callbacks, configure provider subscription routing to deliver the relevant statuses to both independent lanes; do not assume Meta calls two arbitrary URLs automatically.
+Meta returning a message ID means accepted, **not delivered**. For one Meta app handling both lanes, configure its callback URL as `/api/whatsapp/webhook` with the dedicated shared signing secret/token above. The shared endpoint verifies GET subscription requests and exact-byte POST HMAC, bounds the body to 256 KiB, filters statuses by `WHATSAPP_PHONE_NUMBER_ID`, and invokes both existing status stores. No external fanout or outbound provider call occurs. It discards inbound message content and ignores other senders. Migrations 004–006 must be ready before subscription, including both stores and their dependencies; owner-only installations without invoice tables can retain the legacy owner endpoint. Database, valid sender, signing secret and verification token are required or receipt fails closed with 503. Legacy lane secrets are never an implicit fallback for shared configuration.
+
+The stores commit independently. Any store failure returns retryable 503, including after the first lane committed. Replays safely deduplicate committed evidence/audits and complete the other lane. The callback works while every send/approval/issuance gate is off. Preserve callback configuration and tables during disable/recovery; disabling sending must not disable receipt for messages already accepted.
+
+The existing `/api/owner-alerts/webhook` and `/api/invoice-delivery/webhook` remain supported with their independent secret/token settings for separate Meta apps/subscriptions. A single app's default callback can point directly to the shared route. Meta also supports a [per-WABA callback override](https://www.postman.com/meta/whatsapp-business-platform/request/13382743-1293399e-36eb-47a3-8b15-4a0fe8f2a9c4); this chooses a callback and does not fan out events to both lane URLs. Subscribe the intended app/WABA to message statuses according to [Meta's webhook setup](https://developers.facebook.com/docs/graph-api/webhooks/getting-started/), and verify approved templates against the [official template reference](https://developers.facebook.com/docs/graph-api/reference/whats-app-business-account/message_templates/). Live subscription and delivery remain separately authorized and unverified.
 
 Only explicit Graph client rejections retry automatically (five-minute delay, three attempts total). Unknown outcomes and claims stuck for two minutes become ambiguous and never automatically resend. `/staff/owner-alerts` lists unresolved records first, pages all results and supports full booking-ID lookup. For ambiguous outcomes, record either the verified provider ID or confirmed-not-sent evidence; only the latter permits a separate retry. For provider-accepted alerts missing status beyond 24 hours, inspect Meta and record a verified terminal status with evidence. Do not infer delivery from elapsed time. Exhausted attempts and provider-ID-bound failures require investigation; no new intent or resend bypass exists.
 
@@ -60,7 +65,7 @@ The owner clarified in issue #43: use a **separate API sending number** and keep
 
 ## Costs and tests
 
-Meta charges per delivered approved template message based on category/recipient country. Direct Meta API avoids intermediary platform charges but does not guarantee free messages. October 2026 Pakistan utility rate estimates are ~US$0.015/message, subject to Meta's current rate card.
+Meta pricing depends on the applicable category, recipient country and current charging rules. Direct Meta API avoids intermediary platform charges but does not guarantee free messages. The operator must verify the current [official WhatsApp Business Platform pricing and rate card](https://developers.facebook.com/docs/whatsapp/pricing/) before any separately authorized live test or release. No live Pakistan rate or billing configuration is verified here.
 
 Test Fatima's alert consent and a controlled synthetic submission, provider acceptance/delivery status, duplicate submission, and failures. Test customer invoice to a consented test recipient with a real PDF, including double clicks, before enabling production. Do not claim live sending until observed.
 

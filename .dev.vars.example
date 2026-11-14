@@ -13,3 +13,9 @@ APEX_INVOICE_WHATSAPP_ENABLED=false
 APEX_INVOICE_OWNER_EMAIL=
 APEX_INVOICE_BANK_JSON=
 APEX_INVOICE_MANUAL_NUMBER_FLOOR=
+
+# Shared Meta callback (receipt only; never enables sending).
+# Private app signing secret + separate unpredictable subscription token.
+WHATSAPP_WEBHOOK_SECRET=
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=
+WHATSAPP_PHONE_NUMBER_ID=

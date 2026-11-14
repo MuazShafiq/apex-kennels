@@ -2,7 +2,7 @@
 
 ## State
 
-Durable owner notification code is implemented but disabled; implementation is not proof of deployment or live delivery. See [owner alert engineering handoff](agents/OWNER-ALERTS.md). Customer invoice approval, immutable PDFs, a durable delivery outbox and signed status webhooks are implemented behind separate disabled-by-default gates; see [invoice operator guide](invoice-approval-delivery.md). This engineering change is not deployed or live-provider verification. The existing Google Form intake remains operational.
+Durable owner notification code is implemented but disabled; implementation is not proof of deployment or live delivery. See [owner alert engineering handoff](agents/OWNER-ALERTS.md). Customer invoice approval, immutable PDFs, a durable delivery outbox and signed status webhooks are implemented behind separate disabled-by-default gates; see [invoice operator guide](invoice-approval-delivery.md). Main automatically deployed the engineering code after PR #75 merged; all messaging and public-booking enablement flags were independently checked absent. No production migration or live-provider delivery test was performed. The existing Google Form intake remains operational.
 
 ## Desired workflow
 

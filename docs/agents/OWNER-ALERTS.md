@@ -17,3 +17,7 @@ All test fixtures/provider calls are synthetic. Disposable loopback PostgreSQL i
 Follow `docs/whatsapp-rollout.md`. Keep `WHATSAPP_ALERTS_ENABLED` false/absent. Do not activate public booking, customer delivery or invoice gates. Do not apply a production migration, backfill historical bookings or contact real recipients as part of engineering verification. Existing Google Form intake/recovery stays independent.
 
 Next operator must review/apply the migration first on an identified development Neon branch, verify explicit owner opt-in, separate sender/template onboarding and exact Access owner identity, then obtain scoped production/live-test authorization. Test disabled recovery before any enablement.
+
+## Merged and disabled deployment checkpoint
+
+PR [#75](https://github.com/MuazShafiq/apex-kennels/pull/75) merged as `785af2f` and closed #43. Main's automatic Cloudflare build deployed version `102d6265-4d20-4b9f-9704-00a95c08b8b7` (deployment `543a09a0-6714-4be5-8018-7cd436b0a2cb`). Post-merge read-only settings show all five booking/invoice/customer-send/owner-alert enablement flags absent. Main Node 22/24 CI and production smoke pass; unconfigured owner webhook returns 503 and anonymous owner UI redirects to Access. This does not prove live Meta delivery or a production migration. Code is deployed with messaging disabled; migration 006 and activation remain release work.

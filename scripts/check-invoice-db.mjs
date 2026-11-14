@@ -167,7 +167,9 @@ try{
   assert.equal((await state(id)).state,'provider_accepted');
   assert.equal((await db.query('SELECT count(*)::integer AS n FROM public.invoice_delivery_outbox WHERE invoice_id=$1',[id])).rows[0].n,1);
   pass('duplicate enqueue and concurrent dispatch produce exactly one fake provider send');
-  await webhook(fake.messageId,'delivered');await webhook(fake.messageId,'delivered');await webhook(fake.messageId,'failed');await webhook(fake.messageId,'sent');
+  const deliveredAt=String(Math.floor(Date.now()/1000));
+  // A replay must preserve the provider timestamp, including across a wall-clock second.
+  await webhook(fake.messageId,'delivered',deliveredAt);await webhook(fake.messageId,'delivered',deliveredAt);await webhook(fake.messageId,'failed');await webhook(fake.messageId,'sent');
   assert.equal((await state(id)).state,'delivered');
   assert.equal((await db.query("SELECT count(*)::integer AS n FROM public.invoice_delivery_audit WHERE invoice_id=$1 AND action='webhook_delivered'",[id])).rows[0].n,1);
   pass('signed webhook replay deduplicates and late failure/acceptance cannot undo delivery');

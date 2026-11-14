@@ -12,7 +12,8 @@ export type WhatsappAccepted={messageId:string;accepted:true};
 type Parameter={type:'text';text:string};
 export class WhatsappError extends Error{
   readonly status:number;
-  constructor(status:number){super('WhatsApp request failed');this.status=status;}
+  readonly kind:'failed'|'ambiguous';
+  constructor(status:number,kind:'failed'|'ambiguous'='ambiguous'){super('WhatsApp request failed');this.status=status;this.kind=kind;}
 }
 export function normalizePakistanWhatsappPhone(raw:string):string{
   const cleaned=raw.trim().replace(/[\s()+-]/g,'');
@@ -61,17 +62,23 @@ export async function sendApprovedTemplate(
         signal:AbortSignal.timeout(7000)
       });
   }catch{throw new WhatsappError(0);}
-  if(!response.ok)throw new WhatsappError(response.status);
+  if(!response.ok){
+    let rejected=false;
+    if(response.status>=400&&response.status<500&&response.status!==408){
+      try{const data=await boundedMetaJson(response);const error=data.error as {code?:unknown;type?:unknown}|undefined;
+        rejected=!data.messages&&!!error&&Number.isSafeInteger(error.code)&&typeof error.type==='string'&&error.type.length>0;
+      }catch{/* No confirmed rejection. */}
+    }
+    throw new WhatsappError(response.status,rejected?'failed':'ambiguous');
+  }
   let data:unknown;
   try{
-    const raw=await response.text();
-    if(raw.length>10000)throw new Error('Unexpected API response');
-    data=JSON.parse(raw);
+    data=await boundedMetaJson(response);
   }catch{throw new WhatsappError(502);}
   const messages=data&&typeof data==='object'&&'messages' in data
     ?(data as {messages:unknown}).messages:null;
   if(!Array.isArray(messages)||typeof messages[0]?.id!=='string'||
-     !/^wamid\.[A-Za-z0-9._-]{8,300}$/.test(messages[0].id))
+     messages.length!==1||!/^wamid\.[A-Za-z0-9+/=_-]{8,500}$/.test(messages[0].id))
     throw new WhatsappError(502);
   return {messageId:messages[0].id,accepted:true};
 }
@@ -79,4 +86,16 @@ export function bookingAlertTemplateValues(reference:string):string[]{
   // Deliberately no customer's private phone, vet, medication or health data.
   if(!/^[a-f0-9]{8}$/i.test(reference))throw new Error('Invalid booking reference');
   return [reference.toUpperCase()];
+}
+
+export async function boundedMetaJson(response:Response):Promise<Record<string,unknown>>{
+  if(!response.body)throw new Error('Missing response');
+  const reader=response.body.getReader();let size=0;const parts:Uint8Array[]=[];
+  try{for(;;){const {done,value}=await reader.read();if(done)break;size+=value.length;
+    if(size>16000)throw new Error('Oversized response');parts.push(value);}}
+  finally{await reader.cancel().catch(()=>{});}
+  const bytes=new Uint8Array(size);let offset=0;for(const p of parts){bytes.set(p,offset);offset+=p.length;}
+  const data:unknown=JSON.parse(new TextDecoder().decode(bytes));
+  if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('Invalid response');
+  return data as Record<string,unknown>;
 }

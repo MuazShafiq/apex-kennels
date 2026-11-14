@@ -38,6 +38,10 @@ Open task-specific docs as needed, not all on every task: `docs/customer-booking
 - Use `cc-umer` for the normal Claude engineering lane, `cc-muaz` for design, `cdx-18` as primary Codex, and `cdx-74` as secondary Codex. Profile mapping is a local launcher matter; never put auth tokens or complete user credential records in Git.
 - Each profile has a private native history. Selected full transcripts may be exported to gitignored `.agent-conversations/` for **local** reading by another profile, but cannot be resumed as a single cross-vendor conversation. One writer per file/production lane.
 
+## Agent routing
+
+Follow [the tool-aware dynamic routing SOP](docs/agents/ROUTING.md) at session start and after `/clear` for model/effort selection, delegation and independent review. GPT-6.1 Sol is the Codex default with dynamic Low/Medium/High effort. Astra and Fable are prohibited, including automatic escalation and subagents, until further notice.
+
 ## Development and proof
 
 - Node **22 or 24**, TypeScript ES modules with `.ts` import extensions. Match local conventions; prefer small focused changes and no new paid infrastructure or unnecessary dependencies.

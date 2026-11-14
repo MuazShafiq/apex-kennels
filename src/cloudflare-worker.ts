@@ -9,7 +9,9 @@ import type {PetrolRateResult} from './islamabad-petrol-rate.ts';
 import { timingSafeEqual } from 'node:crypto';
 import {verifiedAccessEmail} from './staff-access-jwt.ts';
 import {makeReviewSnapshot,saveReviewDraft,loadSavedReview,DraftSaveError,type ReviewSnapshot,type SavedReview,type SaveReviewResult} from './staff-saved-review.ts';
-import {sendApprovedTemplate,bookingAlertTemplateValues,type WhatsappConfig,type WhatsappAccepted} from './whatsapp-cloud.ts';
+import {type OwnerAlertIntent,validateOwnerAlertConfig,isSyntheticAlertBooking} from './owner-booking-alerts.ts';
+import {dispatchOwnerAlert,sweepOwnerAlerts} from './owner-alert-store.ts';
+import {ownerAlertRoute,ownerAlertConfig,type OwnerAlertDeps} from './owner-alert-routes.ts';
 import {isTransportServiceLocation} from './transport-service-area.ts';
 import { IntakeError, parseIntake, type IntakeRequest } from './intake.ts';
 import {parsePublicBookingEnvelope,verifyBookingChallenge} from './public-booking.ts';
@@ -45,6 +47,11 @@ export type WorkerEnv = {
   TURNSTILE_SECRET_KEY?: string;
   ASSETS?: {fetch(request:Request):Promise<Response>};
   WHATSAPP_ALERTS_ENABLED?: string;
+  WHATSAPP_OWNER_EMAIL?:string;
+  WHATSAPP_OWNER_CONSENT_AT?:string;
+  WHATSAPP_OWNER_CONSENT_EVIDENCE?:string;
+  WHATSAPP_ALERT_WEBHOOK_SECRET?:string;
+  WHATSAPP_ALERT_WEBHOOK_VERIFY_TOKEN?:string;
   WHATSAPP_ACCESS_TOKEN?: string;
   WHATSAPP_PHONE_NUMBER_ID?: string;
   WHATSAPP_GRAPH_VERSION?: string;
@@ -52,12 +59,12 @@ export type WorkerEnv = {
   WHATSAPP_OWNER_ALERT_TEMPLATE?: string;
 };
 
-export type SaveIntake = (databaseUrl: string, input: IntakeRequest) => Promise<SavedBooking>;
+export type SaveIntake = (databaseUrl: string, input: IntakeRequest, alert?:OwnerAlertIntent) => Promise<SavedBooking>;
 export type StaffList = (databaseUrl: string, filter: StaffFilter) => Promise<StaffBooking[]>;
 export type StaffContext = {access?: {aud: string; getIdentity(): Promise<{email?:string}|null>}; waitUntil?:(task:Promise<unknown>)=>void};
 export type StaffDraftReader=(databaseUrl:string,bookingId:string)=>Promise<StaffInvoiceSource|null>;
 export type StaffDetailReader=(databaseUrl:string,bookingId:string)=>Promise<StaffBookingDetail|null>;
-export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; sendWhatsApp?:(config:WhatsappConfig,to:string,template:string,values:string[])=>Promise<WhatsappAccepted>; saveReview?:(url:string,snapshot:ReviewSnapshot,revision:number,email:string)=>Promise<SaveReviewResult>; loadReview?:(url:string,bookingId:string)=>Promise<SavedReview|null>;
+export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; ownerAlerts?:OwnerAlertDeps; saveReview?:(url:string,snapshot:ReviewSnapshot,revision:number,email:string)=>Promise<SaveReviewResult>; loadReview?:(url:string,bookingId:string)=>Promise<SavedReview|null>;
   transportRoute?:()=>Promise<RouteResult>; transportFuel?:()=>Promise<PetrolRateResult>;
   invoiceWorkflow?:InvoiceWorkflowDeps;
 };
@@ -82,35 +89,17 @@ async function authorizedStaff(env: WorkerEnv, context: StaffContext|undefined, 
   return email&&allow.includes(email)?email:null;
 }
 
-/**
- * Notification never participates in the successful booking transaction.
- * No customer message and no health details. Failures need monitoring;
- * an accepted API response is NOT proof of WhatsApp delivery.
- */
-async function notifyOwnerOfNewBooking(
-  env:WorkerEnv,input:IntakeRequest,saved:SavedBooking,staff:StaffOptions
-):Promise<void>{
-  if(!saved.created||env.WHATSAPP_ALERTS_ENABLED!=='true'||!env.WHATSAPP_ACCESS_TOKEN||
-     !env.WHATSAPP_PHONE_NUMBER_ID||!env.WHATSAPP_OWNER_PHONE||
-     !env.WHATSAPP_OWNER_ALERT_TEMPLATE||!env.WHATSAPP_GRAPH_VERSION)return;
-  if(input.customerName.trim().toUpperCase().startsWith('APEX CANARY')||
-     input.petName.trim().toUpperCase().includes('APEX SYNTHETIC CANARY')||
-     input.externalResponseId?.startsWith('apex-cf-smoke-'))return;
-  const task=async()=>{
-    try{
-      await (staff.sendWhatsApp??sendApprovedTemplate)(
-        {accessToken:env.WHATSAPP_ACCESS_TOKEN!,phoneNumberId:env.WHATSAPP_PHONE_NUMBER_ID!,
-         apiVersion:env.WHATSAPP_GRAPH_VERSION!},
-        env.WHATSAPP_OWNER_PHONE!,env.WHATSAPP_OWNER_ALERT_TEMPLATE!,
-        bookingAlertTemplateValues(saved.bookingId.slice(0,8))
-      );
-    }catch{
-      // Deliberately omit recipient, JWT, customer and provider response PII.
-      console.warn('Apex booking WhatsApp alert was not accepted; booking remains saved');
-    }
-  };
-  if(staff.context?.waitUntil)staff.context.waitUntil(task());
-  else await task();
+/** Missing configuration fails closed for messaging, preserving legacy intake. */
+function ownerIntent(env:WorkerEnv):OwnerAlertIntent|undefined {
+  if(env.WHATSAPP_ALERTS_ENABLED!=='true')return;
+  try{return validateOwnerAlertConfig(ownerAlertConfig(env));}
+  catch{console.warn('Owner alerts unavailable: configuration or explicit consent missing');return;}
+}
+async function notifyOwnerOfNewBooking(env:WorkerEnv,input:IntakeRequest,saved:SavedBooking,staff:StaffOptions):Promise<void>{
+  if(!saved.created||!ownerIntent(env)||isSyntheticAlertBooking(input))return;
+  const task=(staff.ownerAlerts?.dispatchOwnerAlert??dispatchOwnerAlert)(env.DATABASE_URL!,saved.bookingId,ownerAlertConfig(env))
+    .catch(()=>{console.warn('Owner alert dispatch deferred; inspect durable alert state');});
+  if(staff.context?.waitUntil)staff.context.waitUntil(task);else await task;
 }
 
 function html(body: string):Response {
@@ -226,6 +215,16 @@ export async function handleWorkerRequest(
   staff: StaffOptions = {},
 ): Promise<Response> {
   const path = new URL(request.url).pathname;
+  if(path==='/api/owner-alerts/webhook')return ownerAlertRoute(request,env,undefined,staff.ownerAlerts);
+  if(path.startsWith('/staff/owner-alerts')){
+    const email=await authorizedStaff(env,staff.context,request);
+    if(!email||!env.WHATSAPP_OWNER_EMAIL||email!==env.WHATSAPP_OWNER_EMAIL.trim().toLowerCase())return json({error:'Forbidden'},403);
+    if(request.method==='POST'){
+      const recent=await verifiedAccessEmail(request.headers.get('Cf-Access-Jwt-Assertion'),env.STAFF_ACCESS_ISSUER,env.STAFF_ACCESS_AUD??'',fetch,300);
+      if(recent!==email)return json({error:'Reauthenticate with Cloudflare Access'},403);
+    }
+    return ownerAlertRoute(request,env,email,staff.ownerAlerts);
+  }
   if(path==='/api/invoice-delivery/webhook')return invoiceWebhookRoute(request,env,staff.invoiceWorkflow);
   if(path.startsWith('/staff/invoices/')){
     if(env.APEX_INVOICE_APPROVAL_ENABLED!=='true')return json({error:'Invoice workflow is disabled'},503);
@@ -316,7 +315,7 @@ export async function handleWorkerRequest(
       parsed.turnstileToken,env.TURNSTILE_SECRET_KEY,url.hostname);
     if(!challengeValid)return json({error:'Verification expired. Please verify and try again.'},403);
     try{
-      const saved=await persist(env.DATABASE_URL,parsed.booking);
+      const saved=await persist(env.DATABASE_URL,parsed.booking,ownerIntent(env));
       await notifyOwnerOfNewBooking(env,parsed.booking,saved,staff);
       return json({ok:true,reference:saved.bookingId.slice(0,8)},saved.created?201:200);
     }catch(error){
@@ -633,7 +632,7 @@ export async function handleWorkerRequest(
 
   try {
     const input = parseIntake(await limitedJson(request));
-    const saved = await persist(env.DATABASE_URL, input);
+    const saved = await persist(env.DATABASE_URL, input,ownerIntent(env));
     await notifyOwnerOfNewBooking(env,input,saved,staff);
     return json(saved, saved.created ? 201 : 200);
   } catch (error) {
@@ -647,6 +646,10 @@ export async function handleWorkerRequest(
 }
 
 export default {
+  scheduled(_event:unknown,env:WorkerEnv,context:{waitUntil(task:Promise<unknown>):void}):void {
+    if(!env.DATABASE_URL||!ownerIntent(env))return;
+    context.waitUntil(sweepOwnerAlerts(env.DATABASE_URL,ownerAlertConfig(env)).catch(()=>{console.warn('Owner alert sweep unavailable');}));
+  },
   fetch(request: Request, env: WorkerEnv, context?: StaffContext): Promise<Response> {
     return handleWorkerRequest(request, env, persistBookingWithNeon, {context});
   },

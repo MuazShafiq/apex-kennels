@@ -3,6 +3,9 @@ on:
   pull_request:
     paths:
       - 'public/book/**'
+      - 'src/owner-*.ts'
+      - 'src/staff-owner-alerts.ts'
+      - 'scripts/check-owner-alert-e2e.mjs'
       - 'src/staff-console.ts'
       - 'src/staff-invoice-approval.ts'
       - 'src/invoice-workflow-routes.ts'
@@ -40,6 +43,7 @@ jobs:
       - run: node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/check-mobile-visual.mjs
       - run: node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/check-booking-e2e.mjs
       - run: node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/check-invoice-e2e.mjs
+      - run: node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/check-owner-alert-e2e.mjs
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

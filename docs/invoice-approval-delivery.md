@@ -1,6 +1,6 @@
 # Owner invoice approval and PDF delivery
 
-Implemented for review on an isolated feature branch. No deployment, production migration, financial activation or real WhatsApp send is part of this milestone. Production configuration is not inferred from these files or synthetic tests.
+**Engineering status (2026-11-15):** The approval, issuance and delivery code merged in PR #74 and is included in the main Worker deployment recorded after PR #75. This confirms code deployment only. No production migration, financial activation, live Meta onboarding or real WhatsApp send is evidenced by this document. Recheck current deployment, remote flags and Neon schema before release work. See [current release readiness checklist](production-release-readiness-2026-11-15.md) and [shared thread](agents/THREAD.md).
 
 ## Owner workflow
 

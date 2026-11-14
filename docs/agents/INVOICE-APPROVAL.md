@@ -1,6 +1,6 @@
 # Implementation handoff: owner invoice approval and WhatsApp PDF delivery
 
-**Engineering update (2026-11-15):** Implementation, additive migrations, synthetic provider/browser tests and disposable local PostgreSQL verification are prepared on `feat/invoice-approval-delivery`. See [operator guide](../invoice-approval-delivery.md) and [shared thread](THREAD.md) for exact PR/check evidence. The baseline below describes the assignment checkpoint; it is not a claim that this branch has been deployed. All production activation prerequisites remain explicit release gates.
+**Assignment record:** The engineering task was completed in PR #74, merged, and included in the main deployment recorded in [the shared thread](THREAD.md). Additive migrations 004/005 still require identified development-branch review and separate production authorization; synthetic provider/browser and disposable local PostgreSQL checks do not establish live Access, Neon, Meta or delivery behavior. The baseline below is historical context from assignment time, not current status. See [release checklist](../production-release-readiness-2026-11-15.md) and [operator guide](../invoice-approval-delivery.md).
 
 **Assigned coding agent:** `cdx-74` (secondary Codex). **Repo:** Apex Kennels. **Tracking:** GitHub issue #39; notification alert integration #43 is a separate lane.
 

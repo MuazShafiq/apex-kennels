@@ -40,7 +40,7 @@ Open task-specific docs as needed, not all on every task: `docs/customer-booking
 
 ## Agent routing
 
-Follow [the tool-aware dynamic routing SOP](docs/agents/ROUTING.md) at session start and after `/clear` for model/effort selection, delegation and independent review. GPT-6.1 Sol is the Codex default with dynamic Low/Medium/High effort. Astra and Fable are prohibited, including automatic escalation and subagents, until further notice.
+Follow [the tool-aware routing SOP](docs/agents/ROUTING.md) at session start, after `/clear`, compaction, and handoff. GPT-6 Luna is the economical default for routine work; escalate substantial engineering to GPT-6.1 Sol as specified there. GPT-6 Astra and Fable are prohibited, including automatic escalation, fallback, and subagents, until a plan upgrade.
 
 ## Development and proof
 

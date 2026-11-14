@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {PDFDocument, StandardFonts} from 'pdf-lib';
+import {PDFArray, PDFDocument, PDFName, type PDFRawStream, StandardFonts} from 'pdf-lib';
+import {inflateSync} from 'node:zlib';
 import {
   renderCanvaStaffPdf,drawCanvaIbanSingleLine,layoutCanvaValue
 } from './canva-invoice-pdf.ts';
@@ -127,4 +128,68 @@ test('IBAN helper never wraps or accepts malformed bank details',async()=>{
   assert.doesNotThrow(()=>drawCanvaIbanSingleLine(page,font,'PK90 HABB 0013537902027603'));
   assert.throws(()=>drawCanvaIbanSingleLine(page,font,'PK90HABB0013537902027603 other line'),
     /valid-format 24-character Pakistan IBAN/);
+});
+
+/** Count text-showing operators on the single saved page (our overlay values). */
+async function savedPageTextOps(bytes:Uint8Array):Promise<number>{
+  const pdf=await PDFDocument.load(bytes);
+  assert.equal(pdf.getPageCount(),1);
+  const page=pdf.getPage(0);
+  const contents=pdf.context.lookup(page.node.get(PDFName.of('Contents')));
+  const refs=contents instanceof PDFArray?contents.asArray():[page.node.get(PDFName.of('Contents'))];
+  let ops=0;
+  for(const ref of refs){
+    const stream=pdf.context.lookup(ref) as PDFRawStream;
+    const filter=String(stream.dict.get(PDFName.of('Filter'))??'');
+    const raw=filter.includes('FlateDecode')?inflateSync(stream.contents):stream.contents;
+    ops+=(Buffer.from(raw).toString('latin1').match(/\b(Tj|TJ)\b/g)??[]).length;
+  }
+  return ops;
+}
+
+test('drawn values survive on the kept page for daily and 30-day layouts',async()=>{
+  // Regression: removePage(0) then getPage(0) drew every value onto the
+  // removed page, so daily estimates saved as a blank Canva template.
+  const templateOps=await (async()=>{
+    const pdf=await PDFDocument.load(blank);pdf.removePage(0);
+    return savedPageTextOps(await pdf.save({useObjectStreams:false}));
+  })();
+  const daily=await savedPageTextOps(await renderCanvaStaffPdf(sample,'2026-11-07',blank));
+  // Number, date, name, pet, period, breed, 3 boarding cells, 6 free/- cells,
+  // 3 transport '-' cells, subtotal, total and the synthetic label.
+  assert.ok(daily-templateOps>=20,`daily overlay drew ${daily-templateOps} text runs`);
+  const monthly=structuredClone(sample);
+  monthly.booking.startDate='2026-11-01';monthly.booking.endDate='2026-11-30';
+  monthly.quote.startDate='2026-11-01';monthly.quote.endDate='2026-11-30';
+  monthly.quote.billedDays=30;
+  monthly.quote.lines[0]={label:'Standard boarding',quantity:30,unitPricePkr:2500,totalPkr:75000};
+  monthly.quote.subtotalPkr=75000;
+  monthly.quote.discounts=[{source:'package',label:'30-day boarding discount',amountPkr:10000}];
+  monthly.quote.totalPkr=65000;
+  const monthlyTemplateOps=await (async()=>{
+    const pdf=await PDFDocument.load(blank);pdf.removePage(1);
+    return savedPageTextOps(await pdf.save({useObjectStreams:false}));
+  })();
+  const monthlyOps=await savedPageTextOps(await renderCanvaStaffPdf(monthly,'2026-11-07',blank));
+  assert.ok(monthlyOps-monthlyTemplateOps>=20,`monthly overlay drew ${monthlyOps-monthlyTemplateOps} text runs`);
+});
+
+test('values are positioned from the Canva MediaBox top edge, not y=0',async()=>{
+  // The template MediaBox is [0 7.83 595.5 850.08]. Measuring from 842.25
+  // put every value 7.83pt low, overlapping "Date :" and "Boarding Time:".
+  const pdf=await PDFDocument.load(await renderCanvaStaffPdf(sample,'2026-11-07',blank));
+  const page=pdf.getPage(0);
+  const box=page.getMediaBox();
+  assert.ok(Math.abs(box.y+box.height-850.08)<.01);
+  const contents=pdf.context.lookup(page.node.get(PDFName.of('Contents'))) as PDFArray;
+  const ys:number[]=[];
+  for(const ref of contents.asArray()){
+    const stream=pdf.context.lookup(ref) as PDFRawStream;
+    const filter=String(stream.dict.get(PDFName.of('Filter'))??'');
+    const raw=Buffer.from(filter.includes('FlateDecode')?inflateSync(stream.contents):stream.contents).toString('latin1');
+    for(const m of raw.matchAll(/1 0 0 1 ([\d.]+) ([\d.]+) Tm/g))ys.push(Number(m[2]));
+  }
+  // "Number # ..." baseline 267.663pt below the real top edge.
+  assert.ok(ys.some(y=>Math.abs(y-(850.07998-267.663))<.01),'Number line at Canva baseline');
+  assert.ok(!ys.some(y=>Math.abs(y-(842.25-267.663))<.01),'not offset by the MediaBox origin');
 });

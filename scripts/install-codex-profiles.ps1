@@ -27,10 +27,10 @@ foreach ($account in @('18', '74')) {
     if (-not (Test-Path -LiteralPath $config)) {
         # Only ChatGPT subscription authentication; per-account file store.
         # No paid OpenAI API key is used. Never overwrite existing profile config.
-        [System.IO.File]::WriteAllText($config, @'
-forced_login_method = "chatgpt"
-cli_auth_credentials_store = "file"
-'@ + [Environment]::NewLine, (New-Object System.Text.UTF8Encoding($false)))
+        $configText = 'forced_login_method = "chatgpt"' + [Environment]::NewLine +
+            'cli_auth_credentials_store = "file"' + [Environment]::NewLine
+        [System.IO.File]::WriteAllText($config, $configText,
+            (New-Object System.Text.UTF8Encoding($false)))
     }
 }
 

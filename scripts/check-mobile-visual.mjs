@@ -184,18 +184,18 @@ try{
   await page.locator('#transport-pickup').check();
   assert(await page.locator('#pickup-location').isVisible(),name+' pickup must reveal location');
   await page.locator('#maps-link').fill('https://www.google.com/maps/search/?api=1&query=33.7%2C73.08');
-  await page.waitForTimeout(900);
+  await page.waitForFunction(()=>document.querySelector('#coordinate-status')?.textContent.includes('Google Maps location added'));
   assert((await page.locator('#coordinate-status').innerText()).includes('Google Maps location added'),
     name+' pickup Google Maps link not accepted');
   assert(await page.locator('#selected-location-link').isVisible(),name+' pickup pin not visible');
   await page.locator('#maps-link').fill('https://maps.app.goo.gl/ambiguous');
-  await page.waitForTimeout(900);
+  await page.waitForFunction(()=>document.querySelector('#coordinate-status')?.textContent.includes('latitude, longitude'));
   assert((await page.locator('#coordinate-status').innerText()).includes('latitude, longitude'),
     name+' ambiguous short link lacks coordinates fallback');
   assert(!(await page.locator('#selected-location-link').isVisible()),
     name+' ambiguous short link retained stale pin');
   await page.locator('#maps-link').fill('33.700000, 73.080000');
-  await page.waitForTimeout(900);
+  await page.locator('#selected-location-link').waitFor({state:'visible'});
   assert(await page.locator('#selected-location-link').isVisible(),
     name+' confirmed pickup coordinates missing');
 
@@ -208,7 +208,7 @@ try{
   assert(await page.locator('#dropoff-location').isVisible(),
     name+' different drop-off must reveal second location');
   await page.locator('#dropoff-maps-link').fill('33.580000, 73.020000');
-  await page.waitForTimeout(900);
+  await page.locator('#dropoff-selected-location-link').waitFor({state:'visible'});
   assert(await page.locator('#dropoff-selected-location-link').isVisible(),
     name+' different drop-off coordinates not accepted');
   assert(await page.locator('#selected-location-link').isVisible(),

@@ -7,12 +7,16 @@ on:
       - 'scripts/install-codex-profiles.ps1'
       - 'scripts/test-codex-profiles.ps1'
       - '.github/workflows/codex-profile-checks.yml'
+      - 'scripts/deploy-production-worker.ps1'
+      - 'scripts/test-production-deploy.ps1'
   pull_request:
     paths:
       - 'scripts/codex-profiles.ps1'
       - 'scripts/install-codex-profiles.ps1'
       - 'scripts/test-codex-profiles.ps1'
       - '.github/workflows/codex-profile-checks.yml'
+      - 'scripts/deploy-production-worker.ps1'
+      - 'scripts/test-production-deploy.ps1'
 permissions:
   contents: read
 jobs:
@@ -30,3 +34,9 @@ jobs:
       - name: Verify Codex profiles with PowerShell 7
         shell: pwsh
         run: .\scripts\test-codex-profiles.ps1
+      - name: Verify deployment safeguards with Windows PowerShell 5.1
+        shell: powershell
+        run: .\scripts\test-production-deploy.ps1
+      - name: Verify deployment safeguards with PowerShell 7
+        shell: pwsh
+        run: .\scripts\test-production-deploy.ps1

@@ -1,12 +1,16 @@
 # Development Neon migration validation
 
-This procedure tests migrations 004–006 with synthetic data and fake providers. It does not authorize production schema/data changes, financial issuance, messages, gate activation, paid services or credential rotation. No live Neon migration proof was obtained on 2026-11-15. Takeover connector reads now identify project `holy-bar-96685960`, production branch `br-dry-lab-azyb3ewl` and three other branches, all using `parent-data`. None qualifies as a fresh schema-only target. The connector cannot request `init_source=parent-schema`; the local runner has no API management credential. The external dependency is an operator-provided schema-only child and private runner authentication. Do not substitute an existing data-copy branch. A local database URL is not control-plane branch identity.
+This procedure tests migrations 004–006 with synthetic data and fake providers. It does not authorize production schema/data changes, financial issuance, messages, gate activation, paid services or credential rotation. The earlier takeover found only `parent-data` branches in project `holy-bar-96685960`, whose independently identified production branch is `br-dry-lab-azyb3ewl`. A later authenticated read found fresh `parent-schema` target `br-solitary-boat-azi8jb9j`, endpoint `ep-wandering-river-azwakr4g`, created at `2026-11-14T23:54:47Z` and expiring at `2026-11-15T00:54:47Z`. Its branch record omits `parent_id`. The initialization operation `fc027e6a-5ad7-447c-a7c0-70e266724230` finished without failures at `23:54:51Z`; an authenticated comparison against the explicit production branch and `neondb` returned the exact empty diff. These control-plane observations are not migration SQL proof. The root operator owns any subsequent live validation and its evidence. The standalone runner still requires private API management authentication. Do not substitute an existing data-copy branch. A local database URL is not control-plane branch identity.
 
 ## What the runner checks
 
-`scripts/check-neon-migrations.mjs` uses only control-plane GET requests. It requires explicit project, production branch/endpoint and development branch IDs; checks their actual relationships; accepts only a ready, non-default, unprotected `parent-schema` child named `apex-migration-validation-*`; and uses the exact development endpoint and URI returned by Neon. It never reads `.dev.vars`, `DATABASE_URL`, CLI credentials, or a caller-supplied database URL. TLS certificate verification is explicit. It creates no branch, compute, credential or billing setting.
+`scripts/check-neon-migrations.mjs` uses only control-plane GET requests. It requires explicit project, production branch/endpoint and development branch IDs; checks their actual relationships; accepts only a ready, non-default, unprotected `parent-schema` target named `apex-migration-validation-*`; and uses the exact development endpoint and URI returned by Neon. It never reads `.dev.vars`, `DATABASE_URL`, CLI credentials, or a caller-supplied database URL. TLS certificate verification is explicit. It issues no explicit branch/compute creation request and changes no credential or billing setting. A schema comparison GET may start temporary computes; confirm included/free capacity before using this fallback.
 
-Neon's documented [`init_source`](https://neon.com/docs/reference/api/branches/create-project-branch) supports `parent-schema` for copying schema without rows while retaining the parent relationship. The newer CLI `--schema-only` option creates a `schema-only` root branch, which does not retain that verifiable relationship; this runner conservatively rejects that form. These checks use the published API/SDK contract, not a measured authenticated API response from this session.
+Neon's documented [`init_source`](https://neon.com/docs/reference/api/branches/create-project-branch) supports `parent-schema` for copying schema without rows. The earlier claim that this necessarily retains `parent_id` was contradicted by the measured response above. When `parent_id` is present, it must equal the explicit production branch ID; null, blank, undefined or another branch is rejected. A correctly linked parent keeps the existing validation path without an operation ID or comparison. `schema-only`, `parent-data` and all other initialization sources remain rejected.
+
+Only an actually omitted `parent_id` can use the fallback. Set `NEON_TEST_SCHEMA_COPY_OPERATION_ID` to the explicit initial schema-copy operation ID. After static identities pass, the runner fetches `/projects/{project}/operations/{operation}` directly, without relying on a paginated operations list. Its exact ID, project, target branch and target endpoint must match; action must be `apply_schema_from_branch`, status `finished` and numeric `failures_count` zero. The operation creation timestamp must be at or after branch creation and within five minutes; its final update must be at or after operation creation and no later than the current time. Missing or invalid timestamps fail closed.
+
+Only then does it GET `/projects/{project}/branches/{target}/compare_schema?base_branch_id={explicit-production}&db_name={explicit-database}`. The response must contain exactly `diff: ''`; whitespace, absent/null values, nonstrings and nonempty diffs are rejected before URI retrieval or SQL. These records establish initial schema-copy completion and current schema equivalence. The operation does **not** identify its source branch, so the fallback does **not** prove historical production lineage. `validateSchemaCopyEvidence` is exported for an authenticated connected operator using the same records; `validateNeonIdentity` still requires full evidence on the omitted-parent path. There is no CLI evidence-file, supplied-URL or skip-validation mode.
 
 Before changing the development schema, the runner requires its non-superuser database owner to own every user table, disables silent RLS filtering and verifies every table is empty. Foreign tables are rejected without querying their external source. A populated or FORCE-RLS-hidden table fails before migrations. Partial migration inventories also fail.
 
@@ -30,7 +34,7 @@ $env:NEON_TEST_DATABASE = '<existing database name>'
 $env:NEON_TEST_ROLE = '<existing database owner role>'
 ```
 
-Create a fresh schema-only child only after confirming available included/free branch and compute capacity. The following is an explicit development creation request; it does not run in the validator. Capture the response without printing connection credentials. The API contract is documented, but this creation command has not been executed against Neon in this session:
+Create a fresh schema-only target only after confirming available included/free branch and compute capacity. The following is an explicit development creation request; it does not run in the validator. Capture the response without printing connection credentials. The earlier authenticated target observation does not establish that this example command was used:
 
 ```powershell
 $neonHeaders = @{ Authorization = "Bearer $env:NEON_API_KEY" }
@@ -50,7 +54,13 @@ $neonCreated = Invoke-RestMethod -Method Post `
 $env:NEON_TEST_BRANCH_ID = $neonCreated.branch.id
 ```
 
-If an included/free branch cannot be created, or this API feature/expiration setting is unavailable, stop at that boundary. Do not upgrade, substitute a data-copying branch, or silently drop the identity checks. Wait for branch initialization to finish, then run:
+If an included/free branch cannot be created, or this API feature/expiration setting is unavailable, stop at that boundary. Do not upgrade, substitute a data-copying branch, or silently drop the identity checks. Inspect the branch record and its initial operation after initialization finishes. If `parent_id` is omitted, explicitly set the operation ID from authenticated control-plane evidence:
+
+```powershell
+$env:NEON_TEST_SCHEMA_COPY_OPERATION_ID = '<verified initial apply_schema_from_branch operation ID>'
+```
+
+Then run:
 
 ```powershell
 npm.cmd ci --ignore-scripts --no-audit --no-fund

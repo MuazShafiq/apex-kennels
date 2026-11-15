@@ -10,7 +10,7 @@ import {APEX_KENNEL_LOCATION,APEX_KENNEL_ACCESS} from './apex-location-config.ts
 import {parseNotifiedPetrolRate,FUEL_SOURCE} from './islamabad-petrol-rate.ts';
 const now=new Date('2026-11-15T05:00:00Z');
 const owner='owner@example.test',id='123e4567-e89b-42d3-a456-426614174001';
-const booking:StaffInvoiceSource={bookingId:id,customerName:'Synthetic Fixture',petNames:'Example Dog',petCount:1,startDate:'2026-11-15',endDate:'2026-11-17',status:'requested',cameraCageRequested:false,transportRequested:false,synthetic:true};
+const booking:StaffInvoiceSource={bookingId:id,customerName:'Invoice Fixture Owner',petNames:'Example Dog',petCount:1,startDate:'2026-11-15',endDate:'2026-11-17',status:'requested',cameraCageRequested:false,transportRequested:false,synthetic:true};
 const config:ApprovalConfig={enabled:'true',issuanceEnabled:'true',deliveryEnabled:'true',ownerEmail:owner,manualNumberFloor:'0100',bankDetailsJson:JSON.stringify({bank:'HBL',accountTitle:'SYNTHETIC TEST ONLY',accountNumber:'00000000000000',iban:'PK00HABB0000000000000000'})};
 const input:ApprovalInput={bookingId:id,revision:1,invoiceNumber:'0101',confirmed:true,transportVerified:false,fuelVerified:false};
 function saved():SavedReview{return {snapshot:makeReviewSnapshot(prepareStaffDraftReview(booking,'daily')),revision:1,updatedBy:owner,updatedAt:now.toISOString()};}
@@ -70,7 +70,7 @@ function fakeDb(options:{existing?:Record<string,unknown>;numberUsed?:boolean;ch
   const db:InvoiceDb={connect:async()=>{},end:async()=>{},query:async(sql,params)=>{
     calls.push({sql,params});
     if(options.error&&sql.includes(options.error))throw new Error('synthetic database failure');
-    if(sql.includes('FOR UPDATE OF b,c'))return {rows:[{id,status:'requested',start_date:booking.startDate,end_date:booking.endDate,full_name:s.snapshot.booking.customerName,pet_names:s.snapshot.booking.petNames,pet_count:options.changed?2:1,camera_cage_requested:false,pickup_dropoff_requested:!!s.snapshot.transport,synthetic:options.sourceSynthetic??s.snapshot.booking.synthetic}]};
+    if(sql.includes('FOR UPDATE OF b,c'))return {rows:[{id,status:'requested',start_date:booking.startDate,end_date:booking.endDate,full_name:s.snapshot.booking.customerName,pet_names:s.snapshot.booking.petNames,pet_count:options.changed?2:1,camera_cage_requested:false,pickup_dropoff_requested:!!s.snapshot.transport,external_submission_id:(options.sourceSynthetic??s.snapshot.booking.synthetic)?'APEX-CF-SMOKE-fixture':'invoice-unit-fixture'}]};
     if(sql.includes('FROM public.booking_transport_locations'))return {rows:options.pin?[options.pin]:[]};
     if(sql.includes('FROM public.invoice_draft_reviews'))return {rows:[{snapshot:s.snapshot,revision:1,updated_by:owner,updated_at:s.updatedAt}]};
     if(sql.includes('WHERE booking_id=$1'))return {rows:options.existing?[options.existing]:[]};
@@ -177,14 +177,30 @@ test('store locks and compares current customer-confirmed pickup and drop-off pi
     else {await assert.rejects(run,/Transport gates/);assert.equal(fixture.calls.at(-1)?.sql,'ROLLBACK');}
   }
 });
-test('current canary customer/pet markers cannot bypass synthetic classification',async()=>{
-  for(const marker of ['customer','pet']){
-    const s=saved();if(marker==='customer')s.snapshot.booking.customerName='APEX CANARY SAMPLE';else s.snapshot.booking.petNames='APEX SYNTHETIC CANARY PET';
+test('all current synthetic customer/pet markers remain non-payable even with a persisted false flag',async()=>{
+  for(const marker of ['APEX CANARY SAMPLE',' synthetic fixture','Test Only fixture','apex canary','pet']){
+    const s=saved();if(marker==='pet')s.snapshot.booking.petNames='apex synthetic canary pet';else s.snapshot.booking.customerName=marker;
     const fixture=fakeDb({snapshot:s,sourceSynthetic:false});
     await approveInvoice('synthetic://no-database',input,owner,config,()=>fixture.db);
     const forged=fakeDb({snapshot:s,sourceSynthetic:false,synthetic:false});
-    await assert.rejects(approveInvoice('synthetic://no-database',input,owner,config,()=>forged.db),/Booking details changed/);
+    const approved=await approveInvoice('synthetic://no-database',input,owner,config,()=>forged.db);
+    assert.equal(approved.snapshot.review.booking.synthetic,true);
+    // Simulate loading an already-approved legacy snapshot with a false flag,
+    // rather than relying only on normalization during the approval above.
+    forged.row.snapshot.review.booking.synthetic=false;
+    const storedBefore=structuredClone(forged.row.snapshot);
+    const bytes=new Uint8Array(1100);bytes.set(new TextEncoder().encode('%PDF-1.7'));
+    await assert.rejects(issueInvoice('synthetic://no-database',id,owner,config,bytes,()=>forged.db),/Synthetic/);
+    assert.ok(!forged.calls.some(c=>c.sql.startsWith('UPDATE public.approved_invoices')));
+    assert.deepEqual(forged.row.snapshot,storedBefore,'decoding does not rewrite immutable stored evidence');
   }
+});
+
+test('a mixed-case current smoke ID cannot approve a saved real-record flag',async()=>{
+  const fixture=fakeDb({synthetic:false,sourceSynthetic:true});
+  await assert.rejects(approveInvoice('synthetic://no-database',input,owner,config,()=>fixture.db),/Booking details changed/);
+  assert.equal(fixture.calls.at(-1)?.sql,'ROLLBACK');
+  assert.ok(!fixture.calls.some(c=>c.sql.startsWith('INSERT')));
 });
 test('legacy staff-confirmed pins remain approvable without inventing a customer location record',async()=>{
   const s=transportedSaved(new Date());s.snapshot.transportLocationSource='staff_confirmed';

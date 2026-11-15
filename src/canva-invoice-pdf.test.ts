@@ -235,7 +235,7 @@ async function savedText(bytes:Uint8Array):Promise<{text:string;x:number;y:numbe
 
 const approvedSample=()=>({
   version:1 as const,review:{...structuredClone(sample),booking:{...sample.booking,
-    customerName:'Synthetic PDF Fixture',petNames:'Test Pet',petBreeds:'Test Breed',synthetic:false}},
+    customerName:'PDF Fixture Owner',petNames:'Test Pet',petBreeds:'Test Breed',synthetic:false}},
   reviewRevision:2,invoiceNumber:'0123',approvedBy:'owner@example.test',
   approvedAt:'2026-11-07T12:00:00.000Z',payment:{bank:'HBL' as const,
     accountTitle:'TEST ACCOUNT ONLY',accountNumber:'00000000000000',iban:'PK00HABB0000000000000000'},
@@ -260,6 +260,14 @@ test('approved PDF contains exact frozen money, number and payment at original C
   }
   assert.ok(!rows.some(r=>/REVIEW-|NOT PAYABLE|SYNTHETIC EXAMPLE/.test(r.text)));
   assert.ok(!rows.some(r=>r.text.includes(snapshot.approvedBy)),'no internal approver identity in customer PDF');
+});
+
+test('approved PDF rejects synthetic names even if the frozen boolean is incorrectly false',async()=>{
+  for(const marker of [{customerName:'SYNTHETIC PDF fixture'},{customerName:' test only fixture'},
+    {customerName:'apex canary'},{petNames:'apex synthetic canary pet'}]){
+    const snapshot=approvedSample();Object.assign(snapshot.review.booking,marker);
+    await assert.rejects(renderCanvaApprovedPdf(snapshot,blank),/Invalid approved invoice/);
+  }
 });
 
 test('review PDF visibly says not payable and never contains bank or official invoice values',async()=>{

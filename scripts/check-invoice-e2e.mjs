@@ -36,7 +36,7 @@ function reset(){
   const id=randomUUID();
   // All fields are synthetic. synthetic:false deliberately exercises the
   // deliverable-record branch; persistence/provider dependencies are always fake.
-  fixture={snapshot:makeReviewSnapshot(prepareStaffDraftReview({bookingId:id,customerName:'SYNTHETIC BROWSER FIXTURE',petNames:'Synthetic Browser Dog',petCount:1,startDate:'2026-12-01',endDate:'2026-12-03',status:'requested',cameraCageRequested:false,transportRequested:false,synthetic:false},'daily')),revision:1,updatedBy:owner,updatedAt:new Date().toISOString()};
+  fixture={snapshot:makeReviewSnapshot(prepareStaffDraftReview({bookingId:id,customerName:'Browser Fixture Owner',petNames:'Synthetic Browser Dog',petCount:1,startDate:'2026-12-01',endDate:'2026-12-03',status:'requested',cameraCageRequested:false,transportRequested:false,synthetic:false},'daily')),revision:1,updatedBy:owner,updatedAt:new Date().toISOString()};
   invoice=null;pdf=null;delivery=null;deliveredPdf=null;
 }
 function queue(){

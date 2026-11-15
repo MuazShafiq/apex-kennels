@@ -23,6 +23,8 @@ on:
       - 'src/public-booking.ts'
       - 'src/intake.ts'
       - 'src/boarding-details.ts'
+      - 'src/synthetic-booking.ts'
+      - 'src/staff-saved-review.ts'
       - '.github/workflows/apex-mobile-visual.yml'
 permissions:
   contents: read

@@ -1,5 +1,6 @@
 import {APEX_STAFF_THEME_CSS,APEX_STAFF_BRAND} from './apex-brand.ts';
 import {Client} from '@neondatabase/serverless';
+import {isSyntheticBooking} from './synthetic-booking.ts';
 import type {PersonalityTrait} from './boarding-details.ts';
 
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
@@ -24,7 +25,7 @@ export type StaffBookingDetail={
 type Row={
   id:string;status:string;created_at:string;start_date:string;end_date:string;
   customer_name:string;email:string|null;phone:string|null;accommodation_type:string|null;
-  is_synthetic:boolean;has_form_details:boolean;
+  external_submission_id:string|null;has_form_details:boolean;
   owner_address:string|null;pickup_dropoff_requested:boolean|null;camera_cage_requested:boolean|null;
   emergency_contact_phone:string|null;pet_gender:string|null;pet_age_description:string|null;
   vaccination_status:string|null;distemper_history:string|null;veterinarian_phone:string|null;
@@ -42,11 +43,7 @@ export async function readStaffBookingDetail(databaseUrl:string,id:string):Promi
       SELECT b.id::text AS id,b.status,b.created_at::text AS created_at,
         b.start_date::text AS start_date,b.end_date::text AS end_date,
         b.accommodation_type,c.full_name AS customer_name,c.email,c.phone,
-        (COALESCE(b.external_submission_id LIKE 'apex-cf-smoke-%',false)
-         OR c.full_name LIKE 'APEX CANARY %'
-         OR EXISTS (SELECT 1 FROM public.booking_pets cbp
-                    JOIN public.pets cp ON cp.id=cbp.pet_id
-                    WHERE cbp.booking_id=b.id AND cp.name='APEX SYNTHETIC CANARY PET')) AS is_synthetic,
+        b.external_submission_id,
         (d.booking_id IS NOT NULL) AS has_form_details,
         d.owner_address,d.pickup_dropoff_requested,d.camera_cage_requested,
         d.emergency_contact_phone,d.pet_gender,d.pet_age_description,
@@ -91,7 +88,7 @@ export async function readStaffBookingDetail(databaseUrl:string,id:string):Promi
       startDate:row.start_date,endDate:row.end_date,
       customerName:row.customer_name,email:row.email,phone:row.phone,
       accommodationType:row.accommodation_type,pets:petRows.rows,transportLocation,
-      isSynthetic:row.is_synthetic,hasFormDetails:row.has_form_details,
+      isSynthetic:isSyntheticBooking({customerName:row.customer_name,petName:petRows.rows.map(p=>p.name).join(', '),externalResponseId:row.external_submission_id??undefined}),hasFormDetails:row.has_form_details,
       ownerAddress:row.owner_address,pickupDropoffRequested:row.pickup_dropoff_requested,
       cameraCageRequested:row.camera_cage_requested,emergencyContactPhone:row.emergency_contact_phone,
       petGender:row.pet_gender,petAgeDescription:row.pet_age_description,

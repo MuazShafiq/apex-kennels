@@ -1,4 +1,5 @@
 import {Client} from '@neondatabase/serverless';
+import {isSyntheticBooking} from './synthetic-booking.ts';
 import type {StaffDraftReview} from './staff-invoice-draft.ts';
 import type {Quote} from './pricing.ts';
 import {renderInvoiceHtml} from './invoice.ts';
@@ -50,7 +51,7 @@ export function makeReviewSnapshot(review:StaffDraftReview):ReviewSnapshot {
     version:1,
     booking:{id:source.bookingId,customerName:source.customerName,
       petNames:source.petNames,petBreeds:source.petBreeds,startDate:source.startDate,endDate:source.endDate,
-      synthetic:source.synthetic},
+      synthetic:source.synthetic||isSyntheticBooking({customerName:source.customerName,petName:source.petNames})},
     packageChoice:review.packageChoice,
     rateVersion:review.draft.rateVersion,
     quote:structuredClone(quote),
@@ -80,7 +81,9 @@ export function validateSnapshot(snapshot:unknown):ReviewSnapshot {
        !t.fuelRate||!Number.isFinite(t.fuelRate.pricePkrPerLitre))
       throw new DraftSaveError('Saved transport estimate lacks route or fuel evidence',422);
   }else if(value.transport)throw new DraftSaveError('Transport evidence without a priced line',422);
-  return value as ReviewSnapshot;
+  // Preserve saved amounts and the original object; older false flags cannot
+  // erase a synthetic marker when this snapshot is read for review/issuance.
+  return {...value,booking:{...value.booking,synthetic:value.booking.synthetic||isSyntheticBooking({customerName:value.booking.customerName,petName:value.booking.petNames})}} as ReviewSnapshot;
 }
 
 export function savedReviewStatement(snapshot:ReviewSnapshot,expectedRevision:number,updatedBy:string):{

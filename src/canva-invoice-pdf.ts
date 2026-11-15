@@ -9,6 +9,7 @@ import {
   rgb, type PDFFont, type PDFPage,
 } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
+import {isSyntheticBooking} from './synthetic-booking.ts';
 import {validateSnapshot, type ReviewSnapshot} from './staff-saved-review.ts';
 import type {ApprovalSnapshot} from './invoice-approval.ts';
 
@@ -163,7 +164,7 @@ export async function renderCanvaApprovedPdf(
   if(approved.version!==1||!/^\d{4}$/.test(approved.invoiceNumber)||
      !Number.isSafeInteger(approved.reviewRevision)||approved.reviewRevision<1||
      !approved.approvedBy||!Number.isFinite(Date.parse(approved.approvedAt))||
-     approved.review.booking.synthetic||
+     approved.review.booking.synthetic||isSyntheticBooking({customerName:approved.review.booking.customerName,petName:approved.review.booking.petNames})||
      (approved.review.transport&&(!approved.transportVerified||!approved.fuelVerified))||
      approved.payment?.bank!=='HBL'||!approved.payment.accountTitle||
      !/^[0-9]{8,24}$/.test(approved.payment.accountNumber)||

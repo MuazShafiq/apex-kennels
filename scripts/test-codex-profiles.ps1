@@ -1,6 +1,7 @@
 <#
   CI test for profile installers. No real Codex installation, login, API calls,
-  or production access. Runs on PowerShell 5.1 and PowerShell 7 on Windows.
+  or production access. Run in a fresh -NoProfile -File process on PowerShell
+  5.1 or 7. All home-relative filesystem operations use a temporary fixture.
 #>
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
@@ -9,6 +10,28 @@ $work=Join-Path ([System.IO.Path]::GetTempPath()) ('apex-codex-profiles-'+[Guid]
 [void][System.IO.Directory]::CreateDirectory($work)
 $profile=Join-Path $work 'test-profile.ps1'
 $log=Join-Path $work 'observations.txt'
+$fixtureHome=Join-Path $work 'home'
+[void][System.IO.Directory]::CreateDirectory($fixtureHome)
+$env:APEX_PROFILE_TEST_HOME=$fixtureHome
+$realFiles=@(
+    (Join-Path $HOME '.codex-launchers\codex-profiles.ps1'),
+    (Join-Path $HOME '.codex-18\config.toml'),
+    (Join-Path $HOME '.codex-74\config.toml')
+)
+$realFingerprints=@{}
+foreach($file in $realFiles){
+    $realFingerprints[$file]=if(Test-Path -LiteralPath $file){(Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash}else{'absent'}
+}
+# Test-only command interception keeps the actual installer and loader unchanged.
+# Do not overwrite HOME or point a real Codex process at this fixture.
+function global:Join-Path {
+    param([string]$Path,[string]$ChildPath)
+    if($Path -ceq $HOME){
+        if(-not $env:APEX_PROFILE_TEST_HOME){throw 'Missing synthetic home fixture'}
+        $Path=$env:APEX_PROFILE_TEST_HOME
+    }
+    Microsoft.PowerShell.Management\Join-Path -Path $Path -ChildPath $ChildPath
+}
 try {
     $fixture = 'function global:cc-muaz { "muaz-ok" }' + [Environment]::NewLine +
         'function global:cc-umer { "umer-ok" }' + [Environment]::NewLine
@@ -53,6 +76,10 @@ try {
         -not $lines[0].EndsWith('NO_API_KEY;NO_ACCESS_TOKEN;login|status')){
         throw ('Wrong primary Codex environment: '+$lines[0])
     }
+    if(-not $lines[0].StartsWith($fixtureHome+[IO.Path]::DirectorySeparatorChar) -or
+       -not $lines[1].StartsWith($fixtureHome+[IO.Path]::DirectorySeparatorChar)){
+        throw 'Mock CLI escaped the synthetic home fixture'
+    }
     if(-not $lines[1].Contains('.codex-74;') -or
         -not $lines[1].EndsWith('NO_API_KEY;NO_ACCESS_TOKEN;resume|--last')){
         throw ('Wrong secondary Codex environment: '+$lines[1])
@@ -92,7 +119,11 @@ try {
             throw ('Expected ChatGPT-only login config in '+$config)
         }
     }
-    Write-Host 'Codex profiles: installation, idempotency, auth isolation, argument forwarding and parent env restoration PASS'
+    foreach($file in $realFiles){
+        $after=if(Test-Path -LiteralPath $file){(Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash}else{'absent'}
+        if($after -cne $realFingerprints[$file]){throw 'Real user-home launcher/config changed during synthetic test'}
+    }
+    Write-Host 'Codex profiles: temporary home isolation, installation, idempotency, auth isolation, argument forwarding and parent env restoration PASS'
 }
 finally {
     Remove-Item Env:APEX_PROFILE_TEST_LOG -ErrorAction SilentlyContinue
@@ -105,5 +136,13 @@ finally {
     Remove-Item Function:cdx-18 -ErrorAction SilentlyContinue
     Remove-Item Function:cdx-74 -ErrorAction SilentlyContinue
     Remove-Item Function:Invoke-ApexCodexProfile -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item Function:Join-Path -ErrorAction SilentlyContinue
+    Remove-Item Env:APEX_PROFILE_TEST_HOME -ErrorAction SilentlyContinue
+    $resolvedWork=[IO.Path]::GetFullPath($work)
+    $resolvedTemp=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')+'\'
+    if(-not $resolvedWork.StartsWith($resolvedTemp,[StringComparison]::OrdinalIgnoreCase) -or
+       -not ([IO.Path]::GetFileName($resolvedWork)).StartsWith('apex-codex-profiles-')){
+        throw 'Unsafe fixture cleanup path'
+    }
+    Remove-Item -LiteralPath $resolvedWork -Recurse -Force
 }

@@ -16,5 +16,10 @@
   "triggers": {"crons": ["*/5 * * * *"]},
   "vars": {
     "APEX_STAFF_DRAFTS_ENABLED": "true"
+  },
+  "previews": {
+    "vars": {
+      "APEX_STAFF_DRAFTS_ENABLED": "false"
+    }
   }
 }

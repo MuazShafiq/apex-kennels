@@ -1,7 +1,7 @@
 /** Explicit development-only Neon proof. No production SQL connection, branch
  * creation, credential rotation, environment-file loading or provider traffic.
- * Requires a pre-created parent-schema branch with an independently identified
- * production parent. All control-plane requests are GET; only the target's SQL
+ * Requires a pre-created parent-schema branch and independently identified
+ * production reference. All control-plane requests are GET; only the target's SQL
  * endpoint is used. See docs/neon-migration-validation.md before running.
  */
 import assert from 'node:assert/strict';
@@ -22,21 +22,50 @@ export const migrationGroups=[
   {file:'db/migrations/006_owner_booking_alerts.sql',tables:['owner_alert_outbox','owner_alert_audit','owner_alert_events']},
 ];
 
-export function validateNeonIdentity({project,production,productionEndpoint,target,endpoints},expected){
+function validateStaticNeonIdentity({project,production,productionEndpoint,target,endpoints},expected){
   requireSafe(project.id===expected.projectId,'Project identity mismatch');
   requireSafe(production.id===expected.productionBranchId&&production.project_id===project.id,'Production branch identity mismatch');
   requireSafe(productionEndpoint.id===expected.productionEndpointId&&productionEndpoint.branch_id===production.id&&productionEndpoint.project_id===project.id,'Production endpoint identity mismatch');
   requireSafe(target.id===expected.targetBranchId&&target.project_id===project.id&&target.id!==production.id,'Target branch identity mismatch');
   requireSafe(target.default===false&&target.protected===false,'Target must explicitly be non-default and unprotected');
-  // parent-schema retains the source relationship. Legacy schema-only root
-  // branches omit that relationship and cannot establish the required parent.
-  requireSafe(target.init_source==='parent-schema'&&target.parent_id===production.id,'Target must be a parent-schema child of the identified production branch');
+  requireSafe(target.init_source==='parent-schema','Target must use parent-schema initialization');
+  // A measured parent-schema response may omit parent_id. An explicit value,
+  // including null/blank, must still identify the production reference.
+  requireSafe(!Object.hasOwn(target,'parent_id')||target.parent_id===production.id,'Target parent identity mismatch');
   requireSafe(/^apex-migration-validation-[a-zA-Z0-9_-]+$/.test(target.name),'Unexpected target branch name');
   requireSafe(target.current_state==='ready'&&!target.pending_state&&!target.last_reset_at&&!target.restored_from,'Target must be ready and never reset/restored');
   requireSafe(Array.isArray(endpoints)&&endpoints.length===1,'Target must have exactly one endpoint');
   const endpoint=endpoints[0];
   requireSafe(endpoint.project_id===project.id&&endpoint.branch_id===target.id&&endpoint.type==='read_write'&&endpoint.id!==productionEndpoint.id,'Target endpoint identity mismatch');
   requireSafe(typeof endpoint.host==='string'&&/^[a-z0-9.-]+\.neon\.tech$/.test(endpoint.host)&&endpoint.host!==productionEndpoint.host,'Invalid or production target host');
+  return endpoint;
+}
+
+function validateSchemaCopyOperation({target,endpoint,operation},expected){
+  const operationId=identifier(expected.schemaCopyOperationId,'NEON_TEST_SCHEMA_COPY_OPERATION_ID');
+  requireSafe(target.init_source==='parent-schema'&&target.id===expected.targetBranchId&&target.project_id===expected.projectId&&target.id!==expected.productionBranchId,'Schema-copy target identity mismatch');
+  requireSafe(!Object.hasOwn(target,'parent_id')||target.parent_id===expected.productionBranchId,'Target parent identity mismatch');
+  requireSafe(endpoint.branch_id===target.id&&endpoint.project_id===expected.projectId&&endpoint.id!==expected.productionEndpointId,'Schema-copy endpoint identity mismatch');
+  requireSafe(operation?.id===operationId&&operation.project_id===expected.projectId&&operation.branch_id===target.id&&operation.endpoint_id===endpoint.id,'Schema-copy operation identity mismatch');
+  requireSafe(operation.action==='apply_schema_from_branch'&&operation.status==='finished'&&operation.failures_count===0,'Schema-copy operation must finish without failures');
+  const timestamp=value=>typeof value==='string'&&value.trim()!==''?Date.parse(value):NaN;
+  const branchCreated=timestamp(target.created_at),created=timestamp(operation.created_at),finished=timestamp(operation.updated_at);
+  requireSafe(Number.isFinite(branchCreated)&&Number.isFinite(created)&&Number.isFinite(finished)&&created>=branchCreated&&created<=branchCreated+5*60*1000&&finished>=created&&finished<=Date.now(),'Schema-copy operation must belong to branch initialization and finish in the past');
+}
+
+export function validateSchemaCopyEvidence({target,endpoint,operation,comparison},expected){
+  validateSchemaCopyOperation({target,endpoint,operation},expected);
+  requireSafe(comparison?.diff==='','Target schema must exactly match the identified production database');
+  // The operation omits its source branch: these records prove initialization
+  // and current schema equivalence, not historical production lineage.
+}
+
+export function validateNeonIdentity(records,expected){
+  const endpoint=validateStaticNeonIdentity(records,expected);
+  if(!Object.hasOwn(records.target,'parent_id')){
+    requireSafe(records.schemaCopyEvidence,'Missing parent requires authenticated schema-copy and schema-comparison evidence');
+    validateSchemaCopyEvidence({...records.schemaCopyEvidence,target:records.target,endpoint},expected);
+  }
   return endpoint;
 }
 
@@ -126,13 +155,13 @@ async function validateMigrationDatabaseUnlocked({dbUrl,clientFactory,log}){
   }finally{await probe.query('ROLLBACK');await probe.end();}
 }
 
-export async function runNeonValidation(env=process.env){
+export async function runNeonValidation(env=process.env,{fetcher=globalThis.fetch,clientFactory,log=console.log}={}){
   requireSafe(env.NEON_API_KEY,'NEON_API_KEY is required; authenticate Neon management access privately');
   const expected={projectId:identifier(env.NEON_PROJECT_ID,'NEON_PROJECT_ID'),productionBranchId:identifier(env.NEON_PRODUCTION_BRANCH_ID,'NEON_PRODUCTION_BRANCH_ID'),productionEndpointId:identifier(env.NEON_PRODUCTION_ENDPOINT_ID,'NEON_PRODUCTION_ENDPOINT_ID'),targetBranchId:identifier(env.NEON_TEST_BRANCH_ID,'NEON_TEST_BRANCH_ID')};
   requireSafe(expected.targetBranchId!==expected.productionBranchId,'Refusing production branch');
   const database=identifier(env.NEON_TEST_DATABASE,'NEON_TEST_DATABASE'),role=identifier(env.NEON_TEST_ROLE,'NEON_TEST_ROLE');
   const get=async path=>{
-    const response=await fetch('https://console.neon.tech/api/v2'+path,{method:'GET',headers:{Authorization:'Bearer '+env.NEON_API_KEY,Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(20000)});
+    const response=await fetcher('https://console.neon.tech/api/v2'+path,{method:'GET',headers:{Authorization:'Bearer '+env.NEON_API_KEY,Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(20000)});
     requireSafe(response.ok,'Neon control-plane GET failed: HTTP '+response.status);
     return response.json();
   };
@@ -140,15 +169,30 @@ export async function runNeonValidation(env=process.env){
   const [{project},{branch:production},{endpoint:productionEndpoint},{branch:target},{endpoints}]=await Promise.all([
     get(base),get(base+'/branches/'+expected.productionBranchId),get(base+'/endpoints/'+expected.productionEndpointId),get(base+'/branches/'+expected.targetBranchId),get(base+'/branches/'+expected.targetBranchId+'/endpoints'),
   ]);
-  const endpoint=validateNeonIdentity({project,production,productionEndpoint,target,endpoints},expected);
+  const records={project,production,productionEndpoint,target,endpoints};
+  // Reject unsafe identities before comparing schemas (which may start compute)
+  // or requesting any connection URI.
+  const endpoint=validateStaticNeonIdentity(records,expected);
+  if(!Object.hasOwn(target,'parent_id')){
+    expected.schemaCopyOperationId=identifier(env.NEON_TEST_SCHEMA_COPY_OPERATION_ID,'NEON_TEST_SCHEMA_COPY_OPERATION_ID');
+    const {operation}=await get(base+'/operations/'+expected.schemaCopyOperationId);
+    // Validate operation attribution before starting a schema comparison.
+    validateSchemaCopyOperation({target,endpoint,operation},expected);
+    const comparisonQuery=new URLSearchParams({base_branch_id:production.id,db_name:database});
+    const comparison=await get(base+'/branches/'+target.id+'/compare_schema?'+comparisonQuery);
+    records.schemaCopyEvidence={operation,comparison};
+  }
+  validateNeonIdentity(records,expected);
   const query=new URLSearchParams({branch_id:target.id,endpoint_id:endpoint.id,database_name:database,role_name:role,pooled:'false'});
   const {uri}=await get(base+'/connection_uri?'+query);
   const dbUrl=validateTargetConnection(uri,endpoint,database,role);
-  console.log('Neon development proof: project='+project.id+' production='+production.id+' target='+target.id+' endpoint='+endpoint.id+' init_source='+target.init_source);
-  const {Client}=await import('pg');
-  const clientFactory=connectionString=>new Client({connectionString,ssl:{rejectUnauthorized:true},connectionTimeoutMillis:15000,query_timeout:30000,application_name:'apex-neon-migration-validation'});
-  await validateMigrationDatabase({dbUrl,clientFactory});
-  console.log('PASS Neon schema compatibility, rollback, concurrency, replay, atomicity and RLS; all providers fake; target='+target.id);
+  log('Neon development proof: project='+project.id+' production='+production.id+' target='+target.id+' endpoint='+endpoint.id+' init_source='+target.init_source+' evidence='+(Object.hasOwn(target,'parent_id')?'linked-parent':'initial-schema-copy-and-current-schema-equivalence'));
+  if(!clientFactory){
+    const {Client}=await import('pg');
+    clientFactory=connectionString=>new Client({connectionString,ssl:{rejectUnauthorized:true},connectionTimeoutMillis:15000,query_timeout:30000,application_name:'apex-neon-migration-validation'});
+  }
+  await validateMigrationDatabase({dbUrl,clientFactory,log});
+  log('PASS Neon schema compatibility, rollback, concurrency, replay, atomicity and RLS; all providers fake; target='+target.id);
 }
 
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){

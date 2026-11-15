@@ -30,6 +30,8 @@ Worker variables:
 
 Never put real numbers, identities, tokens or evidence in Git. Configured sender/recipient/template/consent are frozen in each enrolled alert; a later configuration change does not redirect old alerts.
 
+**Documentation check, 2026-11-16:** Meta's [official Graph API version table](https://developers.facebook.com/docs/graph-api/changelog/versions/) lists v26.0 (released July 29, 2026; expiry TBD), v25.0 (expiry July 29, 2028) and v24.0 (expiry February 18, 2028). These are the Graph API dates, not the separate Marketing API dates on that page. This verifies published version availability only: no Apex app/version selection, sender, permission, template, webhook subscription or live send has been verified. Keep explicit operator selection; no default or runtime configuration was added. Recheck the official table and actual Meta app at onboarding.
+
 Suggested owner template: New Apex boarding request #{{1}}. Open the secure Apex staff dashboard to review it. Include an approved static link to the private `/staff` dashboard in the Meta template; the sole body parameter remains the booking reference. Access protection must cover `/staff*`, including `/staff/owner-alerts*`.
 
 New eligible bookings enroll an immutable alert intent in the same transaction as the booking, only while sending is enabled and consent/configuration are valid. After commit the Worker dispatches without affecting booking success. The five-minute scheduled handler recovers undispatched intents. Unchanged submissions, existing bookings and synthetic canaries do not enroll; there is no activation backfill. Apply migration 006 before configuring enablement. With alerts disabled/absent, legacy intake has no dependency on the new tables.

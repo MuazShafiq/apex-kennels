@@ -37,6 +37,9 @@ jobs:
       - run: npm run form:check
       - run: npm run cf:check
       - run: npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund pg@8.16.3
+      - run: node --test scripts/prepare-production-migrations.test.mjs
+        env:
+          APEX_PLAN_LOCAL_POSTGRES_URL: postgresql://apex_synthetic:synthetic-local-ci-only@127.0.0.1:5432/postgres
       - run: node --disable-warning=ExperimentalWarning --experimental-strip-types --test scripts/check-neon-migrations.test.mjs
       - run: node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/check-neon-migrations-local.mjs
         env:

@@ -31,14 +31,15 @@ const template=new Uint8Array(await readFile(new URL('../public/invoice/canva-bl
 let checks=0;let nextNumber=101;
 const pass=name=>{checks++;console.log('PASS '+name);};
 const freshNumber=()=>String(nextNumber++).padStart(4,'0');
-async function fixture({consent=true,synthetic=false,deliveryRequested=consent&&!synthetic}={}){
+async function fixture({consent=true,synthetic=false,deliveryRequested=consent&&!synthetic,
+  customerName='Database Fixture Owner',petNames='Synthetic Example Dog',externalResponseId}={}){
   const bookingId=randomUUID(),customerId=randomUUID(),petId=randomUUID();
   // Every value is generated synthetic data. synthetic:false deliberately
   // exercises delivery's real-record branch with an injected provider fake.
-  const source={bookingId,customerName:'SYNTHETIC DATABASE FIXTURE',petNames:'Synthetic Example Dog',petCount:1,startDate:'2026-12-01',endDate:'2026-12-03',status:'requested',cameraCageRequested:false,transportRequested:false,synthetic};
+  const source={bookingId,customerName,petNames,petCount:1,startDate:'2026-12-01',endDate:'2026-12-03',status:'requested',cameraCageRequested:false,transportRequested:false,synthetic};
   await db.query('INSERT INTO public.customers(id,full_name,phone) VALUES($1,$2,$3)',[customerId,source.customerName,'0000000000']);
   await db.query('INSERT INTO public.pets(id,customer_id,name) VALUES($1,$2,$3)',[petId,customerId,source.petNames]);
-  await db.query("INSERT INTO public.booking_requests(id,customer_id,source,external_submission_id,start_date,end_date) VALUES($1,$2,'staff',$3,$4,$5)",[bookingId,customerId,(synthetic?'apex-cf-smoke-':'invoice-db-fixture-')+bookingId,source.startDate,source.endDate]);
+  await db.query("INSERT INTO public.booking_requests(id,customer_id,source,external_submission_id,start_date,end_date) VALUES($1,$2,'staff',$3,$4,$5)",[bookingId,customerId,externalResponseId??(synthetic?'apex-cf-smoke-':'invoice-db-fixture-')+bookingId,source.startDate,source.endDate]);
   await db.query('INSERT INTO public.booking_pets(booking_id,pet_id) VALUES($1,$2)',[bookingId,petId]);
   await db.query('INSERT INTO public.booking_form_details(booking_id,camera_cage_requested,pickup_dropoff_requested) VALUES($1,false,false)',[bookingId]);
   const snapshot=makeReviewSnapshot(prepareStaffDraftReview(source,'daily'));
@@ -148,6 +149,23 @@ try{
   await assert.rejects(approveInvoice(dbUrl,await fixture(),owner,{...config,enabled:undefined},factory),/disabled/);
   await assert.rejects(approveInvoice(dbUrl,await fixture(),'other@example.test',config,factory),/owner/);
   pass('missing consent, synthetic issuance, disabled flags and unauthorized approver blocked');
+
+  for(const marker of [{customerName:' synthetic database fixture'},
+    {customerName:'Test Only database fixture'},{customerName:'apex canary'},
+    {petNames:'apex synthetic canary pet'}]){
+    const input=await fixture({...marker,deliveryRequested:false});
+    // Reproduce an older incorrectly saved false flag. Classification must
+    // preserve the amounts while upgrading only the safety metadata on read.
+    await db.query("UPDATE public.invoice_draft_reviews SET snapshot=jsonb_set(snapshot,'{booking,synthetic}','false'::jsonb) WHERE booking_id=$1",[input.bookingId]);
+    const invoice=await approve(input);assert.equal(invoice.snapshot.review.booking.synthetic,true);
+    await assert.rejects(issueInvoice(dbUrl,invoice.id,owner,config,fakePdf,factory),/Synthetic/);
+    assert.equal((await loadApprovedInvoice(dbUrl,invoice.id,factory)).status,'approved');
+    assert.equal(await state(invoice.id),null);
+  }
+  const staleSmoke=await fixture({externalResponseId:'APEX-CF-SMOKE-'+randomUUID(),deliveryRequested:false});
+  await assert.rejects(approve(staleSmoke),/Booking details changed/);
+  assert.equal((await db.query('SELECT count(*)::int n FROM public.approved_invoices WHERE booking_id=$1',[staleSmoke.bookingId])).rows[0].n,0);
+  pass('synthetic marker variants and stale mixed-case smoke ID cannot become payable or enroll delivery');
 
   const id=realPdf.invoice.id;
   await Promise.all([enqueueInvoiceDelivery(dbUrl,id,owner,factory),enqueueInvoiceDelivery(dbUrl,id,owner,factory)]);

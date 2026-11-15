@@ -1,4 +1,5 @@
 import { Client } from '@neondatabase/serverless';
+import {isSyntheticBooking} from './synthetic-booking.ts';
 
 export const BOOKING_STATUSES = ['requested','reviewing','approved','declined','cancelled','completed'] as const;
 export type BookingStatus = typeof BOOKING_STATUSES[number];
@@ -31,7 +32,7 @@ export function parseStaffFilter(url: URL): StaffFilter {
 
 type RawBooking = {
   id:string; status:BookingStatus; customer_name:string; pet_names:string; email:string|null; phone:string|null;
-  start_date:string; end_date:string; accommodation_type:string|null; created_at:string; is_synthetic:boolean;
+  start_date:string; end_date:string; accommodation_type:string|null; created_at:string; external_submission_id:string|null;
 };
 
 /** A bounded, read-only staff query: no raw form payloads or financial information. */
@@ -45,7 +46,7 @@ export async function listStaffBookings(dbUrl: string, filter: StaffFilter): Pro
              coalesce(string_agg(DISTINCT p.name, ', '), '') AS pet_names,
              b.start_date::text AS start_date, b.end_date::text AS end_date,
              b.accommodation_type, b.created_at::text AS created_at,
-             (b.external_submission_id LIKE 'apex-cf-smoke-%') AS is_synthetic
+             b.external_submission_id
         FROM public.booking_requests b
         JOIN public.customers c ON c.id = b.customer_id
         LEFT JOIN public.booking_pets bp ON bp.booking_id = b.id
@@ -60,7 +61,7 @@ export async function listStaffBookings(dbUrl: string, filter: StaffFilter): Pro
     return result.rows.map(row=>({
       id:row.id,status:row.status,customerName:row.customer_name,petNames:row.pet_names,
       email:row.email,phone:row.phone,startDate:row.start_date,endDate:row.end_date,
-      accommodationType:row.accommodation_type,createdAt:row.created_at,isSynthetic:row.is_synthetic || row.customer_name.startsWith('APEX CANARY ') || row.pet_names.includes('APEX SYNTHETIC CANARY PET')
+      accommodationType:row.accommodation_type,createdAt:row.created_at,isSynthetic:isSyntheticBooking({customerName:row.customer_name,petName:row.pet_names,externalResponseId:row.external_submission_id??undefined})
     }));
   } finally {
     await client.end();

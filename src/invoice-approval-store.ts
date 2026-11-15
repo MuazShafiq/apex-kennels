@@ -1,4 +1,5 @@
 import {Client} from '@neondatabase/serverless';
+import {isSyntheticBooking} from './synthetic-booking.ts';
 import {createHash} from 'node:crypto';
 import {InvoiceApprovalError,INVOICE_UUID,prepareApproval,requireInvoiceOwner,validateApprovalSnapshot,type ApprovalConfig,type ApprovalInput,type ApprovedInvoice} from './invoice-approval.ts';
 import type {SavedReview} from './staff-saved-review.ts';
@@ -28,7 +29,7 @@ export async function approveInvoice(databaseUrl:string,input:ApprovalInput,acto
     await db.query('SELECT id FROM public.booking_requests WHERE id=$1 FOR UPDATE',[input.bookingId]);
     await db.query('SELECT booking_id FROM public.booking_form_details WHERE booking_id=$1 FOR UPDATE',[input.bookingId]);
     await db.query('SELECT p.id FROM public.pets p JOIN public.booking_pets bp ON bp.pet_id=p.id WHERE bp.booking_id=$1 FOR UPDATE OF p,bp',[input.bookingId]);
-    const current=await db.query("SELECT b.id,b.status,b.start_date::text,b.end_date::text,c.full_name,COALESCE(b.external_submission_id LIKE 'apex-cf-smoke-%',false) AS synthetic,"+
+    const current=await db.query("SELECT b.id,b.status,b.start_date::text,b.end_date::text,c.full_name,b.external_submission_id,"+
       'd.camera_cage_requested,d.pickup_dropoff_requested,'+
       '(SELECT COUNT(*)::integer FROM public.booking_pets bp WHERE bp.booking_id=b.id) AS pet_count,'+
       "COALESCE((SELECT STRING_AGG(p.name, ', ' ORDER BY p.name) FROM public.booking_pets bp JOIN public.pets p ON p.id=bp.pet_id WHERE bp.booking_id=b.id),'') AS pet_names "+
@@ -41,7 +42,7 @@ export async function approveInvoice(databaseUrl:string,input:ApprovalInput,acto
     const saved:SavedReview={snapshot:row.snapshot as SavedReview['snapshot'],revision:Number(row.revision),updatedBy:String(row.updated_by),updatedAt:String(row.updated_at)};
     const snapshot=prepareApproval(saved,input,actor,config);
     const review=snapshot.review,boarding=review.quote.lines[0];
-    const synthetic=source.synthetic===true||String(source.full_name).startsWith('APEX CANARY ')||String(source.pet_names).includes('APEX SYNTHETIC CANARY PET');
+    const synthetic=isSyntheticBooking({customerName:String(source.full_name),petName:String(source.pet_names),externalResponseId:typeof source.external_submission_id==='string'?source.external_submission_id:undefined});
     if(source.start_date!==review.booking.startDate||source.end_date!==review.booking.endDate||source.full_name!==review.booking.customerName||source.pet_names!==review.booking.petNames||synthetic!==review.booking.synthetic||Number(source.pet_count)!==boarding.quantity/review.quote.billedDays||source.camera_cage_requested!==(boarding.label==='Camera cage boarding')||source.pickup_dropoff_requested!==!!review.transport)throw new InvoiceApprovalError('Booking details changed; save a fresh reviewed estimate');
     if(review.transport){
       let pin:Record<string,unknown>|undefined;

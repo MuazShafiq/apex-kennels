@@ -1,5 +1,6 @@
 import {APEX_STAFF_THEME_CSS,APEX_STAFF_BRAND} from './apex-brand.ts';
 import {Client} from '@neondatabase/serverless';
+import {isSyntheticBooking} from './synthetic-booking.ts';
 import {buildApexInvoiceDraft,type ApexDraftQuote} from './apex-invoice-draft.ts';
 import {countBilledDays} from './pricing.ts';
 import {renderInvoiceHtml} from './invoice.ts';
@@ -49,7 +50,7 @@ type Row={
   id:string;customer_name:string;pet_names:string;pet_breeds:string|null;pet_count:number|string;
   start_date:string;end_date:string;status:string;
   camera_cage_requested:boolean|null;pickup_dropoff_requested:boolean|null;
-  is_synthetic:boolean;
+  external_submission_id:string|null;
 };
 
 /** Read-only, parameterized fetch of invoice-relevant data. NEVER load private care/health notes. */
@@ -67,7 +68,7 @@ export async function readStaffInvoiceSource(databaseUrl:string,bookingId:string
       +"COALESCE(STRING_AGG(p.name, ', ' ORDER BY p.name),'') AS pet_names,"
       +"COALESCE(STRING_AGG(DISTINCT p.breed, ', ' ORDER BY p.breed),'') AS pet_breeds,"
       +"COUNT(bp.pet_id)::integer AS pet_count,"
-      +"COALESCE(b.external_submission_id LIKE 'apex-cf-smoke-%',false) AS is_synthetic "
+      +"b.external_submission_id "
       +"FROM public.booking_requests b "
       +"JOIN public.customers c ON c.id=b.customer_id "
       +"LEFT JOIN public.booking_form_details d ON d.booking_id=b.id "
@@ -107,7 +108,7 @@ export async function readStaffInvoiceSource(databaseUrl:string,bookingId:string
       status:row.status,
       cameraCageRequested:row.camera_cage_requested,
       transportRequested:row.pickup_dropoff_requested,transportLocation,
-      synthetic:row.is_synthetic || row.customer_name.startsWith('APEX CANARY ') || row.pet_names.includes('APEX SYNTHETIC CANARY PET'),
+      synthetic:isSyntheticBooking({customerName:row.customer_name,petName:row.pet_names,externalResponseId:row.external_submission_id??undefined}),
     };
   }finally{
     await db.end();
@@ -123,6 +124,7 @@ export function prepareStaffDraftReview(
   source:StaffInvoiceSource,
   selection:StaffPackageSelection
 ):StaffDraftReview{
+  source={...source,synthetic:source.synthetic||isSyntheticBooking({customerName:source.customerName,petName:source.petNames})};
   const packageChoice:StaffPackageChoice=selection==='auto'
     ?countBilledDays(source.startDate,source.endDate,'inclusive_days')===30?'monthly':'daily'
     :selection;

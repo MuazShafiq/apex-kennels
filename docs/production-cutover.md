@@ -1,4 +1,6 @@
-# Apex live Form intake cutover
+# Apex live Form intake cutover: historical first-release record
+
+**Operational status, 2026-11-16:** This document records the original November 4 first-cutover procedure. Existing Google Form intake/recovery is now operational; do not repeat its token rotation, canary arming, trigger installation or enablement steps for routine Worker deployment. Use [current release readiness](production-release-readiness-2026-11-15.md), [booking launch](customer-booking-launch.md) and [the production migration procedure](production-migration-procedure.md) for current work. Retain historical evidence below without treating its pending labels as current state.
 
 **Current state (Nov 4, 2026):** Production Neon has the additive migration for full-form care details. The existing booking and ingestion event were preserved (1 each), 0 invoices. Pre-migration no-compute Neon snapshot: `backup-pre-full-form-cutover-2026-11-04` (`br-late-rice-azttpcw3`). Production Neon branch: `br-dry-lab-azyb3ewl`. The live Worker, real trigger, and customer intake are **not** yet activated through this document.
 
@@ -14,10 +16,10 @@ After CI on PR #9 completes green, merge the feature branch to `main` only follo
 git switch main
 git pull --ff-only
 npm.cmd ci
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-production-worker.ps1 -RotateIntakeToken
+powershell.exe -NoProfile -File .\scripts\deploy-production-worker.ps1
 ```
 
-The script rejects dirty or stale `main`, runs type-check/tests/Worker dry-run, requires a configured Cloudflare `DATABASE_URL` secret, and asks for an explicit deployment confirmation. It deploys **only** `apex-kennels-api` and rotates its intake bearer token. The new token goes to Windows clipboard. This does **not** enable the Form or send emails/invoices.
+The script rejects dirty or stale `main`, runs type-check/tests/Worker dry-run, requires a configured Cloudflare `DATABASE_URL` secret, and asks for an explicit deployment confirmation. It deploys **only** `apex-kennels-api`, preserves the existing intake bearer token by default, and verifies all five remote activation gates and the existing production smoke before and after deployment. Smoke checks intake authentication rejection, not an authenticated Form submission. Credential rotation is a separate, disruptive operation requiring coordinated Apps Script updates; never add `-RotateIntakeToken` for routine code deployment. This does **not** change Form configuration or send emails/invoices.
 
 For the first production cutover, **confirm** that existing Cloudflare `DATABASE_URL` points to Neon's production branch, not `local-development`. Cloudflare secret names alone do **not** prove the underlying database target. The later canary must be verified by direct read-only query on **production**.
 

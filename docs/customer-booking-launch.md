@@ -33,6 +33,7 @@ This dated state is not a current remote check. Before relying on gate/deploymen
 - No email is required for new customers because current Form submissions have only phone contacts. No mailing platform is added.
 
 ## Known release gaps
+- Use the [single real-phone/network and owner acceptance record](release-acceptance.md) to capture the remaining evidence without repeating automated checks or exposing private pins.
 - Obtain Fatima's final approval of customer-facing copy, six boarding terms and consent wording. Separate pickup and drop-off locations are already supported; they are not another business decision.
 - [Mobile release check #37](https://github.com/MuazShafiq/apex-kennels/issues/37): verify on a real phone/network, including Google Maps place links and dropped-pin shares (including `maps.app.goo.gl`), no transport, GPS permission handling and outside-area rejection. The real Turnstile/backend canary already passed; do not mistake that for real-phone acceptance. Test connectivity on the previously affected ISP as well as mobile data before cutover. Vague links still require a dropped pin, never guessed coordinates.
 

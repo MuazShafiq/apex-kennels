@@ -2,6 +2,21 @@
 
 Scope: finish independently executable verification and engineering, merge verified changes, and retain every production activation gate closed. This brief does not authorize production migrations, provider sends, account registration, paid capacity, historical backfills or customer contact.
 
+## Standing mission checkpoint: 2026-11-16 PKT
+
+Issue #84's currently executable non-design engineering queue is exhausted after independently reviewed PRs #85–90. This is **not production launch completion**. Main `4df0b91ddbc863c19e1b7002357dae048eaf1712` passes Node 22/24 CI `43771181657`, Windows PS5.1/7 checks `43771181647`, production smoke `43771181717` and Workers Build `08259df1-192c-4d00-ac20-f555e4546687`. Measured deployment `1e0cdcc2-9cef-4cdc-92d0-f60642cf3185`, version `48a30d5e-8742-474e-9e11-bc356dc6c8ee`, 100%, created `2026-11-15T22:47:28.276832Z`; fresh endpoint smoke passes, all five activation bindings are absent and no WhatsApp bindings are configured. These measurements precede this documentation checkpoint; later merges require their own release read.
+
+| Mission lane | Completed evidence / remaining boundary |
+| --- | --- |
+| Infrastructure #78 | Feature/main builds, existing Access policy, positive staff acceptance and anonymous/forged denial verified; a valid unallowlisted identity still needs actual acceptance evidence. |
+| Migration #39 | Named development Neon proof and guarded atomic production preparation/readback complete; fresh production catalog-only check confirms 15 existing tables and no target objects. No production DDL executed. |
+| Booking #28/#37 | Existing four browser suites pass; [single device/network and owner acceptance record](../release-acceptance.md) prepared. Actual device/ISP and exact copy/six-terms acceptance remain human work. |
+| Invoice/owner alerts #39 | Shared synthetic classification now prevents marked test bookings becoming payable; 322 application tests and actual PostgreSQL/browser suites pass. Business identity/bank/numbering, physical driving access and current pump/fuel acceptance remain private human inputs. |
+| Meta | Published Graph version availability checked against official documentation; callbacks/configuration/consent/recovery use existing synthetic tests. Sender/app/templates/private credentials, opt-in and live provider acceptance remain external. |
+| Reliability / launcher | Manual deploy now checks remote closed gates and full smoke before/after, with default token preservation; launcher tests now isolate filesystem writes in clean Windows CI. Actual local Defender clearance remains security-owner work; no custom-loader execution or bypass claimed. |
+
+Independent final read-only audit identified no further concrete unblocked engineering requirement after the synthetic-safety and test-isolation fixes. Deferred #27 staff self-service and #46 phone evaluation remain outside this release queue. Resume on concrete new evidence/access or a separately scoped release action; do not invent features or repeat synthetic checks as a substitute for physical/provider evidence. Keep #84 open as the standing handoff, with no claim of unattended background work.
+
 ## Priority 1: production migration preparation (development proof complete)
 
 **Development proof completed, 2026-11-15 00:19 UTC.** Follow [the guarded runner procedure and measured result](../neon-migration-validation.md). Authenticated target `br-solitary-boat-azi8jb9j` in project `holy-bar-96685960` reports `parent-schema` but omits `parent_id`; the previous linked-parent assumption falsely rejected it. The corrected fallback requires exact successful initial schema-copy operation evidence plus a fresh empty schema diff against explicit production `br-dry-lab-azyb3ewl` and database `neondb`. This establishes initialization and current equivalence, not historical source lineage. A present wrong/null parent still fails; existing data-copy branches remain ineligible.

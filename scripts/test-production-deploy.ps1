@@ -115,3 +115,6 @@ try {
      -not ([IO.Path]::GetFileName($resolvedFixture)).StartsWith('apex-deploy-test-')){throw 'Unsafe fixture cleanup path'}
   Remove-Item -LiteralPath $resolvedFixture -Recurse -Force
 }
+# GitHub's PowerShell wrapper propagates LASTEXITCODE even after an expected
+# synthetic native failure. Reach this only when every assertion/cleanup passed.
+$global:LASTEXITCODE=0

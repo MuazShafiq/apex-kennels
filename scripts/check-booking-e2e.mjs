@@ -228,6 +228,73 @@ try{
   await sixth.page.close();
 
   assert.equal(challengeChecks,5);
+  // Provider candidates are deliberately not confirmed pins. Exercise the
+  // search journey with a mock provider, keyboard selection and gate edits.
+  const searchCase=await newPage();
+  await fill(searchCase.page);
+  let releaseDelayed,delayedStarted;
+  const delayedRequest=new Promise(resolve=>{delayedStarted=resolve;});
+  await searchCase.page.route('**/api/book/search',async route=>{
+    const {query}=route.request().postDataJSON();
+    if(query==='delayed'){
+      delayedStarted();await new Promise(resolve=>{releaseDelayed=resolve;});
+      return route.fulfill({json:{results:[{label:'Delayed result',latitude:33.695,longitude:73.01}]}}).catch(()=>{});
+    }
+    if(query==='outage')return route.fulfill({status:503,json:{error:'Search unavailable. Paste your exact gate pin.'}});
+    return route.fulfill({json:{results:query==='empty'?[]:[
+      {label:'F-10 Markaz, Islamabad, Pakistan',area:'Islamabad',latitude:33.695,longitude:73.01},
+      {label:'Second local gate, Islamabad',latitude:33.696,longitude:73.011},
+      {label:'Outside service area',latitude:31.5,longitude:74.3}
+    ]}});
+  });
+  await searchCase.page.locator('#transport-pickup').check();
+  await searchCase.page.locator('#place-search').fill('delayed');
+  await delayedRequest;
+  await searchCase.page.locator('#place-search').press('Escape');
+  releaseDelayed();
+  // The response may resolve after Escape; it must not reopen suggestions.
+  await searchCase.page.waitForTimeout(100);
+  assert.equal(await searchCase.page.locator('#place-results').isVisible(),false);
+  assert.equal(await searchCase.page.locator('#place-search').getAttribute('aria-expanded'),'false');
+  await searchCase.page.locator('#place-search').fill('F-10');
+  await searchCase.page.locator('#place-results button').first().waitFor();
+  assert.equal(await searchCase.page.locator('#place-results button').count(),2);
+  await searchCase.page.locator('#place-search').press('ArrowUp');
+  assert.equal(await searchCase.page.locator('#place-search').getAttribute('aria-activedescendant'),'place-option-1');
+  await searchCase.page.locator('#place-search').press('Escape');
+  await searchCase.page.locator('#place-search').fill('F-10 Markaz');
+  await searchCase.page.locator('#place-results button').first().waitFor();
+  await searchCase.page.locator('#place-search').press('ArrowDown');
+  await searchCase.page.locator('#place-search').press('Enter');
+  assert.equal(await searchCase.page.locator('#gate-review').isVisible(),true);
+  await searchCase.page.locator('#submit').click();
+  assert.equal(saved.length,5);
+  await searchCase.page.locator('#gate-latitude').fill('33.696');
+  await searchCase.page.locator('#confirm-gate').click();
+  await searchCase.page.locator('#transport-dropoff').check();
+  await searchCase.page.locator('#same-dropoff').uncheck();
+  await searchCase.page.locator('#dropoff-place-search').fill('empty');
+  await searchCase.page.locator('#dropoff-search-status').filter({hasText:'No matching local places'}).waitFor();
+  await searchCase.page.locator('#dropoff-place-search').fill('outage');
+  await searchCase.page.locator('#dropoff-search-status').filter({hasText:'Search unavailable'}).waitFor();
+  await searchCase.page.locator('#dropoff-maps-link').fill('33.58, 73.02');
+  await searchCase.page.locator('#dropoff-selected-location-link').waitFor({state:'visible'});
+  await searchCase.page.locator('#submit').click();
+  await searchCase.page.locator('#complete').waitFor({state:'visible'});
+  assert.equal(saved.length,6);
+  assert.deepEqual(saved[5].transportLocation,{latitude:33.696,longitude:73.01,service:'both',customerConfirmed:true});
+  assert.deepEqual(saved[5].transportDropoffLocation,{latitude:33.58,longitude:73.02,customerConfirmed:true});
+  assert.deepEqual(searchCase.errors,[]);
+  await searchCase.page.close();
+  const denied=await newPage();
+  await denied.page.evaluate(()=>Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(_ok,fail){fail({code:1});}}}));
+  await denied.page.locator('#transport-pickup').check();
+  await denied.page.locator('#locate').click();
+  assert.match(await denied.page.locator('#coordinate-status').innerText(),/permission was not granted/);
+  await denied.page.locator('#maps-link').fill('33.7, 73.08');
+  await denied.page.locator('#selected-location-link').waitFor({state:'visible'});
+  assert.deepEqual(denied.errors,[]);
+  await denied.page.close();
   console.log('Synthetic browser-to-Worker booking passed: explicit None, pickup only, drop-off only, Both same gate and Both different gates; no real writes/messages.');
 } finally{
   await browser.close();

@@ -77,6 +77,16 @@
               <div id="pickup-location" class="transport-location-panel" hidden>
                 <h3>Pickup location</h3>
                 <p>Where should we collect your dog?</p>
+                <label for="place-search">Search address, society, phase, gate or landmark</label>
+                <input id="place-search" type="search" maxlength="120" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="place-results" aria-expanded="false" aria-describedby="search-status" placeholder="e.g. F-10 Markaz, Islamabad">
+                <p id="search-status" class="location-status" role="status">Search Islamabad and Rawalpindi, then confirm the vehicle gate.</p>
+                <ul id="place-results" class="place-results" role="listbox" hidden></ul>
+                <div id="gate-review" hidden>
+                  <p>Check the exact vehicle entrance. A search result may mark the middle of a building or society. Open the location below to inspect it; adjust by pasting your gate pin or editing these coordinates.</p>
+                  <label for="gate-latitude">Gate latitude</label><input id="gate-latitude" type="number" step="0.0000001" min="33.43" max="33.84" inputmode="decimal">
+                  <label for="gate-longitude">Gate longitude</label><input id="gate-longitude" type="number" step="0.0000001" min="72.81" max="73.30" inputmode="decimal">
+                  <button id="confirm-gate" class="secondary" type="button">Confirm this vehicle gate</button>
+                </div>
                 <div class="location-actions">
                   <button type="button" class="secondary" id="locate">Use my current location</button>
                   <a class="maps-button" id="open-google-maps" href="https://www.google.com/maps/@?api=1&amp;map_action=map&amp;center=33.65%2C73.06&amp;zoom=12" target="_blank" rel="noopener noreferrer">Open Google Maps</a>
@@ -103,6 +113,16 @@
               <div id="dropoff-location" class="transport-location-panel" hidden>
                 <h3>Drop-off location</h3>
                 <p>Where should we bring your dog after boarding?</p>
+                <label for="dropoff-place-search">Search address, society, phase, gate or landmark</label>
+                <input id="dropoff-place-search" type="search" maxlength="120" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="dropoff-place-results" aria-expanded="false" aria-describedby="dropoff-search-status" placeholder="e.g. F-10 Markaz, Islamabad">
+                <p id="dropoff-search-status" class="location-status" role="status">Search Islamabad and Rawalpindi, then confirm the vehicle gate.</p>
+                <ul id="dropoff-place-results" class="place-results" role="listbox" hidden></ul>
+                <div id="dropoff-gate-review" hidden>
+                  <p>Check the exact vehicle entrance. A search result may mark the middle of a building or society. Open the location below to inspect it; adjust by pasting your gate pin or editing these coordinates.</p>
+                  <label for="dropoff-gate-latitude">Gate latitude</label><input id="dropoff-gate-latitude" type="number" step="0.0000001" min="33.43" max="33.84" inputmode="decimal">
+                  <label for="dropoff-gate-longitude">Gate longitude</label><input id="dropoff-gate-longitude" type="number" step="0.0000001" min="72.81" max="73.30" inputmode="decimal">
+                  <button id="dropoff-confirm-gate" class="secondary" type="button">Confirm this vehicle gate</button>
+                </div>
                 <div class="location-actions">
                   <button type="button" class="secondary" id="dropoff-locate">Use my current location</button>
                   <a class="maps-button" href="https://www.google.com/maps/@?api=1&amp;map_action=map&amp;center=33.65%2C73.06&amp;zoom=12" target="_blank" rel="noopener noreferrer">Open Google Maps</a>

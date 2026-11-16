@@ -1,3 +1,4 @@
+import {placeSearchRoute,type SearchLimiter} from './place-search.ts';
 import {renderCanvaStaffPdf} from './canva-invoice-pdf.ts';
 import {invoiceStaffRoute,invoiceWebhookRoute,type InvoiceWorkflowDeps} from './invoice-workflow-routes.ts';
 import {whatsappWebhookRoute} from './whatsapp-webhook.ts';
@@ -44,6 +45,8 @@ export type WorkerEnv = {
   APEX_PUBLIC_BOOKING_ENABLED?: string;
   APEX_STAFF_DRAFTS_ENABLED?: string;
   GEOAPIFY_API_KEY?:string;
+  LOCATION_SEARCH_RATE_LIMIT?:SearchLimiter;
+  LOCATION_SEARCH_USAGE_LIMIT?:SearchLimiter;
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
   ASSETS?: {fetch(request:Request):Promise<Response>};
@@ -268,6 +271,7 @@ export async function handleWorkerRequest(
   }
   // Customers can choose a precise point in the Google Maps app and paste
   // its share link. Resolve only allowlisted Google URLs, never arbitrary pages.
+  if(path==='/api/book/search')return placeSearchRoute(request,env);
   if(path==='/api/book/location'){
     if(request.method!=='POST')return json({error:'Method not allowed'},405,{Allow:'POST'});
     if(request.headers.get('origin')!==new URL(request.url).origin)

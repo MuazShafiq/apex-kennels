@@ -45,7 +45,7 @@ test('provider request uses exact service rectangle, proximity bias and bounded 
     const url=new URL(String(input));assert.equal(url.origin,'https://api.geoapify.com');
     assert.equal(url.pathname,'/v1/geocode/autocomplete');assert.equal(url.searchParams.get('filter'),'rect:72.81,33.43,73.3,33.84');
     assert.equal(url.searchParams.get('bias'),'proximity:73.06,33.65');assert.equal(url.searchParams.get('text'),'F-10 Markaz');
-    assert.equal(init?.redirect,'error');assert.ok(init?.signal);
+    assert.equal(init?.redirect,'manual');assert.ok(init?.signal);
     return Response.json({results:[row,row,{...row,lon:74},{...row,country_code:'us'},{...row,formatted:'<unsafe>'},{...row,lat:'33.7'}]});
   });
   assert.deepEqual(results,[{label:row.formatted,area:row.address_line2,latitude:row.lat,longitude:row.lon}]);
@@ -132,4 +132,18 @@ test('provider failures expose only HTTP status or generic network/payload categ
     assert.equal(response.headers.get('x-apex-search-provider-failure'),reason);
     assert.doesNotMatch(await response.text(),/private secret|403|network|invalid-response|F-10/);
   }
+});
+
+test('manual redirect mode is Workers-compatible and refuses provider redirects',async()=>{
+  let calls=0;
+  const response=await placeSearchRoute(post({query:'F-10 Markaz'}),env,async(_input,init)=>{
+    calls++;
+    assert.equal(init?.redirect,'manual');
+    return Response.redirect('https://untrusted.invalid/redirect',302);
+  });
+  assert.equal(calls,1);
+  assert.equal(response.status,503);
+  assert.equal(response.headers.get('x-apex-search-failure-stage'),'provider');
+  assert.equal(response.headers.get('x-apex-search-provider-failure'),'http-302');
+  assert.doesNotMatch(await response.text(),/untrusted.invalid/);
 });

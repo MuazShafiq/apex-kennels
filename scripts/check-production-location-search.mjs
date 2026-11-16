@@ -19,7 +19,11 @@ if(denied.status!==403)throw new Error('Location search cross-origin denial fail
 
 // Exactly one real Geoapify search. No retries on provider/quota/network errors.
 const response=await fetch(target,options);
-if(response.status!==200)throw new Error('Live location search unavailable (HTTP '+response.status+')');
+if(response.status!==200){
+  const candidate=response.headers.get('x-apex-search-failure-stage');
+  const stage=['rate-limiter','daily-budget','provider'].includes(candidate)?candidate:'unknown';
+  throw new Error('Live location search unavailable (HTTP '+response.status+', stage '+stage+')');
+}
 if(response.headers.get('cache-control')!=='no-store')
   throw new Error('Live location search missing no-store');
 const length=Number(response.headers.get('content-length')||0);

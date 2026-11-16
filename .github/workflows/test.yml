@@ -35,6 +35,7 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node --check scripts/check-local.mjs
       - run: node --check scripts/check-production-location-search.mjs
+      - run: node --test scripts/check-booking-cutover.test.mjs
       - run: npm run form:check
       - run: npm run cf:check
       - run: node scripts/check-location-search-budget-local.mjs

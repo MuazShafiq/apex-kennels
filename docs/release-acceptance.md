@@ -1,5 +1,38 @@
 # Remaining release acceptance
 
+## Current Phase 1 decision — 2026-11-16
+
+**HOLD public cutover.** Engineering and live search evidence do not replace Fatima's own staff login, real-phone/affected-ISP acceptance, valid-unallowlisted identity denial, or explicit cutover approval. See #84's [current assignment](https://github.com/MuazShafiq/apex-kennels/issues/84#issuecomment-6923859043). Migrations 004–007 are already applied/read back; do not reapply. Cloudflare/Geoapify Free-account and search-guard verification is settled in that assignment.
+
+| Evidence | Outcome and scope |
+| --- | --- |
+| Main `607796677ec9a3229d4414c3551b87ba83d60db4` foundation CI | PASS, run `43916929774`; local Node 24 cf:check also passes 353 tests/typecheck/Worker dry-run. |
+| Current runtime | Version `6ca5541f-baa0-479b-82de-b870db3d7109`, 100%, created 2026-11-16 17:19:07 UTC. Fresh settings read has 13 bindings, all five activation flags absent. |
+| Closed-gate/security and real search | PASS locally: production checker; wrong-origin 403 and same-origin 200 bounded F-10 suggestions, one provider request. Earlier main smoke `43916929769` failed provider-network before the current deployment; verification-only run `43917188010` passed. Fresh main workflow verification is recorded in the shared thread. |
+| Browser acceptance | PASS synthetic booking combinations and all 42 responsive layouts; providers/persistence are stubs. Live desktop selected F-10 and confirmed a gate with submission disabled. No real phone/ISP, Turnstile, Neon write or message is inferred. |
+| Fatima's exact identity in both enforcement layers | UNKNOWN: current admin API returns HTTP 200 with zero Access applications; Worker allowlist exists as encrypted secret. Neither observation proves a missing policy or an email match. Existing authenticated dashboard evidence remains valid history. Do not recreate Access or read/print secret values to resolve this. |
+| Fatima login; valid unallowlisted identity; physical phone/ISP | UNKNOWN: human acceptance remains required. |
+| Original services and six terms | Founder accepted reuse in #28 on 2026-11-16. Do not request duplicate reuse approval. Exact Form word-for-word comparison remains unverified. New optional WhatsApp consent and sending remain separate. |
+
+### Fatima-only login and dashboard check
+
+1. On her own phone, open [staff](https://apex-kennels-api.muaz-shafiq18.workers.dev/staff), sign in with her previously provided approved email and complete her own login challenge. No password, OTP or JWT should be shared with an agent.
+2. Confirm the queue opens, an existing booking detail opens, and transport pin links are usable. Inspect privately; report only pass/fail and sanitized time/version, never booking details/screenshots.
+3. Confirm who will check the queue and how often during Phase 1: with WhatsApp alerts off there is no automatic website-booking notification. Review transport manually; do not approve/issue/send an invoice during acceptance.
+4. Separately, an owner-controlled existing identity outside the allowlist must authenticate and be denied. Do not change the policy or register an account to manufacture the test.
+
+The operator still needs an existing authenticated Access-admin session to compare Fatima's previously supplied email privately against the exact policy and protected Worker allowlist configuration. Preserve other authorized staff. Any protected configuration change needs its own smallest scoped authorization; a denied login alone is not permission to change policy.
+
+### Exact cutover and recovery actions (not authorized yet)
+
+After the required acceptance and explicit founder approval, the sole operator sets remote plain-text `APEX_PUBLIC_BOOKING_ENABLED` to exactly `true`, retaining existing database/Turnstile secrets and search guards. Verify config `enabled:true`, Turnstile on the existing hostname and invalid empty same-origin POST rejection before any authorized real submission. No token rotation, migration or financial/message flag change is needed.
+
+Replace the externally published customer booking link with `https://apex-kennels-api.muaz-shafiq18.workers.dev/book`. Inventory the actual publication locations privately before changing them; they are not tracked in this repository. Keep the current Google Form link available as fallback and leave its authenticated ingest/recovery unchanged. Do not guess a Form URL.
+
+The existing production checker and manual deployment procedure intentionally require the booking gate closed. The separate `scripts/check-booking-cutover.mjs` checks live config, empty-envelope 400, wrong-origin 403 and anonymous staff denial, without a booking or Turnstile token. Scheduled monitoring defaults to the unchanged closed checker; only at approved persistent cutover set GitHub repository variable `APEX_PUBLIC_BOOKING_MONITOR_MODE=live`. That variable selects verification and cannot activate bookings. The real-search check runs in both modes. Independently check actual remote financial/message flags remain absent; HTTP checks alone do not prove those secret/configuration states. The guarded manual deploy procedure remains closed-state-only: do not invoke it against a live release or open a new deployment lane without a separately reviewed procedure.
+
+Rollback sets the remote booking flag to `false`/absent, removes/resets the monitor variable, restores the customer link to the existing Form and verifies config `enabled:false`, POST 503 and the full existing production checker. Preserve already received bookings. No monitoring variable or Worker gate has been changed during preparation.
+
 Use this record for #28/#37/#39/#78. Existing automated checks and preparation are recorded in [the shared thread](agents/THREAD.md); they do not replace the human/device/provider checks below. The operational Google Form remains the customer path and fallback. This checklist does not change runtime flags or send messages.
 
 ## Real phone and network: #37
@@ -11,6 +44,10 @@ Open the [booking preview](https://apex-kennels-api.muaz-shafiq18.workers.dev/bo
 | Check | Expected result |
 | --- | --- |
 | Open page on mobile data and affected ISP | Preview loads; form controls remain usable; public submission remains closed. |
+| Search F-10 / a local phase or landmark | Relevant suggestion can be tapped with the touch keyboard open; its label is sufficiently specific. A candidate is not a verified entrance. |
+| Select, adjust and confirm vehicle gate | Selected coordinates can be adjusted to the actual entrance and require explicit confirmation; changing the candidate clears stale confirmation. |
+| Separate drop-off search | Independent search/confirmation retains distinct pickup and drop-off gates. |
+| Empty search or unavailable provider | Clear guidance and usable GPS / exact Maps-pin fallback; do not exhaust the daily budget to manufacture an outage. |
 | No transport | Explicit selection; both service selections clear and pin controls hide. |
 | Pickup only / drop-off only | Only the relevant gate input appears and retains its selected exact pin. |
 | Both, same gate | Reuse-pickup is selected by default; no second required gate input. |
@@ -27,7 +64,7 @@ Separately scoped synthetic submission acceptance must use a preplanned disable/
 
 Review the current deployed `/book` page and its expandable **Read boarding terms** section, rather than approving a paraphrase. The six displayed clauses concern supervised play, emergency care/expenses, boarding stress/veterinary care, daily care, sickness/loss/injury liability, and property damage. This inventory identifies the text to review; it does not validate its medical or legal claims.
 
-Record the exact deployed version and Fatima's decision on customer-facing copy, all six clauses, required terms acceptance, and the optional WhatsApp wording. Record corrections explicitly. Confirm that a request is not a confirmed reservation and does not automatically create a payable quote, invoice or message. The optional checkbox is purpose-specific evidence; historical Form phone numbers are not consent.
+Founder accepted reuse of the original services and six clauses in #28 on 2026-11-16; do not ask for duplicate reuse approval. Record any requested corrections to the deployed copy explicitly. Approval of the newly introduced optional WhatsApp wording remains separate from Form reuse and public cutover. Confirm that a request is not a confirmed reservation and does not automatically create a payable quote, invoice or message. The optional checkbox is purpose-specific evidence; historical Form phone numbers are not consent.
 
 Suggested decision record (not a recorded approval):
 
@@ -41,7 +78,7 @@ Suggested decision record (not a recorded approval):
 
 ## Database and provider release
 
-- [Production migration preparation](production-migration-procedure.md) is implemented, digest-pinned, locally/CI tested and independently reviewed. Use fresh external Neon/Worker identity binding before any distinct production application. Never run the synthetic integration suites on production. Keep financial/send gates closed during schema application and readback.
+- Production migrations 004–007 are already applied/read back according to the current #84 handoff. Do not repeat them. The [preparation procedure](production-migration-procedure.md) remains recovery/reference material, not an outstanding Phase 1 application task. Never run synthetic integration suites on production.
 - The Meta owner supplies the separate API sender, business/app access, approved utility/document templates, protected token/signing settings, subscription and purpose-specific consent. Preserve both existing everyday WhatsApp accounts. Verify app/version compatibility and the full live acceptance/recovery path with a consented synthetic recipient under its own release scope; provider acceptance is not delivery.
 - Public booking cutover, invoice issuance and each send lane require their own completed acceptance. Founder-wide engineering/tool authorization does not supply another person's opt-in, physical-device evidence or provider credentials. Do not treat a waiting prerequisite as a reason to invent new features.
 

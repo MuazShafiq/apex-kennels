@@ -9,7 +9,7 @@ This dated state is not a current remote check. Before relying on gate/deploymen
 
 ## User journey
 1. Customer enters owner, dates, dog, health, emergency, and care details, matching the current mapped Form.
-2. Chooses whether camera cage and transport are requested. If transport is requested: customer chooses pickup, drop-off, or both. For Both, the same gate is the default, with an optional separate drop-off pin field. They either tap **Use my current location**, or open Google Maps, find/drop their entrance pin, choose **Share → Copy link** and paste the share link back into Apex. The Worker extracts an explicit pin; no external search engine is embedded in the booking page.
+2. Chooses whether camera cage and transport are requested. If transport is requested: customer chooses pickup, drop-off, or both. For Both, the same gate is the default, with an optional separate drop-off pin field. Search a local address/landmark first, select a suggestion, then adjust/confirm the exact vehicle gate; the private Geoapify service supplies candidates, not verified entrances. **Use my current location** and exact Google Maps **Share → Copy link** remain alternatives and outage fallback. The Worker extracts an explicit shared pin and never guesses from a viewport or vague place name.
 3. Completes the Cloudflare Turnstile challenge and submits.
 4. The Worker verifies the exact origin, JSON/body size, all booking answers and confirmed coordinates, and calls Turnstile Siteverify. Turnstile **hostname** and **action** must match.
 5. A single Neon transaction saves the booking, original care information, and private confirmed pin. Existing staff booking queue and `/staff/booking` show it under Cloudflare Access. No amount is charged automatically.

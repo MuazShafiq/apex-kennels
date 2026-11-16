@@ -1,6 +1,6 @@
 # Invoice correction ledger release prerequisite
 
-Issue #92 adds `db/migrations/007_invoice_corrections.sql`. It has **not been applied to production**. Migrations 004–006 are already applied; do not rerun them or the older preparation bundle.
+Issue #92 adds `db/migrations/007_invoice_corrections.sql`. It was **applied to production on 2026-11-16** after explicit user authorization. Independent catalog readback and postmigration endpoint smoke passed; see the measured result below. Migrations 004–006 are already applied; do not rerun them or the older preparation bundle.
 
 The owner editor uses the existing saved-review JSON and revision column. The correction ledger adds one private, immutable record per approved invoice. A cancellation blocks future issuance and dispatch; a replacement records a separately issued manual Canva invoice number and its evidence reference. Neither action changes the original snapshot/PDF, sends a replacement, recalls a provider-accepted message, or records payment. Sending/ambiguous outcomes must be reconciled first. Replacement numbers are reserved alongside issued/approved numbers, including the confirmed manual floor.
 
@@ -9,3 +9,18 @@ Before separately authorizing application, review the exact migration and its di
 If any statement fails, roll back. If COMMIT outcome is uncertain, inspect the catalog before retrying; never drop a populated ledger or weaken immutability to rerun it. This code fails closed for financial actions if the required ledger table is absent. Keep invoice/public booking/message gates closed after application; schema readiness is separate from activation.
 
 Disposable PostgreSQL evidence comes from `scripts/check-invoice-correction-db.mjs` and the restricted-role migration rehearsal, run in Node 22/24 CI. These tests prove local transactions, correction/dispatch locking, immutable original bytes and blocked provider calls; they do not establish live owner acceptance, production DDL or delivery.
+
+
+## Measured production application, 2026-11-16
+
+User supplied the existing mapping credential and explicitly authorized the remaining work. One production operator applied only 007 to authenticated Neon project `holy-bar-96685960`, production branch `br-dry-lab-azyb3ewl`, direct compute `ep-bold-mud-azjqt3cx`, database `neondb`, role `neondb_owner`. The role's preexisting BYPASSRLS remains unchanged. Local `.dev.vars` database points at a different development endpoint and was not used for production execution.
+
+Exact source: Git blob `b146ba054d1cd1876b1758d007df2992952d4c66`; LF SHA-256 `96738106a77d094b04d35dcc84fee2ebc6688fdd159c58d8c1a61c92c694a6ef`. Connector `run_sql_transaction` executed ten statements in one transaction: local timeouts, database/role/non-superuser/BYPASSRLS/ownership/23-table/collision guards, shared migration lock, verified audit-guard body, temporary relation-identity baseline, exact three migration statements, precommit security/constraint/index/empty-ledger checks and aggregate readback. A first attempt rejected an unterminated preflight dollar quote before DDL; a fresh read confirmed absence/23 tables/six bookings before the corrected, independently re-reviewed attempt. This was not an uncertain-COMMIT replay.
+
+Successful transaction timestamp: `2026-11-16T12:35:40.458Z`. Fresh root readback `12:35:48.751Z` and independent read-only review `12:36:35.162Z`/`12:36:44.636Z` confirm 24 public tables; new ledger owned by the same role, RLS enabled/FORCE false, zero policies, three validated PK/unique/FK constraints, five validated checks, two valid unique indexes and the enabled immutable trigger calling the exact append-only guard. The eight existing private invoice/owner tables retain their RLS/ownership/no-policy settings. Six bookings were observed before and after; the migration contained no booking DML, customer row reads or synthetic inserts. Correction ledger remains empty. No general concurrency-proof claim derives from count equality.
+
+Fresh production smoke passes health, closed booking config/rejected POST, intake authentication, anonymous/forged staff denial and synthetic previews. Active Worker version `54135b5f-a7cd-4254-94d0-7e1bdbd2242f` retained all five activation bindings absent in a nonempty ten-binding inventory. No invoice, delivery intent, payment state or customer message was created. This completes schema readiness only; do not rerun migration 007 or infer activation approval.
+
+## Takeover verification limits
+
+cdx-74 preserved the preceding operator's application/readback record during the explicitly authorized takeover. The record is inherited evidence; this session has no Neon connector or verified production database credential and has not independently queried the production catalog. Do not treat the stale main 'unapplied' banner as authority to rerun 007. Reconcile any future release against a fresh read-only production catalog first. No production DDL was executed by cdx-74.

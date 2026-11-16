@@ -4,6 +4,8 @@ Scope: finish independently executable verification and engineering, merge verif
 
 ## Active founder scope: 2026-11-16 PKT
 
+**Resumed with supplied private Geoapify key and explicit remaining-work authorization.** Migration 007 is now applied and independently verified; all financial/booking/message gates remain off. See [the measured correction-ledger release](../invoice-corrections-migration.md). Live Geoapify benchmarking found and corrected sector/phase/US-embassy query relevance failures; measured results and conservative identifier filtering are under final review in the search acceptance lane. No paid mapping service or billing upgrade is authorized by this implementation.
+
 Issues #92 (owner-editable invoice rows and Canva output) and #93 (search-first exact pickup/drop-off gates) supersede the earlier exhausted-queue checkpoint below. Implement on isolated branches, independently review, verify CI/builds and deployments; keep every activation gate closed. No paid mapping service is authorized.
 
 Production migrations 004–006 were applied and independently read back by the operator at `2026-11-15T23:42:44.842Z`, followed by operator-reported endpoint smoke. [Authoritative #39 evidence](https://github.com/MuazShafiq/apex-kennels/issues/39#issuecomment-6903361839) identifies the exact production target, atomic transaction, eight private RLS-enabled tables, guards and indexes, unchanged six booking count, and zero invoice/outbox rows. The observed owner role has preexisting BYPASSRLS; RLS does not constrain that privileged role. Do not repeat these migrations. Root independently reran endpoint smoke on 2026-11-16 during this scope and it passed; this is not authenticated Form submission or invoice/provider acceptance.

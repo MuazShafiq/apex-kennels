@@ -7,10 +7,50 @@ const headers={'content-type':'application/json; charset=utf-8','cache-control':
 const answer=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers});
 const safeText=(value:unknown,max:number)=>typeof value==='string'&&!/[\u0000-\u001f\u007f<>]/u.test(value)&&value.length<=max?value.trim():'';
 
+const ROMAN_PHASES=['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI','XVII','XVIII','XIX','XX'];
+function phases(text:string):string {
+  return text.replace(/\bphase\s*[- ]?\s*([ivx]+)\b/gi,(full,numeral:string)=>{
+    const index=ROMAN_PHASES.indexOf(numeral.toUpperCase());return index<0?full:'Phase '+(index+1);
+  });
+}
+function sectors(text:string):{sector:string;subsector?:string}[]{
+  const matches=text.matchAll(/\b([a-i])\s*[- ]?\s*(\d{1,2})(?:\s*\/\s*([1-4]))?\b/gi);
+  return [...matches].map(m=>({sector:m[1].toUpperCase()+'-'+Number(m[2]),...(m[3]?{subsector:m[3]}:{})}));
+}
+function phaseNumbers(text:string):string[]{return [...phases(text).matchAll(/\bphase\s*[- ]?\s*(\d{1,2})\b/gi)].map(m=>String(Number(m[1])));}
+/** Change spelling only, never infer a different place or coordinate. */
+export function normalizePlaceQuery(query:string):string {
+  let result=phases(query).replace(/\bU\.?S\.?\s+(?=embassy\b)/gi,'United States ');
+  // The measured provider misranks sector/phase queries with redundant city
+  // suffixes. Geographic restriction remains the exact intake rectangle.
+  if(sectors(result).length||phaseNumbers(result).length)
+    result=result.replace(/(?:,\s*|\s+)(?:Islamabad|Rawalpindi)\s*$/i,'').trim();
+  return result;
+}
+/** Explicit identifiers must survive provider fuzzy matching. No wrong-sector/phase substitutes. */
+export function matchesRequestedPlace(query:string,label:string):boolean {
+  const requestedSectors=sectors(query),candidateSectors=sectors(label);
+  if(requestedSectors.some(request=>!candidateSectors.some(candidate=>candidate.sector===request.sector&&(!request.subsector||candidate.subsector===request.subsector))))return false;
+  const requestedPhases=phaseNumbers(query),candidatePhases=phaseNumbers(label);
+  if(requestedPhases.some(phase=>!candidatePhases.includes(phase)))return false;
+  if(/\bBahria\b/i.test(query)&&!/\bBahria\b/i.test(label))return false;
+  if(/\bDHA\b/i.test(query)&&!/\bDHA\b|\bDefen[cs]e Housing Authority\b/i.test(label))return false;
+  if(/\b(?:US|U\.S\.?|United States)\s+embassy\b|\bembassy\s+of\s+(?:the\s+)?United States\b/i.test(query)&&!/\bUnited States\b/i.test(label))return false;
+  return true;
+}
+function relevance(query:string,label:string):number {
+  const words=(text:string)=>phases(text).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().split(/\s+/).filter(word=>!['islamabad','rawalpindi','the','of'].includes(word));
+  const requested=words(normalizePlaceQuery(query)),candidate=words(label),title=words(label.split(',')[0]);
+  const phrase=requested.join(' '),first=title.join(' ');
+  if(first===phrase)return 100;
+  if(first.startsWith(phrase+' '))return 80;
+  return requested.filter(word=>candidate.includes(word)).length/Math.max(1,requested.length)*20;
+}
+
 /** Scoped candidates, never confirmed vehicle gates. No raw provider error reaches the client. */
 export async function searchLocalPlaces(query:string,key:string,fetcher:typeof fetch=fetch):Promise<PlaceSuggestion[]>{
   const url=new URL('https://api.geoapify.com/v1/geocode/autocomplete');
-  url.search=new URLSearchParams({text:query,format:'json',limit:'5',lang:'en',
+  url.search=new URLSearchParams({text:normalizePlaceQuery(query),format:'json',limit:'5',lang:'en',
     filter:'rect:'+TRANSPORT_SERVICE_BOUNDS.join(','),bias:'proximity:73.06,33.65',apiKey:key}).toString();
   const response=await fetcher(url,{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(4500)});
   if(!response.ok)throw new Error('Search unavailable');
@@ -21,11 +61,11 @@ export async function searchLocalPlaces(query:string,key:string,fetcher:typeof f
     if(!item||typeof item!=='object')continue;
     const row=item as Record<string,unknown>;
     const label=safeText(row.formatted,400),area=safeText(row.address_line2,240);
-    if(!label||typeof row.lat!=='number'||typeof row.lon!=='number'||row.country_code!=='pk'||!isTransportServiceLocation(row.lat,row.lon))continue;
+    if(!label||typeof row.lat!=='number'||typeof row.lon!=='number'||row.country_code!=='pk'||!isTransportServiceLocation(row.lat,row.lon)||!matchesRequestedPlace(query,label))continue;
     if(results.some(x=>x.label===label&&x.latitude===row.lat&&x.longitude===row.lon))continue;
     results.push({label,area,latitude:row.lat,longitude:row.lon});if(results.length===5)break;
   }
-  return results;
+  return results.sort((a,b)=>relevance(query,b.label)-relevance(query,a.label));
 }
 
 async function boundedText(source:Request|Response,limit:number):Promise<string>{

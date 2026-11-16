@@ -51,7 +51,7 @@ test('binding helper always uses the singleton and exact empty internal request,
  assert.deepEqual(await consumeLocationSearchBudget({idFromName:()=>{throw new Error('secret');},get:()=>{throw new Error('secret');}}),{success:false});
 });
 
-test('unapplied configuration example uses SQLite and isolated preview namespaces; production remains unconfigured',()=>{
+test('free-tier production configuration uses SQLite budget and isolated preview namespaces; staging stays separate',()=>{
  const config=JSON.parse(readFileSync(new URL('../docs/examples/location-search-wrangler.jsonc',import.meta.url),'utf8'));
  assert.deepEqual(config.migrations,[{tag:'location-search-budget-v1',new_sqlite_classes:['LocationSearchBudget']}]);
  assert.deepEqual(config.durable_objects.bindings,[{name:'LOCATION_SEARCH_BUDGET',class_name:'LocationSearchBudget'}]);
@@ -62,5 +62,12 @@ test('unapplied configuration example uses SQLite and isolated preview namespace
  const staging=JSON.parse(readFileSync(new URL('../wrangler.staging.jsonc',import.meta.url),'utf8'));
  assert.notEqual(staging.name,config.name);assert.equal(staging.durable_objects,undefined);assert.equal(staging.ratelimits,undefined);
  const productionConfig=JSON.parse(readFileSync(new URL('../wrangler.jsonc',import.meta.url),'utf8'));
- assert.equal(productionConfig.durable_objects,undefined);assert.equal(productionConfig.ratelimits,undefined);assert.equal(productionConfig.migrations,undefined);
+ assert.deepEqual(productionConfig.durable_objects,config.durable_objects);
+ assert.deepEqual(productionConfig.migrations,config.migrations);
+ assert.deepEqual(productionConfig.ratelimits,config.ratelimits);
+ assert.deepEqual(productionConfig.previews.durable_objects,config.previews.durable_objects);
+ assert.deepEqual(productionConfig.previews.ratelimits,config.previews.ratelimits);
+ assert.equal(productionConfig.keep_vars,true);
+ assert.equal(productionConfig.vars.APEX_STAFF_DRAFTS_ENABLED,'true');
+ for(const gate of ['APEX_PUBLIC_BOOKING_ENABLED','APEX_INVOICE_APPROVAL_ENABLED','APEX_INVOICE_ISSUANCE_ENABLED','APEX_INVOICE_WHATSAPP_ENABLED','WHATSAPP_ALERTS_ENABLED'])assert.equal(productionConfig.vars[gate],undefined);
 });

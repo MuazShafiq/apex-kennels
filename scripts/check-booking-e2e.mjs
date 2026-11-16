@@ -393,6 +393,52 @@ try{
   assert.deepEqual(actual.errors,[]);
   console.log(liveTiles?'Real MapLibre / local CSP worker / live OpenFreeMap rendered and keyboard-selected a gate.':'Real MapLibre / local CSP worker rendered with a synthetic style (provider network untested).');
   await actual.page.close();
+
+  // A real mobile MapLibre canvas catches ResizeObserver/layout feedback
+  // loops which a Map stub cannot reproduce. Basemap data stays synthetic.
+  const phoneMap=await newPage({map:'real'});
+  await phoneMap.page.route('https://tiles.openfreemap.org/**',route=>route.fulfill({json:{version:8,sources:{},layers:[{id:'background',type:'background',paint:{'background-color':'#dbe5dd'}}]}}));
+  await phoneMap.page.locator('#transport-pickup').check();
+  await phoneMap.page.locator('#choose-map').click();
+  const phoneCanvas=phoneMap.page.locator('#map-canvas canvas');
+  await phoneCanvas.waitFor({state:'visible'});
+  await waitForBrowser(phoneMap.page,()=>document.querySelector('#map-loading').hidden,15000);
+  for(let step=0;step<6;step++){
+    await phoneCanvas.press('+');
+    await phoneMap.page.waitForTimeout(350);
+  }
+  await phoneCanvas.tap({position:{x:160,y:120}});
+  await waitForBrowser(phoneMap.page,()=>!document.querySelector('#map-confirm').disabled,15000);
+  await phoneMap.page.evaluate(()=>{
+    const read=()=>({loading:!document.querySelector('#map-loading').hidden,
+      disabled:document.querySelector('#map-confirm').disabled,
+      status:document.querySelector('#map-status').textContent});
+    window.__mobileMapIdle={initial:read(),transitions:[]};
+    let last=JSON.stringify(read());
+    window.__mobileMapObserver=new MutationObserver(()=>{
+      const next=read(),key=JSON.stringify(next);
+      if(key!==last){window.__mobileMapIdle.transitions.push(next);last=key;}
+    });
+    window.__mobileMapObserver.observe(document.querySelector('#gate-picker'),{subtree:true,attributes:true,childList:true,characterData:true});
+  });
+  const phoneSize=await phoneCanvas.boundingBox();
+  await phoneMap.page.waitForTimeout(1200);
+  const idle=await phoneMap.page.evaluate(()=>{
+    window.__mobileMapObserver.disconnect();return window.__mobileMapIdle;
+  });
+  assert.equal(idle.initial.loading,false);
+  assert.equal(idle.initial.disabled,false);
+  assert.deepEqual(idle.transitions,[],'Real mobile map repeatedly left its idle confirmation state');
+  const stablePhoneSize=await phoneCanvas.boundingBox();
+  assert(Math.abs(phoneSize.height-stablePhoneSize.height)<1,'Real mobile map canvas height kept resizing after selection');
+  await phoneMap.page.screenshot({path:'mobile-real-maplibre-phone.png',fullPage:false});
+  await phoneMap.page.locator('#map-confirm').click();
+  await phoneMap.page.locator('#gate-picker').waitFor({state:'hidden'});
+  assert.match(await phoneMap.page.locator('#coordinate-status').innerText(),/gate confirmed/i);
+  assert.equal(await phoneMap.page.locator('#choose-map').evaluate(el=>el===document.activeElement),true);
+  assert.deepEqual(phoneMap.errors,[]);
+  await phoneMap.page.close();
+  console.log('Real mobile MapLibre remained idle for 1.2 seconds and confirmed a tapped gate; basemap data synthetic.');
   console.log('Synthetic browser-to-Worker booking passed: explicit None, pickup only, drop-off only, Both same gate and Both different gates, map invalidation, exact-pin confirmation, service bounds, denied GPS and map-load fallback; no real writes/messages.');
 } finally{
   await browser.close();

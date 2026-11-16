@@ -120,7 +120,7 @@
     const loading=document.getElementById('map-loading');
     const confirm=document.getElementById('map-confirm');
     const mobile=window.matchMedia('(max-width:700px)');
-    let active=null,map=null,library=null,ready=false,failed=false,positioning=false,loadTimer=null,openVersion=0,intentVersion=0;
+    let active=null,map=null,library=null,ready=false,failed=false,positioning=false,loadTimer=null,openVersion=0,intentVersion=0,lastView=null,movementActive=false;
     function loadLibrary(){
       if(window.maplibregl)return Promise.resolve();
       if(library)return library;
@@ -147,13 +147,14 @@
     }
     function position(){
       if(!map||!active)return;
-      positioning=true;waitForTiles();
+      positioning=true;movementActive=false;waitForTiles();
       const p=active.candidate()||active.point();
       map.resize();map.jumpTo({center:p?[p.longitude,p.latitude]:[73.06,33.65],zoom:p?17:11.5});
+      lastView={...map.getCenter(),zoom:map.getZoom()};
       positioning=false;map.triggerRepaint();update();
     }
     function close(restoreFocus=true,userAction=true){
-      openVersion++;if(userAction)intentVersion++;
+      openVersion++;movementActive=false;if(userAction)intentVersion++;
       if(panel.open)panel.close();
       document.body.classList.remove('gate-map-open');
       if(active){active.choose.setAttribute('aria-expanded','false');if(restoreFocus)active.choose.focus();}
@@ -177,13 +178,22 @@
           map.getCanvas().setAttribute('aria-describedby','map-instructions');
           map.on('idle',()=>{ready=true;clearTimeout(loadTimer);update();});
           map.on('error',fail);
-          map.on('movestart',()=>{clearTimeout(loadTimer);ready=false;if(!positioning&&panel.open&&active){active.invalidate();update();}});
+          map.on('movestart',event=>{
+            // MapLibre also emits movement events on resize. Resizing the sheet
+            // does not change the selected gate or restart its loading state.
+            if(positioning||!panel.open||!active||(!event.originalEvent&&!event.gateSelection))return;
+            movementActive=true;clearTimeout(loadTimer);ready=false;active.invalidate();update();
+          });
           map.on('moveend',()=>{
             if(positioning||!panel.open||!active)return;
-            waitForTiles();const center=map.getCenter();active.setCandidate(center.lat,center.lng,'Map pin');update();
+            const center=map.getCenter(),zoom=map.getZoom();
+            const changed=!lastView||Math.abs(center.lat-lastView.lat)>1e-8||Math.abs(center.lng-lastView.lng)>1e-8||Math.abs(zoom-lastView.zoom)>1e-7;
+            lastView={...center,zoom};
+            if(!changed&&!movementActive)return;
+            movementActive=false;active.invalidate();waitForTiles();active.setCandidate(center.lat,center.lng,'Map pin');update();
           });
           // Tapping and keyboard controls provide alternatives to dragging.
-          map.on('click',event=>map.jumpTo({center:[event.lngLat.lng,event.lngLat.lat]}));
+          map.on('click',event=>map.jumpTo({center:[event.lngLat.lng,event.lngLat.lat]},{gateSelection:true}));
           map.getCanvas().addEventListener('webglcontextlost',fail);
           waitForTiles();
         }

@@ -2,6 +2,9 @@ name: Apex production smoke monitor
 on:
   push:
     branches: [main]
+  pull_request:
+    paths:
+      - '.github/workflows/production-smoke.yml'
   schedule:
     - cron: '17 */6 * * *'
   workflow_dispatch:

@@ -119,3 +119,17 @@ test('production failure classification reveals only fixed stages, never sensiti
     assert.doesNotMatch(await response.text(),/private-provider-secret|sensitive-limiter-data|F-10 Markaz|API_KEY/);
   }
 });
+
+test('provider failures expose only HTTP status or generic network/payload categories',async()=>{
+  for(const [fetcher,reason] of [
+    [async()=>new Response('private secret',{status:403}),'http-403'],
+    [async()=>Response.json({notResults:[]}),'invalid-response'],
+    [async()=>{throw new Error('upstream private secret');},'network']
+  ] as const){
+    const response=await placeSearchRoute(post({query:'F-10 Markaz'}),env,fetcher);
+    assert.equal(response.status,503);
+    assert.equal(response.headers.get('x-apex-search-failure-stage'),'provider');
+    assert.equal(response.headers.get('x-apex-search-provider-failure'),reason);
+    assert.doesNotMatch(await response.text(),/private secret|403|network|invalid-response|F-10/);
+  }
+});

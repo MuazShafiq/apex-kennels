@@ -2,6 +2,16 @@ import {TRANSPORT_SERVICE_BOUNDS,isTransportServiceLocation} from './transport-s
 import {consumeLocationSearchBudget,type LocationSearchBudgetNamespace} from './location-search-budget.ts';
 
 export type PlaceSuggestion={label:string;area:string;latitude:number;longitude:number};
+/** Fixed, non-sensitive provider failure code, never the provider response or API key. */
+export class PlaceProviderError extends Error {
+  readonly kind:'http'|'network'|'invalid-response';
+  readonly status?:number;
+  constructor(kind:'http'|'network'|'invalid-response',status?:number){
+    super('Provider request failed');
+    this.kind=kind;
+    this.status=status;
+  }
+}
 export type SearchLimiter={limit(options:{key:string}):Promise<{success:boolean}>};
 export type PlaceSearchEnv={GEOAPIFY_API_KEY?:string;APEX_LOCATION_SEARCH_DISABLED?:string;LOCATION_SEARCH_BUDGET?:LocationSearchBudgetNamespace;LOCATION_SEARCH_RATE_LIMIT?:SearchLimiter;LOCATION_SEARCH_USAGE_LIMIT?:SearchLimiter};
 const headers={'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'};
@@ -53,10 +63,14 @@ export async function searchLocalPlaces(query:string,key:string,fetcher:typeof f
   const url=new URL('https://api.geoapify.com/v1/geocode/autocomplete');
   url.search=new URLSearchParams({text:normalizePlaceQuery(query),format:'json',limit:'5',lang:'en',
     filter:'rect:'+TRANSPORT_SERVICE_BOUNDS.join(','),bias:'proximity:73.06,33.65',apiKey:key}).toString();
-  const response=await fetcher(url,{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(4500)});
-  if(!response.ok)throw new Error('Search unavailable');
-  const data=JSON.parse(await boundedText(response,65536)) as {results?:unknown};
-  if(!Array.isArray(data.results))throw new Error('Search unavailable');
+  let response:Response;
+  try{response=await fetcher(url,{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(4500)});}
+  catch{throw new PlaceProviderError('network');}
+  if(!response.ok)throw new PlaceProviderError('http',response.status);
+  let data:{results?:unknown};
+  try{data=JSON.parse(await boundedText(response,65536)) as {results?:unknown};}
+  catch{throw new PlaceProviderError('invalid-response');}
+  if(!Array.isArray(data.results))throw new PlaceProviderError('invalid-response');
   const results:PlaceSuggestion[]=[];
   for(const item of data.results.slice(0,10)){
     if(!item||typeof item!=='object')continue;
@@ -110,5 +124,12 @@ export async function placeSearchRoute(request:Request,env:PlaceSearchEnv,fetche
   }catch{return unavailable('daily-budget');}
   try{
     return answer({results:await searchLocalPlaces(query,env.GEOAPIFY_API_KEY,fetcher),attribution:'Powered by Geoapify / OpenStreetMap'});
-  }catch{return unavailable('provider');}
+  }catch(error){
+    const result=unavailable('provider');
+    if(error instanceof PlaceProviderError){
+      const detail=error.kind==='http'?'http-'+(error.status??'unknown'):error.kind;
+      result.headers.set('x-apex-search-provider-failure',detail);
+    }
+    return result;
+  }
 }

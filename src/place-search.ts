@@ -90,14 +90,25 @@ export async function placeSearchRoute(request:Request,env:PlaceSearchEnv,fetche
     if(!body||Array.isArray(body)||Object.keys(body).join(',')!=='query')throw new Error();
     query=safeText(body.query,120);if(query.length<3)throw new Error();
   }catch{return answer({error:'Enter 3–120 characters to search Islamabad or Rawalpindi.'},400);}
+  // Only a fixed failure stage is exposed: never a key, provider body, IP or query.
+  // This permits the credential-free production smoke to locate failures safely.
+  const unavailable=(stage:'rate-limiter'|'daily-budget'|'provider')=>{
+    const result=answer({error:'Search could not load. Use GPS or paste your exact gate pin.'},503);
+    result.headers.set('x-apex-search-failure-stage',stage);
+    return result;
+  };
+  const ip=request.headers.get('cf-connecting-ip');
+  if(!ip)return answer({error:'Search is unavailable. Paste your exact gate pin instead.'},503);
   try{
-    const ip=request.headers.get('cf-connecting-ip');
-    if(!ip)return answer({error:'Search is unavailable. Paste your exact gate pin instead.'},503);
     if(!(await env.LOCATION_SEARCH_RATE_LIMIT.limit({key:ip})).success||
        !(await env.LOCATION_SEARCH_USAGE_LIMIT.limit({key:'apex-location-search'})).success)
       return answer({error:'Search is busy. Wait a minute, use GPS or paste your exact gate pin.'},429);
+  }catch{return unavailable('rate-limiter');}
+  try{
     if(!(await consumeLocationSearchBudget(env.LOCATION_SEARCH_BUDGET)).success)
-      return answer({error:'Search is unavailable. Use GPS or paste your exact gate pin.'},503);
+      return unavailable('daily-budget');
+  }catch{return unavailable('daily-budget');}
+  try{
     return answer({results:await searchLocalPlaces(query,env.GEOAPIFY_API_KEY,fetcher),attribution:'Powered by Geoapify / OpenStreetMap'});
-  }catch{return answer({error:'Search could not load. Use GPS or paste your exact gate pin.'},503);}
+  }catch{return unavailable('provider');}
 }

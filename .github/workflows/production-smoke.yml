@@ -20,3 +20,5 @@ jobs:
           node-version: '22'
       - name: Check Cloudflare health and fail-closed API routes
         run: node scripts/check-production.mjs
+      - name: Check real public location search (one bounded Geoapify query)
+        run: node scripts/check-production-location-search.mjs

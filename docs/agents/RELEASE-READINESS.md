@@ -1,5 +1,13 @@
 # Technical release-readiness handoff
 
+## Current assignment — 2026-11-16 Phase 1 acceptance
+
+This section supersedes the historical checkpoints below. Follow [the latest founder assignment on #84](https://github.com/MuazShafiq/apex-kennels/issues/84#issuecomment-6923859043) and the single [acceptance/cutover decision](../release-acceptance.md). Main is `607796677ec9a3229d4414c3551b87ba83d60db4`; search is configured and independently live-tested, including same-origin HTTP 200 / wrong-origin 403. Cloudflare/Geoapify Free-account verification is settled. Migrations 004–007 are applied/read back; do not reapply or repeat settled infrastructure work.
+
+All five booking/financial/message activation flags remain absent in a fresh 13-binding settings read. Fatima's own sign-in and exact identity match across Access/Worker allowlists, valid-unallowlisted denial, real-phone/affected-ISP acceptance and explicit cutover approval remain outstanding. Founder already accepted reuse of original Form services/six terms; new optional WhatsApp consent remains separate. Existing Google Form remains operational and the fallback.
+
+Current private admin capability cannot prove the email match: the Access API returns an empty successful list, and `STAFF_ALLOWED_EMAILS` is encrypted. Preserve the existing application and other authorized staff; use an existing authenticated admin session rather than recreating auth. No runtime changes or booking writes are authorized by the acceptance checklist. Prepare open-state monitoring before persistent cutover while preserving the intentionally closed-state production checker.
+
 Scope: finish independently executable verification and engineering, merge verified changes, and retain every production activation gate closed. This brief does not authorize production migrations, provider sends, account registration, paid capacity, historical backfills or customer contact.
 
 ## Active founder scope: 2026-11-16 PKT

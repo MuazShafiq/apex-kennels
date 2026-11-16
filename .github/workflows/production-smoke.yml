@@ -18,7 +18,15 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
+      - name: Verify no-write cutover monitor
+        run: node --test scripts/check-booking-cutover.test.mjs
       - name: Check Cloudflare health and fail-closed API routes
+        if: vars.APEX_PUBLIC_BOOKING_MONITOR_MODE != 'live'
         run: node scripts/check-production.mjs
+      # This variable selects verification only. It cannot activate Worker bookings.
+      # Set to live only as part of separately approved persistent cutover.
+      - name: Check approved live booking without a booking write
+        if: vars.APEX_PUBLIC_BOOKING_MONITOR_MODE == 'live'
+        run: node scripts/check-booking-cutover.mjs
       - name: Check real public location search (one bounded Geoapify query)
         run: node scripts/check-production-location-search.mjs

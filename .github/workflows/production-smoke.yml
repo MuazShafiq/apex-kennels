@@ -25,3 +25,5 @@ jobs:
         run: node scripts/check-production.mjs
       - name: Check real public location search (one bounded Geoapify query)
         run: node scripts/check-production-location-search.mjs
+
+# Temporary CI proof after production error-stage release; never merge this branch.

@@ -64,7 +64,7 @@ export async function searchLocalPlaces(query:string,key:string,fetcher:typeof f
   url.search=new URLSearchParams({text:normalizePlaceQuery(query),format:'json',limit:'5',lang:'en',
     filter:'rect:'+TRANSPORT_SERVICE_BOUNDS.join(','),bias:'proximity:73.06,33.65',apiKey:key}).toString();
   let response:Response;
-  try{response=await fetcher(url,{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(4500)});}
+  try{response=await fetcher(url,{redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(4500)});}
   catch{throw new PlaceProviderError('network');}
   if(!response.ok)throw new PlaceProviderError('http',response.status);
   let data:{results?:unknown};

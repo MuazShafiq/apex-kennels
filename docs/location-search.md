@@ -24,3 +24,5 @@ The [final live seven-query result](location-search-refined-live-final-2026-11-1
 No provider/configuration activation is part of this change. Google Places Autocomplete (New) remains an option requiring separately approved existing billing/restricted credentials; this implementation does not select or enable it. Real-phone/ISP acceptance under #37 remains separate from browser emulation. Review no-charge account limits and distributed usage protection before configuring search.
 
 No public booking, invoice, customer-send or payment gate changes are part of this work.
+
+cdx-74 independently repeated the original seven scoped live queries at **2026-11-16 13:01:46 UTC**, using the existing private key and one request per query. All completed successfully: F-10 Markaz, DHA Phase 2 (same mosque/address candidate), Bahria Phase 7, G-13, Saddar, US Embassy and Centaurus ranked first. The relevant coordinates match the retained final JSON artifact. This fresh run confirms those API results; it does not verify entrances, phone/ISP behavior or production search configuration. Seven provider calls were made; no credentials were printed or committed.

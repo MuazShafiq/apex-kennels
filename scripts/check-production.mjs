@@ -30,7 +30,7 @@ async function runChecks() {
   if(page.status!==200)throw new Error('Customer booking preview unavailable: '+page.status);
   const bookingHtml=await page.text();
   for(const marker of [
-    'Google Maps link or exact pin coordinates',
+    'id="maps-link"','id="locate"',
     'id="transport-pickup"','id="transport-dropoff"',
     'id="transport-none"','id="same-dropoff"'
   ]){

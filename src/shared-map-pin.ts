@@ -27,34 +27,61 @@ function pakistanPin(lat:number,lon:number):GeoPin|null{
     lat>=23&&lat<=38&&lon>=60&&lon<=78 ? {lat,lon} : null;
 }
 
-/** Google place data coordinates identify the place pin, unlike a /@ viewport. */
-export function parseGooglePlacePin(urlString:string):GeoPin|null{
-  try {
-    const url=new URL(urlString);
-    if(!allowedGoogleMaps(url)||url.hostname.toLowerCase()===SHORT_HOST)return null;
+/** Collect every explicit destination signal before selecting one. Viewports are ignored. */
+function exactGooglePin(url:URL,includeQuery:boolean):{pin:GeoPin;type:'explicit_coordinates'|'google_maps_place'}|null{
+  if(!allowedGoogleMaps(url)||url.hostname.toLowerCase()===SHORT_HOST)return null;
+  try{
     const pathname=decodeURIComponent(url.pathname);
-    // A directions link can contain multiple place data points; do not guess
-    // which represents the customer's pickup gate.
-    if(pathname.startsWith('/maps/dir/'))return null;
-    // Full Google URLs place the exact marker either in /data=... or
-    // ?data=...; neither is interchangeable with the @viewport centre.
-    const exact=/!3d(-?\d{1,2}(?:\.\d+)?)!4d(-?\d{1,3}(?:\.\d+)?)(?:!|\/|$)/;
-    const marker=pathname.match(exact)??url.searchParams.get('data')?.match(exact);
-    if(marker)return pakistanPin(Number(marker[1]),Number(marker[2]));
-    // A dropped pin can also be encoded as /maps/place/lat,lon.
+    if(/^\/maps\/dir(?:\/|$)/.test(pathname))return null;
+    const pins:GeoPin[]=[];
+    let queryPin=false;
+    // Multiple data fields/markers can encode distinct destinations. Never choose
+    // the first match or let q/query override a different selected-place marker.
+    const exact=/!3d(-?\d{1,2}(?:\.\d+)?)!4d(-?\d{1,3}(?:\.\d+)?)(?=!|\/|$)/g;
+    for(const source of [pathname,...url.searchParams.getAll('data')]){
+      for(const marker of source.matchAll(exact)){
+        const pin=pakistanPin(Number(marker[1]),Number(marker[2]));
+        if(!pin)return null;
+        pins.push(pin);
+      }
+    }
     const coordinatePlace=pathname.match(/^\/maps\/place\/(-?\d{1,2}(?:\.\d+)?),\s*(-?\d{1,3}(?:\.\d+)?)(?:\/|$)/);
-    if(coordinatePlace)
-      return pakistanPin(Number(coordinatePlace[1]),Number(coordinatePlace[2]));
-    return null;
+    if(coordinatePlace){
+      const pin=pakistanPin(Number(coordinatePlace[1]),Number(coordinatePlace[2]));
+      if(!pin)return null;
+      pins.push(pin);
+    }
+    const hasPlacePin=pins.length>0;
+    // Always detect conflicting coordinate queries, even for the place parser.
+    for(const value of [...url.searchParams.getAll('q'),...url.searchParams.getAll('query')]){
+      const coordinates=value.trim().match(/^(-?\d{1,2}(?:\.\d+)?),\s*(-?\d{1,3}(?:\.\d+)?)$/);
+      if(coordinates){
+        const pin=pakistanPin(Number(coordinates[1]),Number(coordinates[2]));
+        if(!pin)return null;
+        pins.push(pin);queryPin=true;
+      }
+    }
+    if(!pins.length||pins.some(pin=>pin.lat!==pins[0].lat||pin.lon!==pins[0].lon))return null;
+    if(!includeQuery&&!hasPlacePin)return null;
+    return {pin:pins[0],type:queryPin?'explicit_coordinates':'google_maps_place'};
   }catch{return null;}
 }
 
+/** Google place data coordinates identify the place pin, unlike a /@ viewport. */
+export function parseGooglePlacePin(urlString:string):GeoPin|null{
+  try{return exactGooglePin(new URL(urlString),false)?.pin??null;}
+  catch{return null;}
+}
+
 function fromExactUrl(value:string):{pin:GeoPin;type:'explicit_coordinates'|'google_maps_place'}|null{
-  const explicit=parseExplicitCoordinatePin(value);
-  if(explicit)return {pin:explicit,type:'explicit_coordinates'};
-  const google=parseGooglePlacePin(value);
-  if(google)return {pin:google,type:'google_maps_place'};
-  return null;
+  // Only plain coordinates bypass URL validation; the shared route parser's URL
+  // convenience parsing must not bypass credentials/port/directions checks here.
+  if(/^[-0-9.,\s]+$/.test(value)){
+    const pin=parseExplicitCoordinatePin(value);
+    return pin?{pin,type:'explicit_coordinates'}:null;
+  }
+  try{return exactGooglePin(new URL(value),true);}
+  catch{return null;}
 }
 
 /**

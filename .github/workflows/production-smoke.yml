@@ -28,5 +28,5 @@ jobs:
       - name: Check approved live booking without a booking write
         if: vars.APEX_PUBLIC_BOOKING_MONITOR_MODE == 'live'
         run: node scripts/check-booking-cutover.mjs
-      - name: Check real public location search (one bounded Geoapify query)
-        run: node scripts/check-production-location-search.mjs
+      - name: Check gate-picker assets and exact-pin validation without provider calls
+        run: node scripts/check-production-gate-picker.mjs

@@ -79,13 +79,19 @@ test('link endpoint refuses cross-origin and unrelated fields without resolving 
   assert.equal(calls,0);
 });
 
-test('book page keeps provider credentials and map tiles off the client',()=>{
+test('book page lazily loads one pinned local map and keeps private credentials off the client',()=>{
   const html=readFileSync('public/book/index.html','utf8');
   const js=readFileSync('public/book/app.js','utf8');
-  assert.match(html,/Open Google Maps/);
+  assert.match(html,/Find in Google Maps/);
   assert.match(html,/id="maps-link"/);
   assert.match(html,/Use my current location/);
-  assert.doesNotMatch(html,/unpkg|maplibre|openfreemap|TomTom/);
+  assert.doesNotMatch(html,/<script[^>]+(?:unpkg|maplibre|openfreemap|TomTom)/);
+  assert.match(js,/maplibre-gl-5\.6\.1\.js/);
+  assert.match(js,/https:\/\/tiles\.openfreemap\.org\/styles\/liberty/);
+  assert.match(html,/OpenFreeMap/);
+  assert.equal((html.match(/id="map-canvas"/g)||[]).length,1);
+  assert.doesNotMatch(html,/place-search|Geoapify/);
+  assert.doesNotMatch(js,/api\/book\/search/);
   assert.doesNotMatch(js,/GEOAPIFY_API_KEY|TOMTOM_API_KEY|google\.maps\.api|api\/book\/places/);
 });
 
@@ -108,8 +114,9 @@ test('customer-facing booking retains service details, exact six terms and no re
   assert.match(js,/noTransport\.checked/);
   assert.doesNotMatch(html,/Camera cage requested\?|id="map"/);
   assert.match(html,/id="confirm-gate"/);
-  assert.match(html,/id="place-search"/);
-  assert.doesNotMatch(js,/maplibregl|api\/book\/places/);
+  assert.match(html,/id="choose-map"/);
+  assert.match(html,/id="dropoff-choose-map"/);
+  assert.doesNotMatch(js,/api\/book\/places/);
   assert.match(js,/customerConfirmed:true/);
 });
 test('retired search endpoints no longer expose providers or consume API credits',async()=>{

@@ -156,13 +156,6 @@ button:focus-visible,a:focus-visible{outline:3px solid #8ca6e7;outline-offset:3p
 }
 /* Transport services are independent decisions. Square controls and labels
    share a fixed two-column grid so their baselines never drift on mobile. */
-.place-results{list-style:none;padding:0;margin:8px 0;display:grid;gap:8px}
-.place-results[hidden]{display:none}
-.place-results button{width:100%;text-align:left;white-space:normal;min-height:44px;overflow-wrap:anywhere}
-.place-results button[aria-selected=true]{outline:3px solid #a7b3ef;outline-offset:-3px}
-[id$="gate-review"]{margin:12px 0;padding:12px;border:1px solid #d4e2f3;border-radius:10px}
-[id$="gate-review"] p{font-size:13px;line-height:1.5}
-[id$="confirm-gate"]{margin-top:12px;min-height:44px}
 .transport-help{font-size:12px;color:#67738c;margin:2px 0 15px}
 .transport-service-list{display:grid;gap:13px}
 .transport-service-block{min-width:0;border:1px solid #d4e2f3;border-radius:12px;background:#fbfdff;overflow:hidden}
@@ -192,3 +185,49 @@ button:focus-visible,a:focus-visible{outline:3px solid #8ca6e7;outline-offset:3p
   .transport-location-reuse{padding:2px 15px 15px}
   .reuse-checkbox{padding:12px}
 }
+/* Gate selection keeps the established Apex blue, clear labels and generous touch targets. */
+.gate-methods{margin:17px 0 14px}
+.gate-primary{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;border:1px solid #3e4095;border-radius:10px;background:#3e4095;color:#fff;padding:14px 18px;min-height:52px;font-size:14px;font-weight:760;text-align:left;width:100%}
+.gate-primary small{font-size:12px;font-weight:480;color:#e6eaff}
+.gate-primary:hover{background:#303274}
+.gate-primary:disabled{opacity:.5;cursor:not-allowed}
+.gate-methods .location-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:9px 0 0;align-items:stretch}
+.gate-methods .secondary,.gate-methods .maps-button{display:flex;justify-content:center;align-items:center;gap:8px;min-height:48px;padding:11px 12px;font-size:12px;background:#fff;border:1px solid #bccced;color:#3e4095;text-align:center;line-height:1.4}
+.gate-methods .maps-button:hover{background:#eef1ff}
+.gate-review{margin:14px 0 0;padding:14px;background:#eef2ff;border:1px solid #ccd7ee;border-radius:10px}
+.gate-review[hidden]{display:none}
+.gate-review p{font-size:12px;color:#465071;margin:0 0 11px;line-height:1.65}
+.gate-review button{min-height:44px}
+.transport-location-panel .location-status{margin:13px 0 9px;font-size:13px;font-weight:680;line-height:1.6;overflow-wrap:anywhere}
+.transport-location-panel .pin-link{display:inline-block;min-height:38px;padding:5px 0;font-size:12px}
+.transport-location-panel .pin-link[hidden]{display:none}
+.gate-picker{position:relative;inset:auto;width:100%;max-width:none;max-height:none;padding:0;margin:12px 0 20px;border:1px solid #c4d4ed;border-radius:13px;background:#fff;color:#343b62;overflow:hidden;box-shadow:0 8px 25px #3032740b}
+.gate-picker:not([open]){display:none}
+.map-heading{display:flex;align-items:flex-start;gap:16px;justify-content:space-between;padding:17px 17px 14px;background:#f5f9ff}
+.map-heading h4{font-size:18px;line-height:1.25;letter-spacing:-.025em;margin:0 0 7px;color:#303274}
+.map-heading p{font-size:12px;line-height:1.6;margin:0;max-width:520px;color:#5c6985}
+.map-heading button{min-height:44px;flex-shrink:0;background:white}
+.map-surface{position:relative;min-height:330px;height:400px;background:#e4edf1;overflow:hidden}
+#map-canvas{position:absolute;inset:0}
+#map-canvas canvas:focus-visible{outline:3px solid #3e4095;outline-offset:-4px}
+.gate-pin{position:absolute;top:50%;left:50%;width:32px;height:40px;filter:drop-shadow(0 2px 3px #30327450);transform:translate(-50%,-100%);pointer-events:none}
+.map-loading{position:absolute;inset:0;display:grid;place-items:center;background:#edf3f7eb;color:#465071;font-size:14px;pointer-events:none}
+.map-loading[hidden]{display:none}
+.map-footer{padding:13px 17px 10px;background:#fff}
+.map-footer .location-status{font-size:12px!important;line-height:1.5;margin:0 0 10px!important;font-weight:650;min-height:18px}
+.map-footer .gate-primary{align-items:center;text-align:center;min-height:48px}
+.map-fallback{display:block;margin:6px auto 0;background:transparent;border:0;color:#3e4095;min-height:44px;padding:8px;font-size:12px;text-decoration:underline;text-underline-offset:3px}
+.map-attribution{font-size:10px!important;line-height:1.7;margin:5px 0 0!important;color:#5c6985;text-align:center}
+.map-attribution a{color:#465071;display:inline-block;padding:3px 0;text-underline-offset:2px}
+.gate-picker .maplibregl-ctrl-group button{width:44px;height:44px}
+body.gate-map-open{overflow:hidden}
+@media(max-width:700px){
+  .gate-picker:modal{position:fixed;inset:0;width:100%;height:100%;height:100dvh;max-height:100dvh;max-width:100%;margin:0;border:0;border-radius:0;display:flex;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);background:#fff}
+  .gate-picker::backdrop{background:#252b4566}
+  .map-heading{padding:16px;flex-shrink:0;gap:12px}
+  .map-heading p{font-size:12px}
+  .map-surface{height:auto;min-height:180px;flex:1}
+  .map-footer{padding:12px 16px 7px;flex-shrink:0}
+}
+@media(max-width:380px){.gate-methods .location-actions{grid-template-columns:1fr}.map-heading h4{font-size:17px}.map-heading{padding:13px}.map-footer{padding:10px 13px 6px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}

@@ -34,11 +34,10 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node --check scripts/check-local.mjs
-      - run: node --check scripts/check-production-location-search.mjs
+      - run: node --check scripts/check-production-gate-picker.mjs
       - run: node --test scripts/check-booking-cutover.test.mjs
       - run: npm run form:check
       - run: npm run cf:check
-      - run: node scripts/check-location-search-budget-local.mjs
       - run: npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund pg@8.16.3
       - run: node --test scripts/prepare-production-migrations.test.mjs
         env:

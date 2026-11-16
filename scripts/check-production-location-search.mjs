@@ -22,7 +22,10 @@ const response=await fetch(target,options);
 if(response.status!==200){
   const candidate=response.headers.get('x-apex-search-failure-stage');
   const stage=['rate-limiter','daily-budget','provider'].includes(candidate)?candidate:'unknown';
-  throw new Error('Live location search unavailable (HTTP '+response.status+', stage '+stage+')');
+  const failure=response.headers.get('x-apex-search-provider-failure');
+  const safeFailure=/^(network|invalid-response|http-(?:[1-5][0-9]{2}|unknown))$/.test(failure||'')?failure:'unclassified';
+  throw new Error('Live location search unavailable (HTTP '+response.status+', stage '+stage+
+    (stage==='provider'?', provider '+safeFailure:'')+')');
 }
 if(response.headers.get('cache-control')!=='no-store')
   throw new Error('Live location search missing no-store');

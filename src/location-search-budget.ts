@@ -17,8 +17,11 @@ export class LocationSearchBudget {
   private readonly now:()=>number;
   constructor(state:BudgetState,_env?:unknown,now:()=>number=Date.now){this.state=state;this.now=now;}
   async fetch(request:Request):Promise<Response>{
-    if(request.method!=='POST'||request.url!==INTERNAL_URL||request.body!==null)return answer(false,400);
+    if(request.method!=='POST'||request.url!==INTERNAL_URL)return answer(false,400);
     try{
+      // workerd may represent an empty POST as an empty stream, unlike Node.
+      // Read at most one chunk; any body data is outside the internal contract.
+      if(request.body){const reader=request.body.getReader();const first=await reader.read();await reader.cancel();if(!first.done)return answer(false,400);}
       const day=new Date(this.now()).toISOString().slice(0,10);
       const success=await this.state.storage.transaction(async storage=>{
         const raw=await storage.get<unknown>('daily');

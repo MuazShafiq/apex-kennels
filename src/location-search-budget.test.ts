@@ -51,8 +51,8 @@ test('binding helper always uses the singleton and exact empty internal request,
  assert.deepEqual(await consumeLocationSearchBudget({idFromName:()=>{throw new Error('secret');},get:()=>{throw new Error('secret');}}),{success:false});
 });
 
-test('Wrangler uses SQLite, isolates preview budget and edge namespaces, and does not bind staging to production',()=>{
- const config=JSON.parse(readFileSync(new URL('../wrangler.jsonc',import.meta.url),'utf8'));
+test('unapplied configuration example uses SQLite and isolated preview namespaces; production remains unconfigured',()=>{
+ const config=JSON.parse(readFileSync(new URL('../docs/examples/location-search-wrangler.jsonc',import.meta.url),'utf8'));
  assert.deepEqual(config.migrations,[{tag:'location-search-budget-v1',new_sqlite_classes:['LocationSearchBudget']}]);
  assert.deepEqual(config.durable_objects.bindings,[{name:'LOCATION_SEARCH_BUDGET',class_name:'LocationSearchBudget'}]);
  assert.deepEqual(config.previews.durable_objects,config.durable_objects);
@@ -61,4 +61,6 @@ test('Wrangler uses SQLite, isolates preview budget and edge namespaces, and doe
  assert.equal(new Set([...production,...preview].map((x:{namespace_id:string})=>x.namespace_id)).size,4);
  const staging=JSON.parse(readFileSync(new URL('../wrangler.staging.jsonc',import.meta.url),'utf8'));
  assert.notEqual(staging.name,config.name);assert.equal(staging.durable_objects,undefined);assert.equal(staging.ratelimits,undefined);
+ const productionConfig=JSON.parse(readFileSync(new URL('../wrangler.jsonc',import.meta.url),'utf8'));
+ assert.equal(productionConfig.durable_objects,undefined);assert.equal(productionConfig.ratelimits,undefined);assert.equal(productionConfig.migrations,undefined);
 });

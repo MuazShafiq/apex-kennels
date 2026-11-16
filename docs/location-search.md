@@ -6,12 +6,18 @@ The Worker calls Geoapify autocomplete privately with `filter=rect:72.81,33.43,7
 
 ## Configuration and usage protection
 
-`POST /api/book/search` requires same origin, a JSON body with only `query` (3–120 characters), the existing private `GEOAPIFY_API_KEY`, and both Cloudflare rate-limit bindings:
+`POST /api/book/search` requires same origin, a JSON body with only `query` (3–120 characters), the existing private `GEOAPIFY_API_KEY`, the global `LOCATION_SEARCH_BUDGET` namespace, and both Cloudflare rate-limit bindings:
 
 - `LOCATION_SEARCH_RATE_LIMIT`: per trusted `CF-Connecting-IP`, recommended 10 requests / 60 seconds.
 - `LOCATION_SEARCH_USAGE_LIMIT`: shared `apex-location-search` key, recommended 30 requests / 60 seconds.
 
-Missing either limiter or the private key fails closed with 503. No bindings are automatically added by this change: provider quality must be measured first. Cloudflare rate limiting applies per Cloudflare location, so the shared key is an edge usage bound, **not a worldwide daily credit cap**. Keep the account on an authorized no-charge plan with an account credit ceiling; paid expansion requires approval. If the account cannot enforce that ceiling, keep the search unavailable pending an explicitly approved quota solution. Never infer that a successful route lookup proves autocomplete relevance.
+Missing any protection or the private key fails closed with 503. `APEX_LOCATION_SEARCH_DISABLED=true` disables search without rotating the shared route-provider credential. Cloudflare rate limiting applies per Cloudflare location, so the shared edge key alone is not a worldwide daily credit cap.
+
+The SQLite Durable Object `LocationSearchBudget`, accessed only through singleton `search-v1`, atomically reserves at most **250 search calls per UTC day** across edges. Reserve after input/IP/edge validation and before the one provider request; uncertain/provider failures remain consumed, with no retries or refunds. Stored state is only UTC day/count. Corrupt state, clock rollback, storage/binding failure and exhaustion refuse provider work. Preserve namespace/class/singleton identity through deploys and rollbacks; recreating it would reset the allowance. This bounds search calls only: staff routing and other uses of the same Geoapify account still require an account-wide no-charge credit ceiling.
+
+Active `wrangler.jsonc` deliberately remains unchanged. The unapplied [configuration example](examples/location-search-wrangler.jsonc) describes the SQLite migration, production bindings and separate preview edge namespaces. Do not deploy that example directly. First verify actual Cloudflare account eligibility and Geoapify plan/credits privately; then review and apply only the relevant configuration under release scope. Cloudflare documents a [SQLite Durable Objects free tier](https://developers.cloudflare.com/durable-objects/platform/pricing/), but published availability does not prove this account's plan or authorize paid capacity. Keep search unavailable if no-charge operation cannot be established. This engineering change provisions no remote object, binding, rate limit or paid service.
+
+`node scripts/check-location-search-budget-local.mjs` exercises actual local workerd/SQLite: exactly 250 of 300 concurrent reservations succeed, exhaustion survives runtime restart, and no public budget route exists. CI runs this on Node 22/24. Unit/route tests additionally cover UTC rollover, corrupt state, kill switch, refusal before provider contact and no refund. This is local runtime evidence, not production namespace/account acceptance.
 
 ## Live relevance evidence
 

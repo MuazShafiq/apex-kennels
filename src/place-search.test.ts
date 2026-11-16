@@ -5,7 +5,8 @@ import {handleWorkerRequest} from './cloudflare-worker.ts';
 const endpoint='https://apex.invalid/api/book/search';
 const post=(body:unknown,extra:Record<string,string>={})=>new Request(endpoint,{method:'POST',headers:{origin:'https://apex.invalid','content-type':'application/json','cf-connecting-ip':'192.0.2.1',...extra},body:JSON.stringify(body)});
 const allow={limit:async()=>({success:true})};
-const env={GEOAPIFY_API_KEY:'synthetic-private-key',LOCATION_SEARCH_RATE_LIMIT:allow,LOCATION_SEARCH_USAGE_LIMIT:allow};
+const budget={idFromName:()=>0,get:()=>({fetch:async()=>Response.json({success:true})})};
+const env={GEOAPIFY_API_KEY:'synthetic-private-key',LOCATION_SEARCH_RATE_LIMIT:allow,LOCATION_SEARCH_USAGE_LIMIT:allow,LOCATION_SEARCH_BUDGET:budget};
 const row={formatted:'F-10 Markaz, Islamabad, Pakistan',address_line2:'Islamabad, Pakistan',lat:33.695,lon:73.01,country_code:'pk'};
 test('query spelling refinements preserve explicit places and only remove city suffixes for sector/phase searches',()=>{
   for(const [query,expected] of [
@@ -77,4 +78,30 @@ test('bounded provider errors never leak credentials and local results remain ca
   assert.equal(response.status,200);const body=await response.json();
   assert.equal(body.results.length,1);assert.equal(body.results[0].customerConfirmed,undefined);
   assert.equal(response.headers.get('cache-control'),'no-store');
+});
+
+test('search reserves budget once after validation and edge checks; refusals and provider failures never refund or retry',async()=>{
+  let reservations=0,providers=0;
+  const counted={idFromName:(name:string)=>{assert.equal(name,'search-v1');return 0;},get:()=>({fetch:async()=>{reservations++;return Response.json({success:true});}})};
+  const configured={...env,LOCATION_SEARCH_BUDGET:counted};
+  const provider=async()=>{providers++;assert.equal(reservations,providers);return Response.json({results:[row]});};
+  for(const incomplete of [{...configured,LOCATION_SEARCH_BUDGET:undefined},{...configured,APEX_LOCATION_SEARCH_DISABLED:'true'}])
+    assert.equal((await placeSearchRoute(post({query:'F-10'}),incomplete,provider)).status,503);
+  assert.equal((await placeSearchRoute(post({query:'ab'}),configured,provider)).status,400);
+  assert.equal((await placeSearchRoute(post({query:'F-10'}),{...configured,LOCATION_SEARCH_USAGE_LIMIT:{limit:async()=>({success:false})}},provider)).status,429);
+  const noIp=post({query:'F-10'});noIp.headers.delete('cf-connecting-ip');
+  assert.equal((await placeSearchRoute(noIp,configured,provider)).status,503);
+  assert.equal(reservations,0);assert.equal(providers,0);
+  assert.equal((await placeSearchRoute(post({query:'F-10'}),configured,provider)).status,200);
+  assert.equal(reservations,1);assert.equal(providers,1);
+  assert.equal((await placeSearchRoute(post({query:'F-10'}),configured,async()=>{providers++;throw new Error('provider failure');})).status,503);
+  assert.equal(reservations,2);assert.equal(providers,2);
+  for(const response of [Response.json({success:false}),Response.json({success:'true'}),Response.json({success:true,extra:'private'}),new Response('bad'),new Response('private',{status:503})]){
+    const failed={idFromName:()=>0,get:()=>({fetch:async()=>response})};
+    assert.equal((await placeSearchRoute(post({query:'F-10'}),{...env,LOCATION_SEARCH_BUDGET:failed},provider)).status,503);
+  }
+  const throwing={idFromName:()=>0,get:()=>({fetch:async()=>{throw new Error('private budget failure');}})};
+  const refused=await placeSearchRoute(post({query:'F-10'}),{...env,LOCATION_SEARCH_BUDGET:throwing},provider);
+  assert.equal(refused.status,503);assert.doesNotMatch(await refused.text(),/private budget/);
+  assert.equal(providers,2);
 });

@@ -1,6 +1,10 @@
 # Technical release-readiness handoff
 
-## Current assignment — 2026-11-16 Phase 1 acceptance
+## Current assignment — 2026-11-17 zero-billing exact-gate picker
+
+The [canonical founder body of #93](https://github.com/MuazShafiq/apex-kennels/issues/93) supersedes previous customer autocomplete/search requirements and conflicting checkpoints below. Implement one MapLibre/OpenFreeMap gate picker with explicit confirmation, consumer Google Maps share/paste and optional GPS; preserve independent pickup/drop-off, same-gate default and map-failure fallback. No paid service, public-booking/financial/message activation or customer submission. See [current location behavior](../customer-shared-map-pins.md), [retirement inventory](../location-search.md), and [human release checks](../release-acceptance.md). Physical iPhone/Safari and affected-ISP/mobile-data remain separate human acceptance. Source implementation is not deployment; the sole operator records actual tests, release version and unchanged flags.
+
+## Historical assignment — 2026-11-16 Phase 1 acceptance
 
 This section supersedes the historical checkpoints below. Follow [the latest founder assignment on #84](https://github.com/MuazShafiq/apex-kennels/issues/84#issuecomment-6923859043) and the single [acceptance/cutover decision](../release-acceptance.md). Main is `607796677ec9a3229d4414c3551b87ba83d60db4`; search is configured and independently live-tested, including same-origin HTTP 200 / wrong-origin 403. Cloudflare/Geoapify Free-account verification is settled. Migrations 004–007 are applied/read back; do not reapply or repeat settled infrastructure work.
 

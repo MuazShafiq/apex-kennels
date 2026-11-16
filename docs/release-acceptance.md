@@ -1,6 +1,10 @@
 # Remaining release acceptance
 
-## Current Phase 1 decision — 2026-11-16
+## Current gate-picker scope — 2026-11-17
+
+Canonical [founder scope #93](https://github.com/MuazShafiq/apex-kennels/issues/93) supersedes the earlier customer-search approach. Use the free MapLibre/OpenFreeMap exact-gate picker, consumer Google Maps link/paste and optional GPS. Autocomplete and the scheduled F-10 provider probe are retired; [removal inventory and retained namespace compatibility](location-search.md). This source change is not deployment or physical-device acceptance. Keep every booking/financial/message flag closed.
+
+## Historical Phase 1 checkpoint — 2026-11-16
 
 **HOLD public cutover.** Engineering and live search evidence do not replace Fatima's own staff login, real-phone/affected-ISP acceptance, valid-unallowlisted identity denial, or explicit cutover approval. See #84's [current assignment](https://github.com/MuazShafiq/apex-kennels/issues/84#issuecomment-6923859043). Migrations 004–007 are already applied/read back; do not reapply. Cloudflare/Geoapify Free-account and search-guard verification is settled in that assignment.
 
@@ -25,11 +29,11 @@ The operator still needs an existing authenticated Access-admin session to compa
 
 ### Exact cutover and recovery actions (not authorized yet)
 
-After the required acceptance and explicit founder approval, the sole operator sets remote plain-text `APEX_PUBLIC_BOOKING_ENABLED` to exactly `true`, retaining existing database/Turnstile secrets and search guards. Verify config `enabled:true`, Turnstile on the existing hostname and invalid empty same-origin POST rejection before any authorized real submission. No token rotation, migration or financial/message flag change is needed.
+After the required acceptance and explicit founder approval, the sole operator sets remote plain-text `APEX_PUBLIC_BOOKING_ENABLED` to exactly `true`, retaining existing database/Turnstile secrets. Verify config `enabled:true`, Turnstile on the existing hostname and invalid empty same-origin POST rejection before any authorized real submission. No token rotation, migration or financial/message flag change is needed.
 
 Replace the externally published customer booking link with `https://apex-kennels-api.muaz-shafiq18.workers.dev/book`. Inventory the actual publication locations privately before changing them; they are not tracked in this repository. Keep the current Google Form link available as fallback and leave its authenticated ingest/recovery unchanged. Do not guess a Form URL.
 
-The existing production checker and manual deployment procedure intentionally require the booking gate closed. The separate `scripts/check-booking-cutover.mjs` checks live config, empty-envelope 400, wrong-origin 403 and anonymous staff denial, without a booking or Turnstile token. Scheduled monitoring defaults to the unchanged closed checker; only at approved persistent cutover set GitHub repository variable `APEX_PUBLIC_BOOKING_MONITOR_MODE=live`. That variable selects verification and cannot activate bookings. The real-search check runs in both modes. Independently check actual remote financial/message flags remain absent; HTTP checks alone do not prove those secret/configuration states. The guarded manual deploy procedure remains closed-state-only: do not invoke it against a live release or open a new deployment lane without a separately reviewed procedure.
+The existing production checker and manual deployment procedure intentionally require the booking gate closed. The separate `scripts/check-booking-cutover.mjs` checks live config, empty-envelope 400, wrong-origin 403 and anonymous staff denial, without a booking or Turnstile token. Scheduled monitoring defaults to the unchanged closed checker; only at approved persistent cutover set GitHub repository variable `APEX_PUBLIC_BOOKING_MONITOR_MODE=live`. That variable selects verification and cannot activate bookings. The no-write gate-picker check runs in both modes; it verifies current assets, exact local pin parsing and ambiguous/outside/cross-origin refusal without contacting map/geocoding providers. Independently check actual remote financial/message flags remain absent; HTTP checks alone do not prove those secret/configuration states. The guarded manual deploy procedure remains closed-state-only: do not invoke it against a live release or open a new deployment lane without a separately reviewed procedure.
 
 Rollback sets the remote booking flag to `false`/absent, removes/resets the monitor variable, restores the customer link to the existing Form and verifies config `enabled:false`, POST 503 and the full existing production checker. Preserve already received bookings. No monitoring variable or Worker gate has been changed during preparation.
 
@@ -44,10 +48,10 @@ Open the [booking preview](https://apex-kennels-api.muaz-shafiq18.workers.dev/bo
 | Check | Expected result |
 | --- | --- |
 | Open page on mobile data and affected ISP | Preview loads; form controls remain usable; public submission remains closed. |
-| Search F-10 / a local phase or landmark | Relevant suggestion can be tapped with the touch keyboard open; its label is sufficiently specific. A candidate is not a verified entrance. |
-| Select, adjust and confirm vehicle gate | Selected coordinates can be adjusted to the actual entrance and require explicit confirmation; changing the candidate clears stale confirmation. |
-| Separate drop-off search | Independent search/confirmation retains distinct pickup and drop-off gates. |
-| Empty search or unavailable provider | Clear guidance and usable GPS / exact Maps-pin fallback; do not exhaust the daily budget to manufacture an outage. |
+| Choose on map | Map loads with attribution; pan/zoom beneath the central pin and explicitly confirm the exact entrance. Initial view is never selected automatically. |
+| Move after confirming | Panning or another location choice clears stale confirmation; submission needs the new exact gate confirmed. |
+| Separate drop-off picker | One reused map supports independently selected and confirmed pickup/drop-off gates. |
+| Map/WebGL/tiles unavailable | Clear guidance and usable exact Google Maps link/coordinate/GPS fallback; there is no customer provider-search dependency. |
 | No transport | Explicit selection; both service selections clear and pin controls hide. |
 | Pickup only / drop-off only | Only the relevant gate input appears and retains its selected exact pin. |
 | Both, same gate | Reuse-pickup is selected by default; no second required gate input. |

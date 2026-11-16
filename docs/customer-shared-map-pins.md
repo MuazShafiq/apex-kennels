@@ -1,16 +1,17 @@
-# Customer location: Google Maps share link or device GPS
+# Customer location: choose and confirm the exact vehicle gate
 
-The new Apex booking preview (`/book`) does **not** embed a map or call a paid place-search API. For pickup or drop-off inside Islamabad–Rawalpindi, customers choose between:
+The Apex booking preview (`/book`) uses one gate picker for independent pickup/drop-off, with three clear choices:
 
-1. **Use my current location**, when standing at the pickup address and granting location permission.
-2. **Open Google Maps**, search for an address or drop a pin on the entrance, choose **Share → Copy link**, and paste the link into Apex.
+1. **Choose on map.** A lazily loaded, locally served pinned MapLibre GL JS library shows OpenFreeMap's free vector basemap. Pan/zoom beneath the central pin, then explicitly confirm the vehicle entrance. The initial map view is never a selected gate. Movement or a changed point clears earlier confirmation. The same map is reused for pickup and drop-off; attribution stays visible.
+2. **Find in Google Maps.** Open the free consumer Maps link, search there, long-press the exact vehicle entrance, choose **Share → Copy link**, return to Apex and paste. Apex cannot automatically receive a point from the Maps app. Review and confirm the exact pin on the Apex map when available.
+3. **Use my current location.** Grant device permission only when at the intended gate; GPS selects a candidate but never confirms it automatically.
 
-The private Worker-side link handler `POST /api/book/location` uses `src/shared-map-pin.ts`, which was originally built for the legacy staff location checker. The resolver accepts explicit numeric pin coordinates and certain Google Maps selected-place URLs, plus short `maps.app.goo.gl` links that redirect to a resolvable exact pin. It never guesses a destination from a text address or from a map viewport's `/@` coordinates. Redirects are restricted to allowlisted HTTPS Google domains with bounded hops.
+No transport requires no pin. Pickup and drop-off are independent; when both are requested, reuse-pickup is selected by default. Unchecking reuse requires a separately confirmed drop-off gate. Only Islamabad/Rawalpindi points within the existing service envelope are accepted. Staff still review physical vehicle access and all transport pricing.
 
-The customer-facing endpoint checks same-origin requests and payload size, returns only the parsed coordinates and a Google Maps review link, and rejects locations outside the configured Islamabad–Rawalpindi operating area. Customers who don't request transport don't need a pin.
+Map/WebGL/tiles failure leaves exact Google Maps URL, pasted coordinates and GPS usable. Manual latitude/longitude editing is an optional fallback, not the default journey. There is no billable Places SDK, map billing account, API key in the browser, reverse geocoding during panning, or provider failover. OpenFreeMap has no uptime SLA; functional text/link/GPS fallbacks are required.
 
-**Limits:** Some Google Maps share URLs do not identify an exact point. Apex rejects those rather than silently producing a wrong transport price. Location accuracy and access for vehicles still need staff review. No invoice or payment action happens here.
+`POST /api/book/location` and `src/shared-map-pin.ts` accept explicit numeric coordinates and exact selected-pin Google URLs. Short `maps.app.goo.gl` redirects are bounded and restricted to allowlisted HTTPS Google domains. The resolver never guesses from names, addresses, directions or `/@` viewport centres. Same-origin/body validation and server-side area bounds remain enforced; pin preparation neither saves a booking nor issues an invoice.
 
-The earlier `/staff/location` helper remains behind Cloudflare Access solely for legacy Form bookings; it does not save locations. Route estimation uses Geoapify separately once the kennel entrance, required Bawli access point and customer gate are verified.
+The legacy `/staff/location` checker remains protected by Cloudflare Access. Geoapify is retained privately for staff routing through the verified kennel entrance and Bawli approach, separately from this customer picker. The original Google Form and its authenticated ingest/recovery remain the live customer path until explicit cutover approval.
 
-**Mobile acceptance testing is deferred to [issue #37](https://github.com/MuazShafiq/apex-kennels/issues/37).** The founder has verified the desktop preview; a real-phone test is pending. Do not declare website cutover complete before that and the other launch checks in [customer-booking-launch.md](customer-booking-launch.md).
+Physical iPhone/Safari and affected-ISP/mobile-data acceptance remain human checks: map selection, Google Maps search → share an exact dropped pin → return/paste → confirm, same/separate gates and outage fallback. Synthetic browser emulation cannot establish these. See [release acceptance](release-acceptance.md) and [retirement inventory](location-search.md).

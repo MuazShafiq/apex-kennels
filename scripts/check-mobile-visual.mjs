@@ -10,6 +10,7 @@ import {renderStaffDraftReview,prepareStaffDraftReview} from '../src/staff-invoi
 import {renderStaffPinChecker} from '../src/staff-location.ts';
 import {renderInvoiceApprovalPage} from '../src/staff-invoice-approval.ts';
 import {makeReviewSnapshot} from '../src/staff-saved-review.ts';
+import {confirmExactPin,revealPinFallback,stubMapLibrary,moveSyntheticMap,waitForBrowser} from './gate-picker-browser-fixture.mjs';
 
 const demoSource={
   bookingId:'a2026111-0e00-4c11-8a00-000000000033',
@@ -53,8 +54,9 @@ const server=createServer(async(req,res)=>{
         error:'This Maps link does not expose an exact pin. Long-press your gate in Google Maps, then paste its latitude, longitude here.'}));
       return;
     }
+    const pair=/^(\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?)$/.exec(payload.link);
     res.writeHead(200,{'content-type':'application/json'});
-    res.end(JSON.stringify({latitude:33.7,longitude:73.08}));return;
+    res.end(JSON.stringify(pair?{latitude:Number(pair[1]),longitude:Number(pair[2])}:{latitude:33.7,longitude:73.08}));return;
   }
   if(pages[url.pathname]){
     res.writeHead(200,{'content-type':'text/html; charset=utf-8'});res.end(pages[url.pathname]);return;
@@ -88,6 +90,7 @@ try{
    ['wide-desktop',{width:2200,height:1000}]
  ]){
   const page=await browser.newPage({viewport,deviceScaleFactor:1,isMobile:name.includes('phone')||name==='iphone',hasTouch:true});
+  await stubMapLibrary(page);
   await page.route('**/challenges.cloudflare.com/**',route=>route.abort());
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   for(const [route,label] of [['/book','book'],['/demo/staff','dashboard'],['/staff/transport','transport'],['/staff/booking','detail'],['/staff/draft','draft'],['/staff/location','location'],['/staff/invoices/review','approval']]){
@@ -183,10 +186,35 @@ try{
 
   await page.locator('#transport-pickup').check();
   assert(await page.locator('#pickup-location').isVisible(),name+' pickup must reveal location');
+  await page.locator('#choose-map').click();
+  await page.locator('#map-confirm').waitFor({state:'visible'});
+  await moveSyntheticMap(page,33.7,73.08);
+  const picker=await page.locator('#gate-picker').boundingBox();
+  assert(picker&&picker.width<=viewport.width+2&&picker.x>=-1,name+' map picker exceeds viewport');
+  const controls=await page.locator('#gate-picker button:visible').evaluateAll(nodes=>nodes.map(node=>{
+    const r=node.getBoundingClientRect();return {text:node.textContent,width:r.width,height:r.height};
+  }));
+  assert(controls.every(control=>control.width>=44&&control.height>=44),name+' map controls have undersized touch targets '+JSON.stringify(controls));
+  assert(await page.locator('#gate-picker a[href*="openfreemap.org"]').isVisible(),name+' OpenFreeMap attribution missing');
+  assert(await page.locator('#gate-picker a[href*="openstreetmap.org"]').isVisible(),name+' OpenStreetMap attribution missing');
+  await page.screenshot({path:'mobile-'+name+'-map-picker.png',fullPage:false});
+  const canvas=page.locator('#map-canvas canvas');
+  await canvas.focus();
+  assert(await canvas.evaluate(el=>el===document.activeElement),name+' map keyboard focus missing');
+  await canvas.press('ArrowRight');
+  await waitForBrowser(page,()=>document.querySelector('#map-confirm').disabled===false);
+  await page.locator('#map-confirm').focus();
+  await page.locator('#map-confirm').press('Enter');
+  await page.locator('#gate-picker').waitFor({state:'hidden'});
+  await page.locator('#selected-location-link').waitFor({state:'visible'});
+  assert(await page.locator('#choose-map').evaluate(el=>el===document.activeElement),name+' map confirmation does not restore launcher focus');
+  await page.locator('#choose-map').click();
+  await page.locator('#map-close').click();
+  await revealPinFallback(page);
   await page.locator('#maps-link').fill('https://www.google.com/maps/search/?api=1&query=33.7%2C73.08');
-  await page.waitForFunction(()=>document.querySelector('#coordinate-status')?.textContent.includes('Google Maps location added'));
-  assert((await page.locator('#coordinate-status').innerText()).includes('Google Maps location added'),
-    name+' pickup Google Maps link not accepted');
+  await page.locator('#confirm-gate').waitFor({state:'visible'});
+  await page.locator('#map-fallback').click();
+  await page.locator('#confirm-gate').click();
   assert(await page.locator('#selected-location-link').isVisible(),name+' pickup pin not visible');
   await page.locator('#maps-link').fill('https://maps.app.goo.gl/ambiguous');
   await page.waitForFunction(()=>document.querySelector('#coordinate-status')?.textContent.includes('latitude, longitude'));
@@ -194,8 +222,7 @@ try{
     name+' ambiguous short link lacks coordinates fallback');
   assert(!(await page.locator('#selected-location-link').isVisible()),
     name+' ambiguous short link retained stale pin');
-  await page.locator('#maps-link').fill('33.700000, 73.080000');
-  await page.locator('#selected-location-link').waitFor({state:'visible'});
+  await confirmExactPin(page,'33.700000, 73.080000');
   assert(await page.locator('#selected-location-link').isVisible(),
     name+' confirmed pickup coordinates missing');
 
@@ -207,8 +234,7 @@ try{
   await page.locator('#same-dropoff').uncheck();
   assert(await page.locator('#dropoff-location').isVisible(),
     name+' different drop-off must reveal second location');
-  await page.locator('#dropoff-maps-link').fill('33.580000, 73.020000');
-  await page.locator('#dropoff-selected-location-link').waitFor({state:'visible'});
+  await confirmExactPin(page,'33.580000, 73.020000','dropoff-');
   assert(await page.locator('#dropoff-selected-location-link').isVisible(),
     name+' different drop-off coordinates not accepted');
   assert(await page.locator('#selected-location-link').isVisible(),
@@ -217,6 +243,7 @@ try{
     width:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth
   }));
   assert(expanded.scroll<=expanded.width+2,name+' expanded transport overflows screen '+JSON.stringify(expanded));
+  await page.screenshot({path:'mobile-'+name+'-map-and-gates.png',fullPage:true});
   await page.locator('#transport-none').check();
   assert(!(await page.locator('#pickup-location').isVisible())&&
     !(await page.locator('#dropoff-location').isVisible()),

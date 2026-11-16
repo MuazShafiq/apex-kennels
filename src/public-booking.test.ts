@@ -59,7 +59,7 @@ test('public form page is only a preview without write configuration and does no
   });
   assert.equal(res.status,200);
   assert.equal(await res.text(),asset);
-  assert.doesNotMatch(res.headers.get('content-security-policy')??'',/tiles\.openfreemap\.org/);
+  assert.match(res.headers.get('content-security-policy')??'',/connect-src 'self' https:\/\/tiles\.openfreemap\.org;/);
   assert.match(res.headers.get('content-security-policy')??'',/challenges\.cloudflare\.com/);
   const config=await handleWorkerRequest(new Request(base+'/api/book/config'),{
     TURNSTILE_SITE_KEY:'visible-but-not-enabled'
@@ -149,7 +149,7 @@ test('browser script parses, uses Google Maps links and has no embedded secrets'
   const script=readFileSync('public/book/app.js','utf8');
   assert.doesNotThrow(()=>new Script(script));
   assert.match(script,/api\/book\/location/);
-  assert.doesNotMatch(script,/maplibregl|api\/book\/places/);
+  assert.doesNotMatch(script,/api\/book\/(?:places|search)/);
   assert.match(script,/customerConfirmed:true/);
   assert.match(script,/api\/book/);
   assert.doesNotMatch(script,/TURNSTILE_SECRET_KEY|DATABASE_URL|INTAKE_API_SECRET/);

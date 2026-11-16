@@ -9,6 +9,7 @@ import {resolve,sep} from 'node:path';
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 import {handleWorkerRequest} from '../src/cloudflare-worker.ts';
+import {confirmExactPin,revealPinFallback,stubMapLibrary,moveSyntheticMap,waitForBrowser} from './gate-picker-browser-fixture.mjs';
 
 const site='http://127.0.0.1';
 const env={
@@ -18,6 +19,20 @@ const env={
   TURNSTILE_SECRET_KEY:'ci-synthetic-secret'
 };
 const saved=[];
+// Static assets still pass through the Worker so the browser enforces the
+// deployed Content-Security-Policy, including the CSP map-worker build.
+env.ASSETS={async fetch(request){
+  const path=new URL(request.url).pathname;
+  const root=resolve(process.cwd(),'public','book');
+  const dest=resolve(root,path.slice('/book/'.length));
+  if(!path.startsWith('/book/')||!dest.startsWith(root+sep))return new Response(null,{status:404});
+  try{
+    const bytes=await readFile(dest);
+    const type=path.endsWith('.css')?'text/css':path.endsWith('.js')?'application/javascript':
+      path.endsWith('.svg')?'image/svg+xml':'text/html';
+    return new Response(bytes,{headers:{'Content-Type':type}});
+  }catch{return new Response(null,{status:404});}
+}};
 let challengeChecks=0;
 const persist=async(db,booking)=>{
   assert.equal(db,env.DATABASE_URL);
@@ -53,19 +68,9 @@ const server=createServer(async(req,res)=>{
     res.end(Buffer.from(await answer.arrayBuffer()));
     return;
   }
-  const file=path==='/book'||path==='/book/'?'index.html':path.startsWith('/book/')?path.slice(6):null;
-  if(!file||file.includes('..')||file.includes('/')&&file.split('/').some(p=>p==='..')){
-    res.writeHead(404);res.end();return;
-  }
-  const root=resolve(process.cwd(),'public','book');
-  const dest=resolve(root,file);
-  if(dest!==root&&!dest.startsWith(root+sep)){res.writeHead(404);res.end();return;}
-  try{
-    const data=await readFile(dest);
-    const type=file.endsWith('.css')?'text/css':file.endsWith('.js')?'application/javascript':
-      file.endsWith('.svg')?'image/svg+xml':'text/html';
-    res.writeHead(200,{'Content-Type':type});res.end(data);
-  }catch{res.writeHead(404);res.end();}
+  const answer=await handleWorkerRequest(new Request(site+':'+port+(req.url??'/')),env,persist,{verifyChallenge});
+  res.writeHead(answer.status,Object.fromEntries(answer.headers.entries()));
+  res.end(Buffer.from(await answer.arrayBuffer()));
 });
 await new Promise(done=>server.listen(0,'127.0.0.1',done));
 port=server.address().port;
@@ -93,8 +98,9 @@ const fill=async page=>{
     await choice(page,'trait_'+key,'No');
   await page.locator('[name="termsAccepted"]').check();
 };
-const newPage=async()=>{
-  const page=await browser.newPage({viewport:{width:390,height:844},hasTouch:true});
+const newPage=async({map='synthetic',viewport={width:390,height:844}}={})=>{
+  const page=await browser.newPage({viewport,hasTouch:true});
+  if(map==='synthetic')await stubMapLibrary(page);
   await page.addInitScript(()=>{
     // This is an isolated CI stub. No real Turnstile bypass is deployed.
     window.turnstile={
@@ -126,10 +132,9 @@ try{
   assert.equal(await first.page.locator('#dropoff-location').isVisible(),false);
   await first.page.locator('#submit').click();
   await first.page.locator('#message').waitFor({state:'visible'});
-  assert.match(await first.page.locator('#message').innerText(),/pickup location/i);
+  assert.match(await first.page.locator('#message').innerText(),/pickup (?:location|vehicle gate)/i);
   assert.equal(saved.length,0);
-  await first.page.locator('#maps-link').fill('33.700000, 73.080000');
-  await first.page.locator('#selected-location-link').waitFor({state:'visible'});
+  await confirmExactPin(first.page,'33.700000, 73.080000');
   await first.page.locator('[name="whatsappInvoiceOptIn"]').check();
   await first.page.locator('#submit').click();
   await first.page.locator('#complete').waitFor({state:'visible'});
@@ -165,16 +170,14 @@ try{
   await fill(third.page);
   await third.page.locator('#transport-pickup').check();
   await third.page.locator('#transport-dropoff').check();
-  await third.page.locator('#maps-link').fill('33.700000, 73.080000');
-  await third.page.locator('#selected-location-link').waitFor({state:'visible'});
+  await confirmExactPin(third.page,'33.700000, 73.080000');
   await third.page.locator('#same-dropoff').uncheck();
   assert.equal(await third.page.locator('#dropoff-location').isVisible(),true);
   await third.page.locator('#submit').click();
   await third.page.locator('#message').waitFor({state:'visible'});
-  assert.match(await third.page.locator('#message').innerText(),/separate drop-off location/i);
+  assert.match(await third.page.locator('#message').innerText(),/separate drop-off (?:location|vehicle gate)/i);
   assert.equal(saved.length,2);
-  await third.page.locator('#dropoff-maps-link').fill('33.580000, 73.020000');
-  await third.page.locator('#dropoff-selected-location-link').waitFor({state:'visible'});
+  await confirmExactPin(third.page,'33.580000, 73.020000','dropoff-');
   await third.page.locator('#submit').click();
   await third.page.locator('#complete').waitFor({state:'visible'});
   assert.equal(saved.length,3);
@@ -191,8 +194,7 @@ try{
   await fourth.page.locator('#transport-pickup').check();
   assert.equal(await fourth.page.locator('#pickup-location').isVisible(),true);
   assert.equal(await fourth.page.locator('#dropoff-location').isVisible(),false);
-  await fourth.page.locator('#maps-link').fill('33.700000, 73.080000');
-  await fourth.page.locator('#selected-location-link').waitFor({state:'visible'});
+  await confirmExactPin(fourth.page,'33.700000, 73.080000');
   await fourth.page.locator('#submit').click();
   await fourth.page.locator('#complete').waitFor({state:'visible'});
   assert.equal(saved.length,4);
@@ -207,8 +209,7 @@ try{
   await fifth.page.locator('#transport-dropoff').check();
   assert.equal(await fifth.page.locator('#pickup-location').isVisible(),false);
   assert.equal(await fifth.page.locator('#dropoff-location').isVisible(),true);
-  await fifth.page.locator('#dropoff-maps-link').fill('33.580000, 73.020000');
-  await fifth.page.locator('#dropoff-selected-location-link').waitFor({state:'visible'});
+  await confirmExactPin(fifth.page,'33.580000, 73.020000','dropoff-');
   await fifth.page.locator('#submit').click();
   await fifth.page.locator('#complete').waitFor({state:'visible'});
   assert.equal(saved.length,5);
@@ -228,74 +229,228 @@ try{
   await sixth.page.close();
 
   assert.equal(challengeChecks,5);
-  // Provider candidates are deliberately not confirmed pins. Exercise the
-  // search journey with a mock provider, keyboard selection and gate edits.
-  const searchCase=await newPage();
-  await fill(searchCase.page);
-  let releaseDelayed,delayedStarted;
-  const delayedRequest=new Promise(resolve=>{delayedStarted=resolve;});
-  await searchCase.page.route('**/api/book/search',async route=>{
-    const {query}=route.request().postDataJSON();
-    if(query==='delayed'){
-      delayedStarted();await new Promise(resolve=>{releaseDelayed=resolve;});
-      return route.fulfill({json:{results:[{label:'Delayed result',latitude:33.695,longitude:73.01}]}}).catch(()=>{});
-    }
-    if(query==='outage')return route.fulfill({status:503,json:{error:'Search unavailable. Paste your exact gate pin.'}});
-    return route.fulfill({json:{results:query==='empty'?[]:[
-      {label:'F-10 Markaz, Islamabad, Pakistan',area:'Islamabad',latitude:33.695,longitude:73.01},
-      {label:'Second local gate, Islamabad',latitude:33.696,longitude:73.011},
-      {label:'Outside service area',latitude:31.5,longitude:74.3}
-    ]}});
-  });
-  await searchCase.page.locator('#transport-pickup').check();
-  await searchCase.page.locator('#place-search').fill('delayed');
-  await delayedRequest;
-  await searchCase.page.locator('#place-search').press('Escape');
-  releaseDelayed();
-  // The response may resolve after Escape; it must not reopen suggestions.
-  await searchCase.page.waitForTimeout(100);
-  assert.equal(await searchCase.page.locator('#place-results').isVisible(),false);
-  assert.equal(await searchCase.page.locator('#place-search').getAttribute('aria-expanded'),'false');
-  await searchCase.page.locator('#place-search').fill('F-10');
-  await searchCase.page.locator('#place-results button').first().waitFor();
-  assert.equal(await searchCase.page.locator('#place-results button').count(),2);
-  await searchCase.page.locator('#place-search').press('ArrowUp');
-  assert.equal(await searchCase.page.locator('#place-search').getAttribute('aria-activedescendant'),'place-option-1');
-  await searchCase.page.locator('#place-search').press('Escape');
-  await searchCase.page.locator('#place-search').fill('F-10 Markaz');
-  await searchCase.page.locator('#place-results button').first().waitFor();
-  await searchCase.page.locator('#place-search').press('ArrowDown');
-  await searchCase.page.locator('#place-search').press('Enter');
-  assert.equal(await searchCase.page.locator('#gate-review').isVisible(),true);
-  await searchCase.page.locator('#submit').click();
-  assert.equal(saved.length,5);
-  await searchCase.page.locator('#gate-latitude').fill('33.696');
-  await searchCase.page.locator('#confirm-gate').click();
-  await searchCase.page.locator('#transport-dropoff').check();
-  await searchCase.page.locator('#same-dropoff').uncheck();
-  await searchCase.page.locator('#dropoff-place-search').fill('empty');
-  await searchCase.page.locator('#dropoff-search-status').filter({hasText:'No matching local places'}).waitFor();
-  await searchCase.page.locator('#dropoff-place-search').fill('outage');
-  await searchCase.page.locator('#dropoff-search-status').filter({hasText:'Search unavailable'}).waitFor();
-  await searchCase.page.locator('#dropoff-maps-link').fill('33.58, 73.02');
-  await searchCase.page.locator('#dropoff-selected-location-link').waitFor({state:'visible'});
-  await searchCase.page.locator('#submit').click();
-  await searchCase.page.locator('#complete').waitFor({state:'visible'});
+  // The map centre is only a candidate until explicit confirmation. Moving
+  // it after reopening invalidates the saved pin before another submission.
+  const mapped=await newPage();
+  await fill(mapped.page);
+  await mapped.page.locator('#transport-pickup').check();
+  await mapped.page.locator('#choose-map').click();
+  await mapped.page.locator('#map-confirm').waitFor({state:'visible'});
+  await waitForBrowser(mapped.page,()=>window.__syntheticMaps?.length>0);
+  await mapped.page.evaluate(()=>window.__syntheticMaps.at(-1).panTo([73.081,33.701]));
+  assert.equal(await mapped.page.locator('#map-confirm').isDisabled(),true,'City-scale map is not an exact gate');
+  assert.equal(await mapped.page.locator('#confirm-gate').isVisible(),false,'Map precision must not be bypassable with fallback confirmation');
+  await moveSyntheticMap(mapped.page,33.701,73.081);
+  await mapped.page.locator('#map-confirm').click();
+  await mapped.page.locator('#selected-location-link').waitFor({state:'visible'});
+  await mapped.page.locator('#choose-map').click();
+  await moveSyntheticMap(mapped.page,33.702,73.082);
+  await mapped.page.locator('#map-close').click();
+  await mapped.page.locator('#submit').click();
+  assert.equal(saved.length,5,'An unconfirmed moved map must never reach persistence');
+  assert.match(await mapped.page.locator('#message').innerText(),/pickup (?:location|vehicle gate)/i);
+  await mapped.page.locator('#choose-map').click();
+  await mapped.page.locator('#map-confirm').click();
+  await mapped.page.locator('#transport-dropoff').check();
+  await mapped.page.locator('#same-dropoff').uncheck();
+  await mapped.page.locator('#dropoff-choose-map').click();
+  await moveSyntheticMap(mapped.page,33.58,73.02);
+  await mapped.page.locator('#map-confirm').click();
+  await mapped.page.locator('#submit').click();
+  await mapped.page.locator('#complete').waitFor({state:'visible'});
   assert.equal(saved.length,6);
-  assert.deepEqual(saved[5].transportLocation,{latitude:33.696,longitude:73.01,service:'both',customerConfirmed:true});
+  assert.deepEqual(saved[5].transportLocation,{latitude:33.702,longitude:73.082,service:'both',customerConfirmed:true});
   assert.deepEqual(saved[5].transportDropoffLocation,{latitude:33.58,longitude:73.02,customerConfirmed:true});
-  assert.deepEqual(searchCase.errors,[]);
-  await searchCase.page.close();
-  const denied=await newPage();
-  await denied.page.evaluate(()=>Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(_ok,fail){fail({code:1});}}}));
-  await denied.page.locator('#transport-pickup').check();
-  await denied.page.locator('#locate').click();
-  assert.match(await denied.page.locator('#coordinate-status').innerText(),/permission was not granted/);
-  await denied.page.locator('#maps-link').fill('33.7, 73.08');
-  await denied.page.locator('#selected-location-link').waitFor({state:'visible'});
-  assert.deepEqual(denied.errors,[]);
-  await denied.page.close();
-  console.log('Synthetic browser-to-Worker booking passed: explicit None, pickup only, drop-off only, Both same gate and Both different gates; no real writes/messages.');
+  assert.deepEqual(mapped.errors,[]);
+  await mapped.page.close();
+
+  // Exact Google coordinates are valid candidates; viewport centres and
+  // ambiguous shared links never become a substitute for an exact gate.
+  const fallback=await newPage();
+  await fill(fallback.page);
+  await fallback.page.locator('#transport-pickup').check();
+  await revealPinFallback(fallback.page);
+  await fallback.page.locator('#maps-link').fill('https://www.google.com/maps/search/?api=1&query=33.7%2C73.08');
+  await fallback.page.locator('#confirm-gate').waitFor({state:'visible'});
+  await fallback.page.locator('#map-fallback').click();
+  await fallback.page.locator('#submit').click();
+  assert.equal(saved.length,6,'Exact pasted pin still requires explicit gate confirmation');
+  await fallback.page.locator('#confirm-gate').click();
+  await fallback.page.locator('#maps-link').fill('https://www.google.com/maps/@33.7,73.08,16z');
+  await waitForBrowser(fallback.page,()=>/exact gate pin/.test(document.querySelector('#coordinate-status').textContent));
+  assert.equal(await fallback.page.locator('#selected-location-link').isVisible(),false);
+  assert.equal(await fallback.page.locator('#confirm-gate').isVisible(),false);
+  await fallback.page.locator('#submit').click();
+  assert.equal(saved.length,6);
+  await fallback.page.locator('#maps-link').fill('31.5, 74.3');
+  await waitForBrowser(fallback.page,()=>/Islamabad|Rawalpindi|service area/.test(document.querySelector('#coordinate-status').textContent));
+  assert.equal(await fallback.page.locator('#confirm-gate').isVisible(),false);
+  await fallback.page.evaluate(()=>Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(_ok,fail){fail({code:1});}}}));
+  await fallback.page.locator('#locate').click();
+  assert.match(await fallback.page.locator('#coordinate-status').innerText(),/permission was not granted/i);
+  await confirmExactPin(fallback.page,'33.7, 73.08');
+  await fallback.page.locator('#submit').click();
+  await fallback.page.locator('#complete').waitFor({state:'visible'});
+  assert.equal(saved.length,7);
+  assert.deepEqual(fallback.errors,[]);
+  await fallback.page.close();
+
+  // Delayed device/provider results cannot reopen a hidden service's map or
+  // restore its gate after the customer changes the transport choice.
+  const delayed=await newPage();
+  await delayed.page.evaluate(()=>Object.defineProperty(navigator,'geolocation',{configurable:true,value:{
+    getCurrentPosition(ok){window.__completeSyntheticGps=()=>ok({coords:{latitude:33.7,longitude:73.08}});}
+  }}));
+  await delayed.page.locator('#transport-pickup').check();
+  await delayed.page.locator('#locate').click();
+  await delayed.page.locator('#transport-none').check();
+  await delayed.page.evaluate(()=>window.__completeSyntheticGps());
+  await delayed.page.waitForTimeout(100);
+  assert.equal(await delayed.page.locator('#gate-picker').isVisible(),false,'Late GPS reopened hidden pickup');
+  assert.equal(await delayed.page.locator('#selected-location-link').isVisible(),false);
+  let releaseLink,linkStarted;
+  const linkRequest=new Promise(resolve=>{linkStarted=resolve;});
+  await delayed.page.route('**/api/book/location',async route=>{
+    linkStarted();await new Promise(resolve=>{releaseLink=resolve;});
+    await route.fulfill({json:{latitude:33.58,longitude:73.02}});
+  });
+  await delayed.page.locator('#transport-pickup').check();
+  await delayed.page.locator('#transport-dropoff').check();
+  await delayed.page.locator('#same-dropoff').uncheck();
+  await delayed.page.locator('#dropoff-maps-link').fill('https://maps.app.goo.gl/synthetic-held-response');
+  await linkRequest;
+  await delayed.page.locator('#same-dropoff').check();
+  releaseLink();
+  await delayed.page.waitForTimeout(100);
+  assert.equal(await delayed.page.locator('#gate-picker').isVisible(),false,'Late resolver reopened reused drop-off');
+  assert.equal(await delayed.page.locator('#dropoff-selected-location-link').isVisible(),false);
+  await delayed.page.locator('#same-dropoff').uncheck();
+  await delayed.page.locator('#locate').click();
+  await delayed.page.locator('#dropoff-choose-map').click();
+  assert.match(await delayed.page.locator('#gate-picker-title').innerText(),/drop-off/);
+  await delayed.page.evaluate(()=>window.__completeSyntheticGps());
+  await delayed.page.waitForTimeout(100);
+  assert.match(await delayed.page.locator('#gate-picker-title').innerText(),/drop-off/,'Late pickup GPS stole the active drop-off map');
+  await delayed.page.locator('#map-close').click();
+  assert.deepEqual(delayed.errors,[]);
+  await delayed.page.close();
+
+  // Map loading failure leaves an independently usable exact-pin path.
+  const failed=await newPage({map:'failed'});
+  await failed.page.route('**/*maplibre*.js',route=>route.abort());
+  await failed.page.locator('#transport-pickup').check();
+  await failed.page.locator('#choose-map').click();
+  await failed.page.locator('#map-status').filter({hasText:'could not load'}).waitFor();
+  assert.equal(await failed.page.locator('#map-confirm').isDisabled(),true);
+  await failed.page.locator('#map-fallback').click();
+  await confirmExactPin(failed.page,'33.7, 73.08');
+  await failed.page.close();
+
+  // Every default run loads the actual pinned MapLibre library and CSP
+  // worker, with a tiny network-independent style. Live tiles are opt-in so
+  // CI failure cannot be confused with a provider/ISP availability result.
+  const liveTiles=process.env.APEX_REAL_MAP_CHECK==='1';
+  const actual=await newPage({map:'real',viewport:{width:1280,height:900}});
+  const basemapResponses=[];
+  actual.page.on('response',response=>{
+    if(response.url().startsWith('https://tiles.openfreemap.org/'))
+      basemapResponses.push({url:response.url(),status:response.status()});
+  });
+  const cspViolations=[];
+  await actual.page.evaluate(()=>{
+    window.__cspViolations=[];
+    document.addEventListener('securitypolicyviolation',event=>window.__cspViolations.push(event.violatedDirective+': '+event.blockedURI));
+  });
+  if(!liveTiles)await actual.page.route('https://tiles.openfreemap.org/**',route=>route.fulfill({json:{version:8,sources:{},layers:[{id:'background',type:'background',paint:{'background-color':'#dbe5dd'}}]}}));
+  await actual.page.locator('#transport-pickup').check();
+  const response=await actual.page.request.get(origin+'/book');
+  assert.match(response.headers()['content-security-policy'],/worker-src 'self'/);
+  assert.equal(await actual.page.evaluate(()=>performance.getEntriesByType('resource')
+    .some(item=>/maplibre|tiles\.openfreemap\.org/.test(item.name))),false,
+    'Initial booking and transport selection must not download the map');
+  const mapStarted=Date.now();
+  await actual.page.locator('#choose-map').click();
+  await actual.page.locator('#map-canvas canvas').waitFor({state:'visible'});
+  await waitForBrowser(actual.page,()=>document.querySelector('#map-loading')?.hidden===true,45000);
+  assert.equal(await actual.page.evaluate(()=>typeof window.maplibregl?.Map),'function');
+  assert.equal(await actual.page.evaluate(()=>window.__syntheticMaps),undefined);
+  const mapAssets=await actual.page.evaluate(()=>performance.getEntriesByType('resource')
+    .filter(item=>item.name.includes('/book/vendor/')).map(item=>({name:item.name,bytes:item.decodedBodySize})));
+  assert.equal(mapAssets.filter(item=>item.name.endsWith('/maplibre-gl-5.6.1.js')).length,1,
+    'Load the map library only once');
+  assert(mapAssets.reduce((total,item)=>total+item.bytes,0)<1_500_000,
+    'Local map assets exceeded the download budget');
+  console.log('Lazy map ready in '+(Date.now()-mapStarted)+'ms; initial booking downloaded no map assets.');
+  const canvas=actual.page.locator('#map-canvas canvas');
+  assert((await canvas.boundingBox()).width>300,'Actual map canvas must have usable width');
+  await canvas.focus();
+  for(let step=0;step<6;step++){
+    await canvas.press('+');
+    await actual.page.waitForTimeout(350);
+  }
+  await canvas.press('ArrowRight');
+  await actual.page.waitForTimeout(400);
+  if(liveTiles){
+    assert(basemapResponses.some(item=>item.url.includes('/styles/liberty')&&item.status===200),'Live style did not load');
+    assert(basemapResponses.some(item=>/\.pbf(?:\?|$)/.test(item.url)&&item.status===200),'No live vector map tile loaded');
+    assert(basemapResponses.every(item=>item.status<400),'Live basemap resource failed: '+JSON.stringify(basemapResponses.filter(item=>item.status>=400)));
+    await actual.page.screenshot({path:'mobile-real-openfreemap-picker.png',fullPage:true});
+  }
+  await actual.page.locator('#map-confirm').click();
+  await actual.page.locator('#selected-location-link').waitFor({state:'visible'});
+  assert.match(await actual.page.locator('#selected-location-link').getAttribute('href'),/query=/);
+  cspViolations.push(...await actual.page.evaluate(()=>window.__cspViolations));
+  assert.deepEqual(cspViolations,[],'Actual Worker CSP must allow the real map and local worker');
+  assert.deepEqual(actual.errors,[]);
+  console.log(liveTiles?'Real MapLibre / local CSP worker / live OpenFreeMap rendered and keyboard-selected a gate.':'Real MapLibre / local CSP worker rendered with a synthetic style (provider network untested).');
+  await actual.page.close();
+
+  // A real mobile MapLibre canvas catches ResizeObserver/layout feedback
+  // loops which a Map stub cannot reproduce. Basemap data stays synthetic.
+  const phoneMap=await newPage({map:'real'});
+  await phoneMap.page.route('https://tiles.openfreemap.org/**',route=>route.fulfill({json:{version:8,sources:{},layers:[{id:'background',type:'background',paint:{'background-color':'#dbe5dd'}}]}}));
+  await phoneMap.page.locator('#transport-pickup').check();
+  await phoneMap.page.locator('#choose-map').click();
+  const phoneCanvas=phoneMap.page.locator('#map-canvas canvas');
+  await phoneCanvas.waitFor({state:'visible'});
+  await waitForBrowser(phoneMap.page,()=>document.querySelector('#map-loading').hidden,15000);
+  for(let step=0;step<6;step++){
+    await phoneCanvas.press('+');
+    await phoneMap.page.waitForTimeout(350);
+  }
+  await phoneCanvas.tap({position:{x:160,y:120}});
+  await waitForBrowser(phoneMap.page,()=>!document.querySelector('#map-confirm').disabled,15000);
+  await phoneMap.page.evaluate(()=>{
+    const read=()=>({loading:!document.querySelector('#map-loading').hidden,
+      disabled:document.querySelector('#map-confirm').disabled,
+      status:document.querySelector('#map-status').textContent});
+    window.__mobileMapIdle={initial:read(),transitions:[]};
+    let last=JSON.stringify(read());
+    window.__mobileMapObserver=new MutationObserver(()=>{
+      const next=read(),key=JSON.stringify(next);
+      if(key!==last){window.__mobileMapIdle.transitions.push(next);last=key;}
+    });
+    window.__mobileMapObserver.observe(document.querySelector('#gate-picker'),{subtree:true,attributes:true,childList:true,characterData:true});
+  });
+  const phoneSize=await phoneCanvas.boundingBox();
+  await phoneMap.page.waitForTimeout(1200);
+  const idle=await phoneMap.page.evaluate(()=>{
+    window.__mobileMapObserver.disconnect();return window.__mobileMapIdle;
+  });
+  assert.equal(idle.initial.loading,false);
+  assert.equal(idle.initial.disabled,false);
+  assert.deepEqual(idle.transitions,[],'Real mobile map repeatedly left its idle confirmation state');
+  const stablePhoneSize=await phoneCanvas.boundingBox();
+  assert(Math.abs(phoneSize.height-stablePhoneSize.height)<1,'Real mobile map canvas height kept resizing after selection');
+  await phoneMap.page.screenshot({path:'mobile-real-maplibre-phone.png',fullPage:false});
+  await phoneMap.page.locator('#map-confirm').click();
+  await phoneMap.page.locator('#gate-picker').waitFor({state:'hidden'});
+  assert.match(await phoneMap.page.locator('#coordinate-status').innerText(),/gate confirmed/i);
+  assert.equal(await phoneMap.page.locator('#choose-map').evaluate(el=>el===document.activeElement),true);
+  assert.deepEqual(phoneMap.errors,[]);
+  await phoneMap.page.close();
+  console.log('Real mobile MapLibre remained idle for 1.2 seconds and confirmed a tapped gate; basemap data synthetic.');
+  console.log('Synthetic browser-to-Worker booking passed: explicit None, pickup only, drop-off only, Both same gate and Both different gates, map invalidation, exact-pin confirmation, service bounds, denied GPS and map-load fallback; no real writes/messages.');
 } finally{
   await browser.close();
   await new Promise(done=>server.close(done));

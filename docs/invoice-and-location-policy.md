@@ -34,7 +34,7 @@ Retain source fuel, notified rate, effective date, retrieval time, selected 20% 
 
 ### Customer booking website (preview implemented, not live)
 
-The replacement customer form uses a one-tap device-location option or Google Maps Share → Copy link. The Worker extracts an exact pin without running another place-search API. The mobile acceptance check is [issue #37](https://github.com/MuazShafiq/apex-kennels/issues/37); submissions stay disabled until the other release checks pass. The original Google Form remains live. Staff must still confirm vehicle access before transport pricing.
+The replacement customer form uses a free MapLibre/OpenFreeMap exact-gate picker, optional permissioned GPS or consumer Google Maps Share → Copy link. All selected points require explicit gate confirmation; map failure leaves exact-link/coordinate/GPS fallback usable. The Worker extracts an exact pin without running another place-search API. The mobile acceptance check is [issue #37](https://github.com/MuazShafiq/apex-kennels/issues/37); submissions stay disabled until the other release checks pass. The original Google Form remains live. Staff must still confirm vehicle access before transport pricing.
 
 ### Provider choice
 

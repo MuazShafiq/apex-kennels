@@ -149,3 +149,29 @@ test('bounds input length and excludes control characters',async()=>{
     assert.equal(r.ok,false);
   }
 });
+
+
+test('conflicting explicit pins and URL authority bypasses are rejected without network',async()=>{
+  const values=[
+    'https://www.google.com/maps/place/Test/data=!3d33.7!4d73.08!3d33.71!4d73.09',
+    'https://www.google.com/maps/place/Test/data=!3d33.7!4d73.08?data=!3d33.71!4d73.09',
+    'https://www.google.com/maps/place/33.7,73.08?query=33.71,73.09',
+    'https://www.google.com/maps/place/33.7,73.08?query=0,0',
+    'https://www.google.com/maps?query=33.7,73.08&q=33.71,73.09',
+    'https://www.google.com/maps?query=33.7,73.08&query=33.71,73.09',
+    'https://www.google.com/maps/dir/?query=33.7,73.08',
+    'https://www.google.com/maps/dir?query=33.7,73.08',
+    'https://user:pass@www.google.com/maps?query=33.7,73.08',
+    'https://www.google.com:8443/maps?query=33.7,73.08'
+  ];
+  let calls=0;
+  for(const value of values){
+    assert.equal((await resolveSharedGoogleMapsPin(value,{fetcher:async()=>{calls++;throw new Error('No fetch');}})).ok,false,value);
+    assert.equal(parseGooglePlacePin(value),null,value);
+  }
+  assert.equal(calls,0);
+  const redirect=await resolveSharedGoogleMapsPin(short,{fetcher:async()=>new Response(null,{status:302,headers:{Location:values[0]}})});
+  assert.equal(redirect.ok,false);
+  const same=await resolveSharedGoogleMapsPin('https://www.google.com/maps/place/33.7,73.08?query=33.7,73.08');
+  assert.equal(same.ok,true);
+});

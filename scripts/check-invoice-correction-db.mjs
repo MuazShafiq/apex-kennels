@@ -71,7 +71,10 @@ try{
   pass('manual replacement has immutable evidence and globally reserved number');
   const race=await fixture(true,'queued'),held=factory(dbUrl);await held.connect();
   await held.query('BEGIN');await held.query('SELECT pg_advisory_xact_lock(hashtextextended($1,72))',[race.id]);
-  let settled=false;const pending=dispatchInvoiceDelivery(dbUrl,race.id,deliveryConfig,async()=>{network++;throw new Error('No provider allowed');},factory).finally(()=>{settled=true;});
+  // Observe rejection immediately: after COMMIT the blocked claim may reject
+  // before held.end() completes, which otherwise becomes an unhandled rejection.
+  let settled=false;const pending=dispatchInvoiceDelivery(dbUrl,race.id,deliveryConfig,async()=>{network++;throw new Error('No provider allowed');},factory)
+    .then(()=>{settled=true;return null;},error=>{settled=true;return error;});
   // A query against the actual lock wait establishes this is a concurrent blocked claim.
   let waiting=false;
   for(let i=0;i<100&&!waiting;i++){
@@ -81,7 +84,9 @@ try{
   assert.equal(waiting,true);assert.equal(settled,false);
   await held.query("INSERT INTO public.invoice_corrections(invoice_id,kind,reason,actor) VALUES($1,'cancel','Synthetic race correction',$2)",[race.id,actor]);
   await held.query('COMMIT');await held.end();
-  await assert.rejects(pending,/recorded correction/);assert.equal(network,0);
+  const rejected=await pending;
+  assert(rejected instanceof Error,'Blocked claim must reject after cancellation');
+  assert.match(rejected.message,/recorded correction/);assert.equal(network,0);
   pass('concurrent cancellation wins before blocked claim; no provider request');
   console.log('PASS '+groups+' correction groups; disposable LOCAL database '+database+' retained; no Neon branch or provider');
 }finally{await db.end();}

@@ -34,140 +34,181 @@
       latitude>=SERVICE_BOUNDS[0][1]&&latitude<=SERVICE_BOUNDS[1][1]&&
       longitude>=SERVICE_BOUNDS[0][0]&&longitude<=SERVICE_BOUNDS[1][0];
   }
-  // Each location owns its own lookup timer and version so editing the
-  // pickup pin cannot overwrite an in-flight drop-off pin (or vice versa).
+  // Exact candidates and confirmed gates are separate. No source can confirm itself.
   function locationControl(prefix){
-    const suffix=prefix==='dropoff-'?'dropoff':'primary';
+    const name=prefix?'drop-off':'pickup';
     const input=document.getElementById(prefix+'maps-link');
     const status=document.getElementById(prefix+'coordinate-status');
     const link=document.getElementById(prefix+'selected-location-link');
     const locate=document.getElementById(prefix+'locate');
-    const search=document.getElementById(prefix+'place-search');
-    const results=document.getElementById(prefix+'place-results');
-    const searchStatus=document.getElementById(prefix+'search-status');
-    const gateReview=document.getElementById(prefix+'gate-review');
-    const gateLat=document.getElementById(prefix+'gate-latitude');
-    const gateLon=document.getElementById(prefix+'gate-longitude');
-    const confirmGate=document.getElementById(prefix+'confirm-gate');
-    let point=null,version=0,timer=null,searchTimer=null,controller=null,active=-1;
-    function closeResults(){results.hidden=true;search.setAttribute('aria-expanded','false');search.removeAttribute('aria-activedescendant');active=-1;}
-    function stopSearch(){clearTimeout(searchTimer);controller?.abort();closeResults();}
-    function candidate(item){
-      version++;clearTimeout(timer);stopSearch();input.value='';
-      clear('Confirm or adjust the vehicle gate before continuing.');
-      search.value=item.label;gateReview.hidden=false;
-      gateLat.value=item.latitude;gateLon.value=item.longitude;
-      link.href='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(item.latitude+','+item.longitude);link.hidden=false;
-      searchStatus.textContent='Place selected. Confirm the exact gate below.';
-      gateLat.focus();
-    }
-    search.addEventListener('input',()=>{
-      version++;clearTimeout(timer);stopSearch();clear();gateReview.hidden=true;gateLat.value='';gateLon.value='';input.value='';
-      const query=search.value.trim(),requestVersion=version;
-      results.replaceChildren();
-      if(query.length<3){searchStatus.textContent='Type at least 3 characters. GPS and pasted gate pins also work.';return;}
-      searchStatus.textContent='Searching…';
-      searchTimer=setTimeout(async()=>{
-        controller=new AbortController();
-        try{
-          const response=await fetch('/api/book/search',{method:'POST',credentials:'omit',cache:'no-store',signal:controller.signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({query})});
-          const data=await response.json();if(requestVersion!==version)return;
-          if(!response.ok)throw new Error(data.error||'Search unavailable. Use GPS or paste your gate pin.');
-          const items=Array.isArray(data.results)?data.results.filter(x=>typeof x.label==='string'&&inServiceArea(x.latitude,x.longitude)):[];
-          searchStatus.textContent=items.length?'Choose a place, then confirm its vehicle gate. Powered by Geoapify / OpenStreetMap.':'No matching local places. Add a society, phase or city, or paste your exact gate pin.';
-          for(const [index,item] of items.entries()){
-            const li=document.createElement('li'),button=document.createElement('button');
-            li.setAttribute('role','presentation');button.type='button';button.id=prefix+'place-option-'+index;
-            button.setAttribute('role','option');button.setAttribute('aria-selected','false');button.className='secondary';
-            button.textContent=item.label+(item.area&&!item.label.includes(item.area)?' — '+item.area:'');
-            button.addEventListener('click',()=>candidate(item));li.append(button);results.append(li);
-          }
-          results.hidden=!items.length;search.setAttribute('aria-expanded',String(!!items.length));
-        }catch(error){if(requestVersion===version&&error.name!=='AbortError')searchStatus.textContent=error.message||'Search unavailable. Use GPS or paste your gate pin.';}
-      },400);
-    });
-    search.addEventListener('keydown',event=>{
-      const options=results.querySelectorAll('button');
-      if(event.key==='Escape'){version++;stopSearch();return;}
-      if(results.hidden||!options.length)return;
-      if(event.key==='ArrowDown'||event.key==='ArrowUp'){
-        event.preventDefault();active=active<0?(event.key==='ArrowDown'?0:options.length-1):(active+(event.key==='ArrowDown'?1:-1)+options.length)%options.length;
-        options.forEach((option,index)=>option.setAttribute('aria-selected',String(index===active)));
-        search.setAttribute('aria-activedescendant',options[active].id);
-      }else if(event.key==='Enter'){event.preventDefault();if(active>=0)options[active].click();}
-    });
-    for(const field of [gateLat,gateLon])field.addEventListener('input',()=>{point=null;status.textContent='Coordinates changed. Confirm the vehicle gate again.';});
-    confirmGate.addEventListener('click',()=>{
-      if(!gateLat.value||!gateLon.value){clear('Enter both gate coordinates.');return;}
-      update(Number(gateLat.value),Number(gateLon.value),'Confirmed gate');
-    });
+    const choose=document.getElementById(prefix+'choose-map');
+    const review=document.getElementById(prefix+'gate-review');
+    const confirm=document.getElementById(prefix+'confirm-gate');
+    let point=null,candidate=null,version=0,timer=null;
     function clear(text){
-      point=null;
-      link.hidden=true;
-      link.removeAttribute('href');
-      status.textContent=text||'No location selected';
+      point=null;candidate=null;review.hidden=true;link.hidden=true;link.removeAttribute('href');
+      status.textContent=text||'No '+name+' gate selected';
     }
-    function update(latitude,longitude,source){
+    function setCandidate(latitude,longitude,source){
       if(!inServiceArea(latitude,longitude)){
-        clear('Pickup and drop-off are available only in Islamabad and Rawalpindi.');
+        clear('Pickup and drop-off are available only in Islamabad and Rawalpindi.');return false;
+      }
+      point=null;
+      candidate={latitude:Math.round(latitude*1e7)/1e7,longitude:Math.round(longitude*1e7)/1e7};
+      review.hidden=source==='Map pin';
+      status.textContent=(source||'Pin')+' selected. Check the vehicle entrance and confirm this gate.';
+      link.href='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(candidate.latitude+','+candidate.longitude);link.hidden=false;
+      return true;
+    }
+    function confirmCandidate(){
+      if(!candidate)return;
+      point={...candidate};review.hidden=true;
+      status.textContent=name==='pickup'?'Pickup vehicle gate confirmed.':'Drop-off vehicle gate confirmed.';
+    }
+    const control={
+      name,input,choose,slot:document.getElementById(prefix+'map-slot'),
+      point:()=>point,candidate:()=>candidate,setCandidate,confirm:confirmCandidate,
+      invalidate:()=>{input.value='';clear('Map moved. Confirm the vehicle gate again.');},
+      focus:()=>candidate&&!review.hidden?confirm.focus():choose.focus(),
+      cancelPending:()=>{version++;clearTimeout(timer);},
+      reset:()=>{version++;clearTimeout(timer);input.value='';clear();}
+    };
+    confirm.addEventListener('click',confirmCandidate);
+    choose.addEventListener('click',()=>{version++;clearTimeout(timer);gateMap.open(control);});
+    async function resolve(value,requestVersion,intent){
+      // Explicit coordinates also work offline, without WebGL, a map or a resolver.
+      const pair=value.match(/^(-?\d{1,2}(?:\.\d+)?),\s*(-?\d{1,3}(?:\.\d+)?)$/);
+      if(pair){
+        if(requestVersion===version&&setCandidate(Number(pair[1]),Number(pair[2]),'Exact pin'))gateMap.open(control,intent);
         return;
       }
-      point={latitude:Math.round(latitude*1e7)/1e7,
-        longitude:Math.round(longitude*1e7)/1e7};
-      status.textContent=source==='Coordinates'?'Exact pin coordinates added':source+' location added';
-      link.href='https://www.google.com/maps/search/?api=1&query='+
-        encodeURIComponent(point.latitude+','+point.longitude);
-      link.hidden=false;
-    }
-    async function resolve(value,requestVersion){
       try{
-        const response=await fetch('/api/book/location',{
-          method:'POST',credentials:'omit',cache:'no-store',
-          headers:{'Content-Type':'application/json'},body:JSON.stringify({link:value})
-        });
-        if(requestVersion!==version)return;
-        const data=await response.json();
-        if(requestVersion!==version)return;
+        const response=await fetch('/api/book/location',{method:'POST',credentials:'omit',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({link:value})});
+        const data=await response.json();if(requestVersion!==version)return;
         if(!response.ok){
-          clear(data?.error||'That link has no precise location. Share a dropped pin in Google Maps.');
-          return;
+          clear(data?.code==='OUT_OF_SERVICE_AREA'?'Pickup and drop-off are available only in Islamabad and Rawalpindi.':'That link does not expose an exact gate pin. Drop a pin in Google Maps and copy its link, or paste its latitude, longitude.');return;
         }
-        const coordinates=/^-?\d{1,2}(?:\.\d+)?,\s*-?\d{1,3}(?:\.\d+)?$/.test(value.trim());
-        update(data.latitude,data.longitude,coordinates?'Coordinates':'Google Maps');
+        if(setCandidate(data.latitude,data.longitude,'Google Maps pin'))gateMap.open(control,intent);
       }catch{
-        if(requestVersion===version)clear('Could not read that link. Try pasting it again.');
+        if(requestVersion===version)clear('Could not read that link. Check your connection or paste the exact latitude, longitude.');
       }
     }
-    function inputChanged(){
-      version++;clearTimeout(timer);stopSearch();gateReview.hidden=true;gateLat.value='';gateLon.value='';search.value='';
-      const value=input.value.trim();
-      clear(value?'Reading location link…':'No location selected');
-      if(value)timer=setTimeout(()=>resolve(value,version),500);
-    }
-    input.addEventListener('input',inputChanged);
-    input.addEventListener('change',()=>{if(input.value.trim()&&!point)inputChanged()});
+    input.addEventListener('input',()=>{
+      version++;clearTimeout(timer);gateMap.closeFor(control);
+      const value=input.value.trim(),requestVersion=version,intent=gateMap.userIntent();
+      clear(value?'Reading gate pin…':undefined);
+      if(value)timer=setTimeout(()=>resolve(value,requestVersion,intent),450);
+    });
     locate.addEventListener('click',()=>{
-      version++;clearTimeout(timer);stopSearch();gateReview.hidden=true;gateLat.value='';gateLon.value='';search.value='';input.value='';
-      if(!navigator.geolocation){
-        clear('Device location is unavailable. Use a Google Maps link.');return;
-      }
-      const requestVersion=version;
-      clear('Finding your location…');
+      version++;clearTimeout(timer);gateMap.closeFor(control);input.value='';
+      if(!navigator.geolocation){clear('Device location is unavailable. Choose on the map or paste a Google Maps gate link.');return;}
+      const requestVersion=version,intent=gateMap.userIntent();clear('Finding your location…');
       navigator.geolocation.getCurrentPosition(result=>{
-        if(requestVersion===version)update(result.coords.latitude,result.coords.longitude,'Current');
+        if(requestVersion===version&&setCandidate(result.coords.latitude,result.coords.longitude,'Current location'))gateMap.open(control,intent);
       },()=>{
-        if(requestVersion===version)
-          clear('Location permission was not granted. Use a Google Maps link instead.');
+        if(requestVersion===version)clear('Location permission was not granted or your location is unavailable. Choose on the map or paste a Google Maps gate link.');
       },{enableHighAccuracy:true,timeout:12000,maximumAge:0});
     });
-    return {
-      point:()=>point,
-      focus:()=>gateReview.hidden?search.focus():confirmGate.focus(),
-      reset:()=>{version++;clearTimeout(timer);stopSearch();search.value='';gateReview.hidden=true;gateLat.value='';gateLon.value='';input.value='';clear(suffix==='dropoff'?'No drop-off location selected':'No location selected');}
-    };
+    return control;
   }
   const pickup=locationControl('');
   const dropoff=locationControl('dropoff-');
+  // One local, pinned CSP build and one hosted basemap, loaded only on demand.
+  const gateMap=(function(){
+    const panel=document.getElementById('gate-picker');
+    const status=document.getElementById('map-status');
+    const loading=document.getElementById('map-loading');
+    const confirm=document.getElementById('map-confirm');
+    const mobile=window.matchMedia('(max-width:700px)');
+    let active=null,map=null,library=null,ready=false,failed=false,positioning=false,loadTimer=null,openVersion=0,intentVersion=0,lastView=null,movementActive=false;
+    function loadLibrary(){
+      if(window.maplibregl)return Promise.resolve();
+      if(library)return library;
+      library=new Promise((resolve,reject)=>{
+        const css=document.createElement('link');css.rel='stylesheet';css.href='/book/vendor/maplibre-gl-5.6.1.css';document.head.append(css);
+        const script=document.createElement('script');script.src='/book/vendor/maplibre-gl-5.6.1.js';
+        const timeout=setTimeout(()=>reject(new Error('map timeout')),12000);
+        script.onload=()=>{clearTimeout(timeout);window.maplibregl?resolve():reject(new Error('map unavailable'));};
+        script.onerror=()=>{clearTimeout(timeout);reject(new Error('map unavailable'));};
+        document.head.append(script);
+      });
+      return library;
+    }
+    function update(){
+      const closeEnough=map&&map.getZoom()>=16;
+      confirm.disabled=!ready||failed||!closeEnough||!active?.candidate();
+      if(failed){loading.hidden=false;loading.textContent='Map unavailable';status.textContent='The map could not load. You can still paste an exact gate link, use GPS or paste coordinates.';return;}
+      loading.hidden=ready;
+      status.textContent=!ready?'Loading the map. Link, coordinate and GPS selection also work without it.':!closeEnough?'Zoom in to the vehicle entrance, then place the pin at your gate.':active?.candidate()?'Check the pin is at the vehicle entrance, then confirm.':'Move the map or tap your vehicle gate, then confirm.';
+    }
+    function fail(){failed=true;clearTimeout(loadTimer);update();}
+    function waitForTiles(){
+      ready=false;clearTimeout(loadTimer);loadTimer=setTimeout(fail,12000);
+    }
+    function position(){
+      if(!map||!active)return;
+      positioning=true;movementActive=false;waitForTiles();
+      const p=active.candidate()||active.point();
+      map.resize();map.jumpTo({center:p?[p.longitude,p.latitude]:[73.06,33.65],zoom:p?17:11.5});
+      lastView={...map.getCenter(),zoom:map.getZoom()};
+      positioning=false;map.triggerRepaint();update();
+    }
+    function close(restoreFocus=true,userAction=true){
+      openVersion++;movementActive=false;if(userAction)intentVersion++;
+      if(panel.open)panel.close();
+      document.body.classList.remove('gate-map-open');
+      if(active){active.choose.setAttribute('aria-expanded','false');if(restoreFocus)active.choose.focus();}
+    }
+    async function open(control,intent){
+      if(control.slot.closest('[hidden]')||(intent!==undefined&&intent!==intentVersion))return;
+      if(intent===undefined)intentVersion++;
+      close(false,false);active=control;control.slot.append(panel);
+      document.getElementById('gate-picker-title').textContent='Choose your '+control.name+' gate';
+      if(mobile.matches){panel.showModal();document.body.classList.add('gate-map-open');}else panel.setAttribute('open','');
+      control.choose.setAttribute('aria-expanded','true');
+      const thisOpen=++openVersion;update();
+      try{
+        await loadLibrary();if(thisOpen!==openVersion||control.slot.closest('[hidden]'))return;
+        if(!map){
+          window.maplibregl.setWorkerUrl('/book/vendor/maplibre-gl-csp-worker-5.6.1.js');
+          map=new window.maplibregl.Map({container:'map-canvas',style:'https://tiles.openfreemap.org/styles/liberty',center:[73.06,33.65],zoom:11.5,minZoom:9,maxZoom:20,maxBounds:SERVICE_BOUNDS,attributionControl:false,dragRotate:false,pitchWithRotate:false});
+          map.touchZoomRotate.disableRotation();
+          map.addControl(new window.maplibregl.NavigationControl({showCompass:false}),'top-right');
+          map.getCanvas().setAttribute('aria-label','Gate map. Use arrow keys to move and plus or minus to zoom.');
+          map.getCanvas().setAttribute('aria-describedby','map-instructions');
+          map.on('idle',()=>{ready=true;clearTimeout(loadTimer);update();});
+          map.on('error',fail);
+          map.on('movestart',event=>{
+            // MapLibre also emits movement events on resize. Resizing the sheet
+            // does not change the selected gate or restart its loading state.
+            if(positioning||!panel.open||!active||(!event.originalEvent&&!event.gateSelection))return;
+            movementActive=true;clearTimeout(loadTimer);ready=false;active.invalidate();update();
+          });
+          map.on('moveend',()=>{
+            if(positioning||!panel.open||!active)return;
+            const center=map.getCenter(),zoom=map.getZoom();
+            const changed=!lastView||Math.abs(center.lat-lastView.lat)>1e-8||Math.abs(center.lng-lastView.lng)>1e-8||Math.abs(zoom-lastView.zoom)>1e-7;
+            lastView={...center,zoom};
+            if(!changed&&!movementActive)return;
+            movementActive=false;active.invalidate();waitForTiles();active.setCandidate(center.lat,center.lng,'Map pin');update();
+          });
+          // Tapping and keyboard controls provide alternatives to dragging.
+          map.on('click',event=>map.jumpTo({center:[event.lngLat.lng,event.lngLat.lat]},{gateSelection:true}));
+          map.getCanvas().addEventListener('webglcontextlost',fail);
+          waitForTiles();
+        }
+        position();map.getCanvas().focus({preventScroll:true});
+      }catch{if(thisOpen===openVersion)fail();}
+    }
+    document.getElementById('map-close').addEventListener('click',()=>close());
+    document.getElementById('map-fallback').addEventListener('click',()=>{const control=active;close(false);control?.input.focus();});
+    panel.addEventListener('cancel',event=>{event.preventDefault();close();});
+    panel.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();close();}});
+    confirm.addEventListener('click',()=>{if(!confirm.disabled&&active){active.confirm();close();}});
+    // A viewport change must not leave an inline dialog outside the mobile focus trap.
+    mobile.addEventListener('change',()=>{if(panel.open&&active)open(active);});
+    return {open,userIntent:()=>++intentVersion,closeFor:control=>{if(active===control)close(false,false);},closeHidden:()=>{if(active&&active.slot.closest('[hidden]'))close(false);}};
+  })();
   function displayTransport(){
     const pickupOn=pickupRequested.checked,dropoffOn=dropoffRequested.checked;
     pickupPanel.hidden=!pickupOn;
@@ -175,6 +216,9 @@
     dropoffPanel.hidden=!dropoffOn||(pickupOn&&sameDropoff.checked);
     pickupRequested.setAttribute('aria-expanded',String(pickupOn));
     dropoffRequested.setAttribute('aria-expanded',String(!dropoffPanel.hidden));
+    if(pickupPanel.hidden)pickup.cancelPending();
+    if(dropoffPanel.hidden)dropoff.cancelPending();
+    gateMap.closeHidden();
   }
   pickupRequested.addEventListener('change',()=>{
     if(pickupRequested.checked){
@@ -220,11 +264,11 @@
     const primary=choice==='dropoff'?dropoff:pickup;
     if(needsTransport&&!primary.point()){
       primary.focus();
-      throw new Error('Select the '+(choice==='dropoff'?'drop-off':'pickup')+' location using Google Maps or coordinates.');
+      throw new Error('Select the '+(choice==='dropoff'?'drop-off':'pickup')+' vehicle gate and confirm it.');
     }
     if(choice==='both'&&!sameDropoff.checked&&!dropoff.point()){
       dropoff.focus();
-      throw new Error('Select the separate drop-off location using Google Maps or coordinates.');
+      throw new Error('Select the separate drop-off vehicle gate and confirm it.');
     }
     const details={
       ownerAddress:field(data,'ownerAddress'),

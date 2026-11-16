@@ -23,13 +23,13 @@ test('Lahore, Kashmir, missing and nonfinite pins cannot be saved for transport'
     }));
   }
 });
-test('UI uses Google Maps link and device location, with the same service boundary as server',()=>{
+test('gate picker and exact-pin fallbacks retain the same service boundary as server',()=>{
   const html=readFileSync('public/book/index.html','utf8');
   const js=readFileSync('public/book/app.js','utf8');
   assert.match(html,/Islamabad and Rawalpindi only/);
   assert.doesNotMatch(html,/id="place-area"|Lahore<\/option>/);
-  assert.match(html,/href="https:\/\/www\.google\.com\/maps\/@\?/);
-  assert.doesNotMatch(html,/maplibre|openfreemap/i);
+  assert.match(html,/href="https:\/\/www\.google\.com\/maps\//);
+  assert.doesNotMatch(html,/id="place-search"/);
   assert.match(js,/\[\[72\.81,33\.43\],\[73\.30,33\.84\]\]/);
-  assert.doesNotMatch(js,/gate\.checked|maplibregl/);
+  assert.doesNotMatch(js,/api\/book\/search/);
 });

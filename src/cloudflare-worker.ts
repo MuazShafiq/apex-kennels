@@ -1,3 +1,5 @@
+export {LocationSearchBudget} from './location-search-budget.ts';
+import type {LocationSearchBudgetNamespace} from './location-search-budget.ts';
 import {placeSearchRoute,type SearchLimiter} from './place-search.ts';
 import {renderCanvaStaffPdf} from './canva-invoice-pdf.ts';
 import {invoiceStaffRoute,invoiceWebhookRoute,type InvoiceWorkflowDeps} from './invoice-workflow-routes.ts';
@@ -45,7 +47,9 @@ export type WorkerEnv = {
   APEX_PUBLIC_BOOKING_ENABLED?: string;
   APEX_STAFF_DRAFTS_ENABLED?: string;
   GEOAPIFY_API_KEY?:string;
+  APEX_LOCATION_SEARCH_DISABLED?:string;
   LOCATION_SEARCH_RATE_LIMIT?:SearchLimiter;
+  LOCATION_SEARCH_BUDGET?:LocationSearchBudgetNamespace;
   LOCATION_SEARCH_USAGE_LIMIT?:SearchLimiter;
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;

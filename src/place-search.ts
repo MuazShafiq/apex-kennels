@@ -1,8 +1,9 @@
 import {TRANSPORT_SERVICE_BOUNDS,isTransportServiceLocation} from './transport-service-area.ts';
+import {consumeLocationSearchBudget,type LocationSearchBudgetNamespace} from './location-search-budget.ts';
 
 export type PlaceSuggestion={label:string;area:string;latitude:number;longitude:number};
 export type SearchLimiter={limit(options:{key:string}):Promise<{success:boolean}>};
-export type PlaceSearchEnv={GEOAPIFY_API_KEY?:string;LOCATION_SEARCH_RATE_LIMIT?:SearchLimiter;LOCATION_SEARCH_USAGE_LIMIT?:SearchLimiter};
+export type PlaceSearchEnv={GEOAPIFY_API_KEY?:string;APEX_LOCATION_SEARCH_DISABLED?:string;LOCATION_SEARCH_BUDGET?:LocationSearchBudgetNamespace;LOCATION_SEARCH_RATE_LIMIT?:SearchLimiter;LOCATION_SEARCH_USAGE_LIMIT?:SearchLimiter};
 const headers={'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'};
 const answer=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers});
 const safeText=(value:unknown,max:number)=>typeof value==='string'&&!/[\u0000-\u001f\u007f<>]/u.test(value)&&value.length<=max?value.trim():'';
@@ -82,7 +83,7 @@ export async function placeSearchRoute(request:Request,env:PlaceSearchEnv,fetche
   if(request.method!=='POST')return answer({error:'Method not allowed'},405);
   if(request.headers.get('origin')!==new URL(request.url).origin)return answer({error:'Forbidden'},403);
   if(request.headers.get('content-type')?.split(';')[0].trim()!=='application/json')return answer({error:'JSON required'},415);
-  if(!env.GEOAPIFY_API_KEY||!env.LOCATION_SEARCH_RATE_LIMIT||!env.LOCATION_SEARCH_USAGE_LIMIT)return answer({error:'Search is unavailable. Use GPS or paste your exact gate pin.'},503);
+  if(env.APEX_LOCATION_SEARCH_DISABLED==='true'||!env.GEOAPIFY_API_KEY||!env.LOCATION_SEARCH_BUDGET||!env.LOCATION_SEARCH_RATE_LIMIT||!env.LOCATION_SEARCH_USAGE_LIMIT)return answer({error:'Search is unavailable. Use GPS or paste your exact gate pin.'},503);
   let query:string;
   try{
     const body=JSON.parse(await boundedText(request,512));
@@ -95,6 +96,8 @@ export async function placeSearchRoute(request:Request,env:PlaceSearchEnv,fetche
     if(!(await env.LOCATION_SEARCH_RATE_LIMIT.limit({key:ip})).success||
        !(await env.LOCATION_SEARCH_USAGE_LIMIT.limit({key:'apex-location-search'})).success)
       return answer({error:'Search is busy. Wait a minute, use GPS or paste your exact gate pin.'},429);
+    if(!(await consumeLocationSearchBudget(env.LOCATION_SEARCH_BUDGET)).success)
+      return answer({error:'Search is unavailable. Use GPS or paste your exact gate pin.'},503);
     return answer({results:await searchLocalPlaces(query,env.GEOAPIFY_API_KEY,fetcher),attribution:'Powered by Geoapify / OpenStreetMap'});
   }catch{return answer({error:'Search could not load. Use GPS or paste your exact gate pin.'},503);}
 }

@@ -232,18 +232,38 @@ try{
   // search journey with a mock provider, keyboard selection and gate edits.
   const searchCase=await newPage();
   await fill(searchCase.page);
+  let releaseDelayed,delayedStarted;
+  const delayedRequest=new Promise(resolve=>{delayedStarted=resolve;});
   await searchCase.page.route('**/api/book/search',async route=>{
     const {query}=route.request().postDataJSON();
+    if(query==='delayed'){
+      delayedStarted();await new Promise(resolve=>{releaseDelayed=resolve;});
+      return route.fulfill({json:{results:[{label:'Delayed result',latitude:33.695,longitude:73.01}]}}).catch(()=>{});
+    }
     if(query==='outage')return route.fulfill({status:503,json:{error:'Search unavailable. Paste your exact gate pin.'}});
     return route.fulfill({json:{results:query==='empty'?[]:[
       {label:'F-10 Markaz, Islamabad, Pakistan',area:'Islamabad',latitude:33.695,longitude:73.01},
+      {label:'Second local gate, Islamabad',latitude:33.696,longitude:73.011},
       {label:'Outside service area',latitude:31.5,longitude:74.3}
     ]}});
   });
   await searchCase.page.locator('#transport-pickup').check();
+  await searchCase.page.locator('#place-search').fill('delayed');
+  await delayedRequest;
+  await searchCase.page.locator('#place-search').press('Escape');
+  releaseDelayed();
+  // The response may resolve after Escape; it must not reopen suggestions.
+  await searchCase.page.waitForTimeout(100);
+  assert.equal(await searchCase.page.locator('#place-results').isVisible(),false);
+  assert.equal(await searchCase.page.locator('#place-search').getAttribute('aria-expanded'),'false');
   await searchCase.page.locator('#place-search').fill('F-10');
-  await searchCase.page.locator('#place-results button').waitFor();
-  assert.equal(await searchCase.page.locator('#place-results button').count(),1);
+  await searchCase.page.locator('#place-results button').first().waitFor();
+  assert.equal(await searchCase.page.locator('#place-results button').count(),2);
+  await searchCase.page.locator('#place-search').press('ArrowUp');
+  assert.equal(await searchCase.page.locator('#place-search').getAttribute('aria-activedescendant'),'place-option-1');
+  await searchCase.page.locator('#place-search').press('Escape');
+  await searchCase.page.locator('#place-search').fill('F-10 Markaz');
+  await searchCase.page.locator('#place-results button').first().waitFor();
   await searchCase.page.locator('#place-search').press('ArrowDown');
   await searchCase.page.locator('#place-search').press('Enter');
   assert.equal(await searchCase.page.locator('#gate-review').isVisible(),true);

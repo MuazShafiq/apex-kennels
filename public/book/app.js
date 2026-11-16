@@ -88,10 +88,10 @@
     });
     search.addEventListener('keydown',event=>{
       const options=results.querySelectorAll('button');
-      if(event.key==='Escape'){closeResults();return;}
+      if(event.key==='Escape'){version++;stopSearch();return;}
       if(results.hidden||!options.length)return;
       if(event.key==='ArrowDown'||event.key==='ArrowUp'){
-        event.preventDefault();active=(active+(event.key==='ArrowDown'?1:-1)+options.length)%options.length;
+        event.preventDefault();active=active<0?(event.key==='ArrowDown'?0:options.length-1):(active+(event.key==='ArrowDown'?1:-1)+options.length)%options.length;
         options.forEach((option,index)=>option.setAttribute('aria-selected',String(index===active)));
         search.setAttribute('aria-activedescendant',options[active].id);
       }else if(event.key==='Enter'){event.preventDefault();if(active>=0)options[active].click();}

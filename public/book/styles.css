@@ -156,6 +156,13 @@ button:focus-visible,a:focus-visible{outline:3px solid #8ca6e7;outline-offset:3p
 }
 /* Transport services are independent decisions. Square controls and labels
    share a fixed two-column grid so their baselines never drift on mobile. */
+.place-results{list-style:none;padding:0;margin:8px 0;display:grid;gap:8px}
+.place-results[hidden]{display:none}
+.place-results button{width:100%;text-align:left;white-space:normal;min-height:44px;overflow-wrap:anywhere}
+.place-results button[aria-selected=true]{outline:3px solid #a7b3ef;outline-offset:-3px}
+[id$="gate-review"]{margin:12px 0;padding:12px;border:1px solid #d4e2f3;border-radius:10px}
+[id$="gate-review"] p{font-size:13px;line-height:1.5}
+[id$="confirm-gate"]{margin-top:12px;min-height:44px}
 .transport-help{font-size:12px;color:#67738c;margin:2px 0 15px}
 .transport-service-list{display:grid;gap:13px}
 .transport-service-block{min-width:0;border:1px solid #d4e2f3;border-radius:12px;background:#fbfdff;overflow:hidden}

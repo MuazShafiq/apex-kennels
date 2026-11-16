@@ -79,13 +79,13 @@ test('link endpoint refuses cross-origin and unrelated fields without resolving 
   assert.equal(calls,0);
 });
 
-test('book page does not load third-party place search, map tiles or Maps API keys',()=>{
+test('book page keeps provider credentials and map tiles off the client',()=>{
   const html=readFileSync('public/book/index.html','utf8');
   const js=readFileSync('public/book/app.js','utf8');
   assert.match(html,/Open Google Maps/);
   assert.match(html,/id="maps-link"/);
   assert.match(html,/Use my current location/);
-  assert.doesNotMatch(html,/unpkg|maplibre|openfreemap|Geoapify|TomTom/);
+  assert.doesNotMatch(html,/unpkg|maplibre|openfreemap|TomTom/);
   assert.doesNotMatch(js,/GEOAPIFY_API_KEY|TOMTOM_API_KEY|google\.maps\.api|api\/book\/places/);
 });
 
@@ -106,8 +106,10 @@ test('customer-facing booking retains service details, exact six terms and no re
   assert.match(html,/Use pickup location for drop-off/);
   assert.doesNotMatch(html,/name="transportChoice" value="both"/);
   assert.match(js,/noTransport\.checked/);
-  assert.doesNotMatch(html,/confirm-gate|Camera cage requested\?|id="place-search"|id="map"|id="place-results"/);
-  assert.doesNotMatch(js,/gate\.checked|maplibregl|api\/book\/places/);
+  assert.doesNotMatch(html,/Camera cage requested\?|id="map"/);
+  assert.match(html,/id="confirm-gate"/);
+  assert.match(html,/id="place-search"/);
+  assert.doesNotMatch(js,/maplibregl|api\/book\/places/);
   assert.match(js,/customerConfirmed:true/);
 });
 test('retired search endpoints no longer expose providers or consume API credits',async()=>{

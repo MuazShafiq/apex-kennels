@@ -42,7 +42,65 @@
     const status=document.getElementById(prefix+'coordinate-status');
     const link=document.getElementById(prefix+'selected-location-link');
     const locate=document.getElementById(prefix+'locate');
-    let point=null,version=0,timer=null;
+    const search=document.getElementById(prefix+'place-search');
+    const results=document.getElementById(prefix+'place-results');
+    const searchStatus=document.getElementById(prefix+'search-status');
+    const gateReview=document.getElementById(prefix+'gate-review');
+    const gateLat=document.getElementById(prefix+'gate-latitude');
+    const gateLon=document.getElementById(prefix+'gate-longitude');
+    const confirmGate=document.getElementById(prefix+'confirm-gate');
+    let point=null,version=0,timer=null,searchTimer=null,controller=null,active=-1;
+    function closeResults(){results.hidden=true;search.setAttribute('aria-expanded','false');search.removeAttribute('aria-activedescendant');active=-1;}
+    function stopSearch(){clearTimeout(searchTimer);controller?.abort();closeResults();}
+    function candidate(item){
+      version++;clearTimeout(timer);stopSearch();input.value='';
+      clear('Confirm or adjust the vehicle gate before continuing.');
+      search.value=item.label;gateReview.hidden=false;
+      gateLat.value=item.latitude;gateLon.value=item.longitude;
+      link.href='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(item.latitude+','+item.longitude);link.hidden=false;
+      searchStatus.textContent='Place selected. Confirm the exact gate below.';
+      gateLat.focus();
+    }
+    search.addEventListener('input',()=>{
+      version++;clearTimeout(timer);stopSearch();clear();gateReview.hidden=true;gateLat.value='';gateLon.value='';input.value='';
+      const query=search.value.trim(),requestVersion=version;
+      results.replaceChildren();
+      if(query.length<3){searchStatus.textContent='Type at least 3 characters. GPS and pasted gate pins also work.';return;}
+      searchStatus.textContent='Searching…';
+      searchTimer=setTimeout(async()=>{
+        controller=new AbortController();
+        try{
+          const response=await fetch('/api/book/search',{method:'POST',credentials:'omit',cache:'no-store',signal:controller.signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({query})});
+          const data=await response.json();if(requestVersion!==version)return;
+          if(!response.ok)throw new Error(data.error||'Search unavailable. Use GPS or paste your gate pin.');
+          const items=Array.isArray(data.results)?data.results.filter(x=>typeof x.label==='string'&&inServiceArea(x.latitude,x.longitude)):[];
+          searchStatus.textContent=items.length?'Choose a place, then confirm its vehicle gate. Powered by Geoapify / OpenStreetMap.':'No matching local places. Add a society, phase or city, or paste your exact gate pin.';
+          for(const [index,item] of items.entries()){
+            const li=document.createElement('li'),button=document.createElement('button');
+            li.setAttribute('role','presentation');button.type='button';button.id=prefix+'place-option-'+index;
+            button.setAttribute('role','option');button.setAttribute('aria-selected','false');button.className='secondary';
+            button.textContent=item.label+(item.area&&!item.label.includes(item.area)?' — '+item.area:'');
+            button.addEventListener('click',()=>candidate(item));li.append(button);results.append(li);
+          }
+          results.hidden=!items.length;search.setAttribute('aria-expanded',String(!!items.length));
+        }catch(error){if(requestVersion===version&&error.name!=='AbortError')searchStatus.textContent=error.message||'Search unavailable. Use GPS or paste your gate pin.';}
+      },400);
+    });
+    search.addEventListener('keydown',event=>{
+      const options=results.querySelectorAll('button');
+      if(event.key==='Escape'){closeResults();return;}
+      if(results.hidden||!options.length)return;
+      if(event.key==='ArrowDown'||event.key==='ArrowUp'){
+        event.preventDefault();active=(active+(event.key==='ArrowDown'?1:-1)+options.length)%options.length;
+        options.forEach((option,index)=>option.setAttribute('aria-selected',String(index===active)));
+        search.setAttribute('aria-activedescendant',options[active].id);
+      }else if(event.key==='Enter'){event.preventDefault();if(active>=0)options[active].click();}
+    });
+    for(const field of [gateLat,gateLon])field.addEventListener('input',()=>{point=null;status.textContent='Coordinates changed. Confirm the vehicle gate again.';});
+    confirmGate.addEventListener('click',()=>{
+      if(!gateLat.value||!gateLon.value){clear('Enter both gate coordinates.');return;}
+      update(Number(gateLat.value),Number(gateLon.value),'Confirmed gate');
+    });
     function clear(text){
       point=null;
       link.hidden=true;
@@ -81,7 +139,7 @@
       }
     }
     function inputChanged(){
-      version++;clearTimeout(timer);
+      version++;clearTimeout(timer);stopSearch();gateReview.hidden=true;gateLat.value='';gateLon.value='';search.value='';
       const value=input.value.trim();
       clear(value?'Reading location link…':'No location selected');
       if(value)timer=setTimeout(()=>resolve(value,version),500);
@@ -89,7 +147,7 @@
     input.addEventListener('input',inputChanged);
     input.addEventListener('change',()=>{if(input.value.trim()&&!point)inputChanged()});
     locate.addEventListener('click',()=>{
-      version++;clearTimeout(timer);input.value='';
+      version++;clearTimeout(timer);stopSearch();gateReview.hidden=true;gateLat.value='';gateLon.value='';search.value='';input.value='';
       if(!navigator.geolocation){
         clear('Device location is unavailable. Use a Google Maps link.');return;
       }
@@ -104,8 +162,8 @@
     });
     return {
       point:()=>point,
-      focus:()=>input.focus(),
-      reset:()=>{version++;clearTimeout(timer);input.value='';clear(suffix==='dropoff'?'No drop-off location selected':'No location selected');}
+      focus:()=>gateReview.hidden?search.focus():confirmGate.focus(),
+      reset:()=>{version++;clearTimeout(timer);stopSearch();search.value='';gateReview.hidden=true;gateLat.value='';gateLon.value='';input.value='';clear(suffix==='dropoff'?'No drop-off location selected':'No location selected');}
     };
   }
   const pickup=locationControl('');

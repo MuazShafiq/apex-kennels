@@ -19,7 +19,21 @@ if(denied.status!==403)throw new Error('Location search cross-origin denial fail
 
 // Exactly one real Geoapify search. No retries on provider/quota/network errors.
 const response=await fetch(target,options);
-if(response.status!==200)throw new Error('Live location search unavailable (HTTP '+response.status+')');
+if(response.status!==200){
+  let code='unknown';
+  try{
+    const body=await response.json();
+    // Only known, non-sensitive fixed error strings from the Worker are exposed.
+    const known={
+      'Search is unavailable. Use GPS or paste your exact gate pin.':'missing-runtime-or-budget',
+      'Search is unavailable. Paste your exact gate pin instead.':'edge-client-ip-missing',
+      'Search could not load. Use GPS or paste your exact gate pin.':'provider-or-budget-exception',
+      'Search is busy. Wait a minute, use GPS or paste your exact gate pin.':'edge-rate-limit'
+    };
+    code=known[body?.error]||'unexpected-error-body';
+  }catch{}
+  throw new Error('Live location search HTTP '+response.status+'; category '+code);
+}
 if(response.headers.get('cache-control')!=='no-store')
   throw new Error('Live location search missing no-store');
 const length=Number(response.headers.get('content-length')||0);

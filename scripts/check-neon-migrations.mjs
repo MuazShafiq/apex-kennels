@@ -20,6 +20,7 @@ export const migrationGroups=[
   {file:'db/migrations/004_invoice_approval.sql',tables:['approved_invoices','invoice_approval_audit']},
   {file:'db/migrations/005_invoice_delivery.sql',tables:['invoice_delivery_outbox','invoice_delivery_audit','invoice_delivery_events']},
   {file:'db/migrations/006_owner_booking_alerts.sql',tables:['owner_alert_outbox','owner_alert_audit','owner_alert_events']},
+  {file:'db/migrations/007_invoice_corrections.sql',tables:['invoice_corrections']},
 ];
 
 function validateStaticNeonIdentity({project,production,productionEndpoint,target,endpoints},expected){
@@ -133,7 +134,7 @@ async function validateMigrationDatabaseUnlocked({dbUrl,clientFactory,log}){
     const security=(await db.query("SELECT relname,relrowsecurity FROM pg_class WHERE relnamespace='public'::regnamespace AND relname=ANY($1::text[])",[securedTables])).rows;
     assert.equal(security.length,securedTables.length);assert(security.every(row=>row.relrowsecurity));
     assert.equal((await db.query("SELECT count(*)::int AS n FROM pg_policies WHERE schemaname='public' AND tablename=ANY($1::text[])",[securedTables])).rows[0].n,0);
-    log('PASS all eight migrated tables enable RLS without policies');
+    log('PASS all nine migrated tables enable RLS without policies');
   }finally{await db.end();}
   const {runInvoiceDbChecks}=await import('./check-invoice-db.mjs');
   const {runOwnerAlertDbChecks}=await import('./check-owner-alert-db.mjs');

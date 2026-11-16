@@ -10,6 +10,7 @@ import {chromium} from 'playwright';
 import {handleWorkerRequest} from '../src/cloudflare-worker.ts';
 import {prepareStaffDraftReview} from '../src/staff-invoice-draft.ts';
 import {makeReviewSnapshot} from '../src/staff-saved-review.ts';
+import {prepareOwnerEdit} from '../src/owner-invoice-edit.ts';
 import {prepareApproval,requireInvoiceOwner} from '../src/invoice-approval.ts';
 
 const owner='owner@example.test',issuer='https://invoice-browser-test.cloudflareaccess.com';
@@ -21,6 +22,7 @@ const now=Math.floor(Date.now()/1000);
 const data=encode({alg:'RS256',kid:jwk.kid})+'.'+encode({iss:issuer,aud:audience,email:owner,iat:now-1,exp:now+3600});
 const token=data+'.'+sign('sha256',Buffer.from(data),privateKey).toString('base64url');
 const template=new Uint8Array(await readFile(new URL('../public/invoice/canva-blank.pdf',import.meta.url)));
+const editorScript=await readFile(new URL('../public/book/owner-invoice-editor.js',import.meta.url));
 const mark=await readFile(new URL('../public/book/apex-dog-mark.svg',import.meta.url));
 const bank={bank:'HBL',accountTitle:'SYNTHETIC BROWSER TEST ONLY',accountNumber:'00000000000000',iban:'PK00HABB0000000000000000'};
 const env={DATABASE_URL:'synthetic://no-database',APEX_INVOICE_APPROVAL_ENABLED:'true',APEX_INVOICE_ISSUANCE_ENABLED:'true',APEX_INVOICE_WHATSAPP_ENABLED:'true',APEX_INVOICE_OWNER_EMAIL:owner,APEX_INVOICE_BANK_JSON:JSON.stringify(bank),APEX_INVOICE_MANUAL_NUMBER_FLOOR:'0100',STAFF_ACCESS_AUD:audience,STAFF_ACCESS_ISSUER:issuer,STAFF_ALLOWED_EMAILS:owner,WHATSAPP_ACCESS_TOKEN:'synthetic-browser-token-'.repeat(3),WHATSAPP_PHONE_NUMBER_ID:'123456789012',WHATSAPP_GRAPH_VERSION:'v24.0',APEX_INVOICE_WHATSAPP_TEMPLATE:'synthetic_invoice_pdf',ASSETS:{fetch:async request=>new URL(request.url).pathname==='/invoice/canva-blank.pdf'?new Response(template,{headers:{'Content-Type':'application/pdf'}}):new Response('Not found',{status:404})}};
@@ -30,20 +32,28 @@ globalThis.fetch=async target=>{
   assert.equal(String(target),issuer+'/cdn-cgi/access/certs','Unexpected network call from Worker test');
   jwksRequests++;return Response.json({keys:[jwk]});
 };
-let fixture,invoice,pdf,delivery,deliveredPdf;
+let fixture,invoice,pdf,delivery,deliveredPdf,correction;
 const effects={approvals:0,issues:0,queued:0,provider:0,retries:0,reconciliations:0};
 function reset(){
   const id=randomUUID();
   // All fields are synthetic. synthetic:false deliberately exercises the
   // deliverable-record branch; persistence/provider dependencies are always fake.
   fixture={snapshot:makeReviewSnapshot(prepareStaffDraftReview({bookingId:id,customerName:'Browser Fixture Owner',petNames:'Synthetic Browser Dog',petCount:1,startDate:'2026-12-01',endDate:'2026-12-03',status:'requested',cameraCageRequested:false,transportRequested:false,synthetic:false},'daily')),revision:1,updatedBy:owner,updatedAt:new Date().toISOString()};
-  invoice=null;pdf=null;delivery=null;deliveredPdf=null;
+  invoice=null;pdf=null;delivery=null;deliveredPdf=null;correction=null;
 }
 function queue(){
   assert.equal(invoice?.status,'issued');assert(invoice.snapshot.consent);
   if(!delivery){effects.queued++;delivery={state:'queued',attempts:0,updatedAt:new Date().toISOString(),providerMessageId:null,errorKind:null};}
 }
+let editFailure=false;
 const deps={
+  loadInvoiceCorrection:async()=>correction,
+  recordInvoiceCorrection:async(_url,id,actor,_config,input)=>{assert.equal(id,invoice.id);assert.equal(actor,owner);correction={...input,actor,createdAt:new Date().toISOString()};return correction;},
+  saveOwnerInvoiceEdit:async(_url,id,revision,rows,action,actor)=>{
+    if(editFailure)throw new Error('Synthetic edit failure');
+    assert.equal(id,fixture.snapshot.booking.id);assert.equal(revision,fixture.revision);
+    fixture={snapshot:prepareOwnerEdit(fixture,rows,action,actor),revision:revision+1,updatedBy:actor,updatedAt:new Date().toISOString()};return {revision:fixture.revision};
+  },
   loadSavedReview:async(_url,id)=>id===fixture.snapshot.booking.id?structuredClone(fixture):null,
   loadApprovedInvoice:async(_url,id)=>invoice&&[invoice.id,invoice.snapshot.review.booking.id].includes(id)?structuredClone(invoice):null,
   approveInvoice:async(_url,input,actor,config)=>{
@@ -85,6 +95,7 @@ const errors=[];
 const server=createServer(async(req,res)=>{
   try{
     const url=new URL(req.url??'/',origin);
+    if(url.pathname==='/book/owner-invoice-editor.js'){res.writeHead(200,{'Content-Type':'text/javascript'});res.end(editorScript);return;}
     if(url.pathname==='/book/apex-dog-mark.svg'){res.writeHead(200,{'Content-Type':'image/svg+xml'});res.end(mark);return;}
     const parts=[];for await(const part of req)parts.push(part);
     const headers=new Headers();for(const [name,value] of Object.entries(req.headers))if(value!==undefined)headers.set(name,Array.isArray(value)?value.join(','):value);
@@ -105,9 +116,41 @@ try{
     assert(new URL(route.request().url()).origin===origin,'Browser attempted external network');return route.continue();
   });
   const goReview=()=>page.goto(origin+'/staff/invoices/review?id='+fixture.snapshot.booking.id);
-  const confirm=()=>page.locator('input[name="confirmed"]').check();
+  const confirm=()=>page.locator('form:not([action="/staff/invoices/correct"]) input[name="confirmed"]').check();
   const submit=async name=>{await Promise.all([page.waitForURL('**/staff/invoices/view?id=*'),page.getByRole('button',{name,exact:true}).click()]);};
   await goReview();
+  await page.getByRole('button',{name:'Add line',exact:true}).click();
+  const custom=page.locator('#invoice-rows fieldset').last();
+  await custom.getByLabel('Description').fill('Owner custom charge');
+  await custom.getByLabel('Unit price (PKR)').fill('600');
+  await page.getByRole('button',{name:'Add discount',exact:true}).click();
+  await page.locator('#invoice-discounts').getByLabel('Discount amount (PKR)').fill('100');
+  assert.match(await page.locator('#invoice-live-preview').innerText(),/8,000/);
+  assert.equal(await page.getByRole('button',{name:'Approve snapshot',exact:true}).isDisabled(),true);
+  await page.getByRole('button',{name:'Move line 2 up',exact:true}).click();
+  assert.equal(await page.locator('#invoice-rows fieldset').nth(0).getByLabel('Description').inputValue(),'Owner custom charge');
+  await page.getByRole('button',{name:'Undo last change',exact:true}).click();
+  editFailure=true;await page.getByRole('button',{name:'Save invoice changes',exact:true}).click();
+  await page.locator('#edit-error').waitFor({state:'visible'});
+  assert.equal(await page.locator('#edit-error').evaluate(el=>el===document.activeElement),true);
+  assert.equal(await page.locator('#invoice-rows fieldset').last().getByLabel('Description').inputValue(),'Owner custom charge');
+  editFailure=false;
+  await Promise.all([page.waitForEvent('load'),page.getByRole('button',{name:'Save invoice changes',exact:true}).click()]);
+  assert.equal(fixture.revision,2);assert.equal(fixture.snapshot.quote.totalPkr,8000);
+  assert.equal(await page.locator('#invoice-rows fieldset').last().getByLabel('Description').inputValue(),'Owner custom charge');
+  await page.getByRole('button',{name:'Reset to calculated defaults',exact:true}).click();
+  assert.match(await page.locator('#invoice-live-preview').innerText(),/7,500/);
+  await Promise.all([page.waitForEvent('load'),page.getByRole('button',{name:'Save invoice changes',exact:true}).click()]);
+  assert.equal(fixture.snapshot.quote.totalPkr,7500);
+  assert.equal(fixture.snapshot.ownerOverride.history.at(-1).action,'reset');
+  await page.getByRole('button',{name:'Add line',exact:true}).click();
+  await page.locator('#invoice-rows fieldset').last().getByLabel('Unit price (PKR)').fill('200');
+  await page.getByRole('button',{name:'Reset to calculated defaults',exact:true}).click();
+  await page.getByRole('button',{name:'Undo last change',exact:true}).click();
+  await Promise.all([page.waitForEvent('load'),page.getByRole('button',{name:'Save invoice changes',exact:true}).click()]);
+  assert.equal(fixture.snapshot.quote.totalPkr,7700);assert.equal(fixture.snapshot.ownerOverride.history.at(-1).action,'edit');
+  pass('owner arbitrary rows, discounts, reorder, undo, save/reopen/reset and accessible failure preserve edits');
+  reset();await goReview();
   await page.getByLabel('Four-digit invoice number').focus();
   assert(await page.getByLabel('Four-digit invoice number').evaluate(el=>el===document.activeElement));
   assert(await page.getByLabel('Consenting WhatsApp number').count()===1);
@@ -157,6 +200,16 @@ try{
   const beforeRepair=effects.provider;await confirm();await submit('Save reconciliation');
   assert.equal(delivery.state,'failed');assert.equal(effects.reconciliations,1);assert.equal(effects.provider,beforeRepair);
   pass('failed retry and ambiguous reconciliation are distinct; reconciliation never sends');
+
+  const beforeCorrection={...effects};
+  await page.getByLabel('Correction reason',{exact:true}).fill('Synthetic controlled cancellation only');
+  await page.locator('form[action="/staff/invoices/correct"] input[name="confirmed"]').check();
+  await submit('Record correction');
+  assert.equal(await page.getByRole('heading',{name:'Recorded correction',exact:true}).count(),1);
+  assert.equal(await page.getByRole('button',{name:'Retry failed delivery',exact:true}).count(),0);
+  assert.equal(await page.getByRole('button',{name:'Record correction',exact:true}).count(),0);
+  assert.equal(invoice.status,'issued');assert.deepEqual(effects,beforeCorrection);
+  pass('controlled correction keeps immutable issued artifact visible and removes further mutation controls');
 
   const beforeDisabled={...effects};
   env.APEX_INVOICE_WHATSAPP_ENABLED='false';assert.equal((await post('send')).status(),503);

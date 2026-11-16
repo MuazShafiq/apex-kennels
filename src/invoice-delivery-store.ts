@@ -1,3 +1,4 @@
+import {lockUncorrectedInvoice} from './invoice-correction.ts';
 import {Client} from '@neondatabase/serverless';
 import {createHash} from 'node:crypto';
 import {validateApprovalSnapshot} from './invoice-approval.ts';
@@ -21,6 +22,7 @@ async function audit(db:DeliveryDb,invoiceId:string,action:string,by:string):Pro
 export async function enqueueInvoiceDelivery(url:string,invoiceId:string,by:string,makeDb:DeliveryDbFactory=factory):Promise<void>{
   id(invoiceId);actor(by);
   await connected(url,async db=>{await db.query('BEGIN');try{
+    await lockUncorrectedInvoice(db,invoiceId);
     const result=await db.query('SELECT snapshot,status,pdf_sha256 FROM public.approved_invoices WHERE id=$1 FOR UPDATE',[invoiceId]);
     const invoice=result.rows[0];const snapshot=invoice?validateApprovalSnapshot(invoice.snapshot):null;const consent=snapshot?.consent;
     if(invoice?.status!=='issued'||!invoice.pdf_sha256||snapshot?.review?.booking?.synthetic!==false||
@@ -53,6 +55,7 @@ const APPLY_EVENTS=`UPDATE public.invoice_delivery_outbox o SET state=CASE
 export async function dispatchInvoiceDelivery(url:string,invoiceId:string,config:DeliveryConfig,fetcher:typeof fetch=fetch,makeDb:DeliveryDbFactory=factory):Promise<void>{
   id(invoiceId);validateDeliveryConfig(config);
   const claimed=await connected(url,async db=>{await db.query('BEGIN');try{
+    await lockUncorrectedInvoice(db,invoiceId);
     const stale=await db.query("UPDATE public.invoice_delivery_outbox SET state='ambiguous',error_kind='ambiguous',updated_at=now() WHERE invoice_id=$1 AND state='sending' AND updated_at<now()-interval '2 minutes' RETURNING invoice_id",[invoiceId]);
     if(stale.rows.length)await audit(db,invoiceId,'stale_sending_ambiguous','system');
     const result=await db.query("UPDATE public.invoice_delivery_outbox SET state='sending',attempts=attempts+1,error_kind=NULL,updated_at=now() WHERE invoice_id=$1 AND state='queued' AND attempts<3 RETURNING recipient,consent,attempts",[invoiceId]);
@@ -87,6 +90,7 @@ export async function dispatchInvoiceDelivery(url:string,invoiceId:string,config
 /** Only explicit preacceptance failures can retry, with three total attempts. */
 export async function retryInvoiceDelivery(url:string,invoiceId:string,by:string,makeDb:DeliveryDbFactory=factory):Promise<void>{
   id(invoiceId);actor(by);await connected(url,async db=>{await db.query('BEGIN');try{
+    await lockUncorrectedInvoice(db,invoiceId);
     const result=await db.query("UPDATE public.invoice_delivery_outbox SET state='queued',error_kind=NULL,updated_at=now() WHERE invoice_id=$1 AND state='failed' AND provider_message_id IS NULL AND attempts<3 RETURNING invoice_id",[invoiceId]);
     if(!result.rows.length)throw new Error('Retry requires a definite rejection with remaining attempts; reconcile unknown outcomes manually');
     await audit(db,invoiceId,'manual_retry',by);await db.query('COMMIT');

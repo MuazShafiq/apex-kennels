@@ -1,3 +1,4 @@
+import {lockUncorrectedInvoice} from './invoice-correction.ts';
 import {Client} from '@neondatabase/serverless';
 import {isSyntheticBooking} from './synthetic-booking.ts';
 import {createHash} from 'node:crypto';
@@ -41,9 +42,9 @@ export async function approveInvoice(databaseUrl:string,input:ApprovalInput,acto
     const row=result.rows[0];if(!row)throw new InvoiceApprovalError('Save a reviewed estimate first');
     const saved:SavedReview={snapshot:row.snapshot as SavedReview['snapshot'],revision:Number(row.revision),updatedBy:String(row.updated_by),updatedAt:String(row.updated_at)};
     const snapshot=prepareApproval(saved,input,actor,config);
-    const review=snapshot.review,boarding=review.quote.lines[0];
+    const review=snapshot.review,sourceQuote=review.ownerOverride?.sourceQuote??review.quote,boarding=sourceQuote.lines[0];
     const synthetic=isSyntheticBooking({customerName:String(source.full_name),petName:String(source.pet_names),externalResponseId:typeof source.external_submission_id==='string'?source.external_submission_id:undefined});
-    if(source.start_date!==review.booking.startDate||source.end_date!==review.booking.endDate||source.full_name!==review.booking.customerName||source.pet_names!==review.booking.petNames||synthetic!==review.booking.synthetic||Number(source.pet_count)!==boarding.quantity/review.quote.billedDays||source.camera_cage_requested!==(boarding.label==='Camera cage boarding')||source.pickup_dropoff_requested!==!!review.transport)throw new InvoiceApprovalError('Booking details changed; save a fresh reviewed estimate');
+    if(source.start_date!==review.booking.startDate||source.end_date!==review.booking.endDate||source.full_name!==review.booking.customerName||source.pet_names!==review.booking.petNames||synthetic!==review.booking.synthetic||Number(source.pet_count)!==boarding.quantity/sourceQuote.billedDays||source.camera_cage_requested!==(boarding.label==='Camera cage boarding')||source.pickup_dropoff_requested!==!!review.transport)throw new InvoiceApprovalError('Booking details changed; save a fresh reviewed estimate');
     if(review.transport){
       let pin:Record<string,unknown>|undefined;
       try{
@@ -73,9 +74,9 @@ export async function approveInvoice(databaseUrl:string,input:ApprovalInput,acto
       if(prior.snapshot.reviewRevision!==input.revision||prior.snapshot.invoiceNumber!==input.invoiceNumber||prior.snapshot.approvedBy!==actor)throw new InvoiceApprovalError('Booking already has an immutable invoice');
       return prior;
     }
-    const used=await db.query("SELECT invoice_number FROM public.invoices WHERE invoice_number=$1 UNION ALL SELECT invoice_number FROM public.approved_invoices WHERE invoice_number=$1",[input.invoiceNumber]);
+    const used=await db.query("SELECT invoice_number FROM public.invoices WHERE invoice_number=$1 UNION ALL SELECT invoice_number FROM public.approved_invoices WHERE invoice_number=$1 UNION ALL SELECT replacement_number FROM public.invoice_corrections WHERE replacement_number=$1",[input.invoiceNumber]);
     if(used.rows.length)throw new InvoiceApprovalError('Invoice number is already reserved');
-    const latest=await db.query("SELECT MAX(invoice_number::integer) AS last_number FROM (SELECT invoice_number FROM public.approved_invoices UNION ALL SELECT invoice_number FROM public.invoices WHERE invoice_number ~ '^[0-9]{4}$') AS reserved");
+    const latest=await db.query("SELECT MAX(invoice_number::integer) AS last_number FROM (SELECT invoice_number FROM public.approved_invoices UNION ALL SELECT invoice_number FROM public.invoices WHERE invoice_number ~ '^[0-9]{4}$' UNION ALL SELECT replacement_number FROM public.invoice_corrections WHERE replacement_number IS NOT NULL) AS reserved");
     if(Number(input.invoiceNumber)<=Number(latest.rows[0]?.last_number??0))throw new InvoiceApprovalError('Invoice number precedes a reserved number');
     const inserted=await db.query('INSERT INTO public.approved_invoices(booking_id,invoice_number,snapshot) VALUES($1,$2,$3::jsonb) RETURNING '+columns,[input.bookingId,input.invoiceNumber,JSON.stringify(snapshot)]);
     const invoice=decode(inserted.rows[0] as Row);
@@ -88,6 +89,7 @@ export async function issueInvoice(databaseUrl:string,id:string,actor:string,con
   if(!INVOICE_UUID.test(id)||pdfBytes.length<1000||pdfBytes.length>2_000_000||new TextDecoder().decode(pdfBytes.slice(0,5))!=='%PDF-')throw new InvoiceApprovalError('Invalid invoice PDF',422);
   const hash=createHash('sha256').update(pdfBytes).digest('hex');
   return transaction(databaseUrl,async db=>{
+    await lockUncorrectedInvoice(db,id);
     const result=await db.query('SELECT '+columns+' FROM public.approved_invoices WHERE id=$1 FOR UPDATE',[id]);
     if(!result.rows[0])throw new InvoiceApprovalError('Invoice not found',404);
     const invoice=decode(result.rows[0] as Row);

@@ -1,3 +1,5 @@
+> Current runner update (2026-11-16): the development-only runner now also rehearses additive migration 007 and verifies nine private RLS tables for #92. The historical authenticated Neon evidence below covers 004–006 only. Migration 007 has local/CI proof and remains unapplied to production; see [its release prerequisite](invoice-corrections-migration.md).
+
 # Development Neon migration validation
 
 This procedure tests migrations 004â€“006 with synthetic data and fake providers. It does not authorize production schema/data changes, financial issuance, messages, gate activation, paid services or credential rotation. Authenticated development Neon validation passed on 2026-11-15 through the connected operator using the shared validation core; see the measured result below. The standalone CLI still requires private API management authentication. Do not substitute an existing data-copy branch. A local database URL is not control-plane branch identity.

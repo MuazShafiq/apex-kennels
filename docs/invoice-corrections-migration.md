@@ -1,0 +1,11 @@
+# Invoice correction ledger release prerequisite
+
+Issue #92 adds `db/migrations/007_invoice_corrections.sql`. It has **not been applied to production**. Migrations 004–006 are already applied; do not rerun them or the older preparation bundle.
+
+The owner editor uses the existing saved-review JSON and revision column. The correction ledger adds one private, immutable record per approved invoice. A cancellation blocks future issuance and dispatch; a replacement records a separately issued manual Canva invoice number and its evidence reference. Neither action changes the original snapshot/PDF, sends a replacement, recalls a provider-accepted message, or records payment. Sending/ambiguous outcomes must be reconciled first. Replacement numbers are reserved alongside issued/approved numbers, including the confirmed manual floor.
+
+Before separately authorizing application, review the exact migration and its digest, identify the production project/branch/endpoint/database/role afresh, confirm 004–006 prerequisites and that `invoice_corrections` and its trigger are absent, and recheck all five gates closed. Use an error-stopping transaction with the existing migration advisory lock, bounded lock/statement timeouts, and precommit catalog checks. Apply only 007. Read back table ownership, RLS enabled with zero policies, primary/unique/check constraints and enabled immutable trigger; verify preexisting relation identities and booking count unchanged. Production's existing owner role has BYPASSRLS; this migration does not change it.
+
+If any statement fails, roll back. If COMMIT outcome is uncertain, inspect the catalog before retrying; never drop a populated ledger or weaken immutability to rerun it. This code fails closed for financial actions if the required ledger table is absent. Keep invoice/public booking/message gates closed after application; schema readiness is separate from activation.
+
+Disposable PostgreSQL evidence comes from `scripts/check-invoice-correction-db.mjs` and the restricted-role migration rehearsal, run in Node 22/24 CI. These tests prove local transactions, correction/dispatch locking, immutable original bytes and blocked provider calls; they do not establish live owner acceptance, production DDL or delivery.

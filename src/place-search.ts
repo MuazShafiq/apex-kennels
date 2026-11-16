@@ -4,7 +4,13 @@ import {consumeLocationSearchBudget,type LocationSearchBudgetNamespace} from './
 export type PlaceSuggestion={label:string;area:string;latitude:number;longitude:number};
 /** Fixed, non-sensitive provider failure code, never the provider response or API key. */
 export class PlaceProviderError extends Error {
-  constructor(readonly kind:'http'|'network'|'invalid-response',readonly status?:number){super('Provider request failed');}
+  readonly kind:'http'|'network'|'invalid-response';
+  readonly status?:number;
+  constructor(kind:'http'|'network'|'invalid-response',status?:number){
+    super('Provider request failed');
+    this.kind=kind;
+    this.status=status;
+  }
 }
 export type SearchLimiter={limit(options:{key:string}):Promise<{success:boolean}>};
 export type PlaceSearchEnv={GEOAPIFY_API_KEY?:string;APEX_LOCATION_SEARCH_DISABLED?:string;LOCATION_SEARCH_BUDGET?:LocationSearchBudgetNamespace;LOCATION_SEARCH_RATE_LIMIT?:SearchLimiter;LOCATION_SEARCH_USAGE_LIMIT?:SearchLimiter};

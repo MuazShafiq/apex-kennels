@@ -44,7 +44,7 @@ test('fresh signed Access identity required for mutations even when ctx.access i
   try{
     for(const overrides of [{iat:Math.floor(Date.now()/1000)-301},{iat:undefined},{email:'staff@example.test'},{aud:'wrong-audience'},{}]){
       const request=req('approve',{revision:'1',invoiceNumber:'0101'});request.headers.set('Cf-Access-Jwt-Assertion',token(overrides));
-      const result=await handleWorkerRequest(request,env,undefined,{context:context(),invoiceWorkflow:{approveInvoice:async(_url,input,actor)=>{assert.equal(actor,owner);assert.equal(input.revision,1);approvals++;return invoice();}}});
+      const result=await handleWorkerRequest(request,env,undefined,{context:context(),invoiceWorkflow:{loadInvoiceCorrection:async()=>null,approveInvoice:async(_url,input,actor)=>{assert.equal(actor,owner);assert.equal(input.revision,1);approvals++;return invoice();}}});
       assert.equal(result.status,Object.keys(overrides).length?403:303);
     }
     assert.equal(approvals,1);
@@ -53,7 +53,7 @@ test('fresh signed Access identity required for mutations even when ctx.access i
 
 test('mutation validates same origin, exact fields, confirmations, bounded body and owner before persistence',async()=>{
   let writes=0;
-  const deps:InvoiceWorkflowDeps={approveInvoice:async()=>{writes++;return invoice();}};
+  const deps:InvoiceWorkflowDeps={loadInvoiceCorrection:async()=>null,approveInvoice:async()=>{writes++;return invoice();}};
   const cross=req('approve',{revision:'1',invoiceNumber:'0101'});cross.headers.set('Origin','https://attacker.test');
   assert.equal((await invoiceStaffRoute(cross,env,owner,deps)).status,403);
   assert.equal((await invoiceStaffRoute(req('approve',{revision:'1',invoiceNumber:'0101'}),env,'staff@example.test',deps)).status,403);
@@ -67,7 +67,7 @@ test('mutation validates same origin, exact fields, confirmations, bounded body 
 
 test('issuance and send gates remain independent; issued PDF downloads use stored bytes',async()=>{
   let effects=0;
-  const deps:InvoiceWorkflowDeps={loadApprovedInvoice:async()=>invoice(),enqueueInvoiceDelivery:async()=>{effects++;},dispatchInvoiceDelivery:async()=>{effects++;},loadIssuedInvoicePdf:async()=>new TextEncoder().encode('%PDF-synthetic-stored-artifact')};
+  const deps:InvoiceWorkflowDeps={loadInvoiceCorrection:async()=>null,loadApprovedInvoice:async()=>invoice(),enqueueInvoiceDelivery:async()=>{effects++;},dispatchInvoiceDelivery:async()=>{effects++;},loadIssuedInvoicePdf:async()=>new TextEncoder().encode('%PDF-synthetic-stored-artifact')};
   assert.equal((await invoiceStaffRoute(req('issue',{}),env,owner,deps)).status,503);
   assert.equal((await invoiceStaffRoute(req('send',{}),env,owner,deps)).status,503);
   assert.equal(effects,0);
@@ -78,7 +78,7 @@ test('issuance and send gates remain independent; issued PDF downloads use store
 
 test('frozen preview uses approved snapshot, while queued dispatch and manual reconciliation are explicit',async()=>{
   const approved=invoice();let queued=0,dispatched=0,reconciled=0;
-  const deps:InvoiceWorkflowDeps={loadApprovedInvoice:async()=>approved,loadInvoiceDelivery:async()=>null,enqueueInvoiceDelivery:async()=>{queued++;},dispatchInvoiceDelivery:async()=>{dispatched++;},reconcileInvoiceDelivery:async(_url,ref,actor,input)=>{assert.equal(ref,id);assert.equal(actor,owner);assert.equal(input.confirmedNotSent,true);reconciled++;}};
+  const deps:InvoiceWorkflowDeps={loadInvoiceCorrection:async()=>null,loadApprovedInvoice:async()=>approved,loadInvoiceDelivery:async()=>null,enqueueInvoiceDelivery:async()=>{queued++;},dispatchInvoiceDelivery:async()=>{dispatched++;},reconcileInvoiceDelivery:async(_url,ref,actor,input)=>{assert.equal(ref,id);assert.equal(actor,owner);assert.equal(input.confirmedNotSent,true);reconciled++;}};
   const pdf=await invoiceStaffRoute(req('preview.pdf'),{...env,ASSETS:{fetch:async()=>new Response(readFileSync(new URL('../public/invoice/canva-blank.pdf',import.meta.url))) }},owner,deps);
   assert.equal(pdf.status,200);assert.match((await pdf.text()).slice(0,5),/%PDF-/);
   const send=await invoiceStaffRoute(req('send',{}),{...env,APEX_INVOICE_WHATSAPP_ENABLED:'true'},owner,deps);
@@ -94,7 +94,7 @@ test('webhook verifies exact raw signature, bounded body and sender before persi
   const body=JSON.stringify({object:'whatsapp_business_account',entry:[]});
   const signature='sha256='+createHmac('sha256',secret).update(body).digest('hex');
   const make=(sig:string|null,payload=body)=>new Request(origin+'/api/invoice-delivery/webhook',{method:'POST',headers:sig?{'x-hub-signature-256':sig}:{},body:payload});
-  const deps:InvoiceWorkflowDeps={applyInvoiceWebhook:async(_url,events)=>{assert.deepEqual(events,[]);persisted++;}};
+  const deps:InvoiceWorkflowDeps={loadInvoiceCorrection:async()=>null,applyInvoiceWebhook:async(_url,events)=>{assert.deepEqual(events,[]);persisted++;}};
   assert.equal((await invoiceWebhookRoute(make(null),webhookEnv,deps)).status,403);
   assert.equal((await invoiceWebhookRoute(make(signature,' '+body),webhookEnv,deps)).status,403);
   assert.equal((await invoiceWebhookRoute(make(signature),webhookEnv,deps)).status,200);
@@ -109,7 +109,7 @@ test('one confirmed approval runs issue and dispatch; interrupted approved inten
   const allEnabled={...env,APEX_INVOICE_ISSUANCE_ENABLED:'true',APEX_INVOICE_WHATSAPP_ENABLED:'true',WHATSAPP_ACCESS_TOKEN:'synthetic-token-'.repeat(4),WHATSAPP_PHONE_NUMBER_ID:'123456789012',WHATSAPP_GRAPH_VERSION:'v24.0',APEX_INVOICE_WHATSAPP_TEMPLATE:'synthetic_invoice_pdf',ASSETS:{fetch:async()=>new Response(readFileSync(new URL('../public/invoice/canva-blank.pdf',import.meta.url)))}};
   const approved=invoice();approved.snapshot.deliveryRequested=true;
   const calls:string[]=[];
-  const deps:InvoiceWorkflowDeps={approveInvoice:async(_url,input,actor,config)=>{assert.equal(input.deliveryRequested,true);assert.equal(actor,owner);assert.equal(config.deliveryEnabled,'true');calls.push('approve');return approved;},loadApprovedInvoice:async()=>approved,issueInvoice:async(_url,ref,_actor,_config,pdf)=>{assert.equal(ref,id);assert.equal(new TextDecoder().decode(pdf.slice(0,5)),'%PDF-');calls.push('issue');return {...approved,status:'issued'};},dispatchInvoiceDelivery:async()=>{calls.push('dispatch');}};
+  const deps:InvoiceWorkflowDeps={loadInvoiceCorrection:async()=>null,approveInvoice:async(_url,input,actor,config)=>{assert.equal(input.deliveryRequested,true);assert.equal(actor,owner);assert.equal(config.deliveryEnabled,'true');calls.push('approve');return approved;},loadApprovedInvoice:async()=>approved,issueInvoice:async(_url,ref,_actor,_config,pdf)=>{assert.equal(ref,id);assert.equal(new TextDecoder().decode(pdf.slice(0,5)),'%PDF-');calls.push('issue');return {...approved,status:'issued'};},dispatchInvoiceDelivery:async()=>{calls.push('dispatch');}};
   const result=await invoiceStaffRoute(req('approve',{intent:'issue_and_send',revision:'1',invoiceNumber:'0101',phone:'03000000000',consentedAt:new Date().toISOString(),evidence:'Synthetic explicit invoice PDF consent'}),allEnabled,owner,deps);
   assert.equal(result.status,303);assert.deepEqual(calls,['approve','issue','dispatch']);
   calls.length=0;
@@ -139,4 +139,26 @@ test('owner page escapes content, shows frozen evidence, and exposes only safe r
   delete base.invoice.snapshot.consent;
   assert.match(renderInvoiceApprovalPage(base),/No invoice PDF WhatsApp consent/);
   assert.doesNotMatch(renderInvoiceApprovalPage(base),/Send approved invoice/);
+});
+
+test('owner edit route accepts only bounded rows and exact revision; signed owner gate also protects editor mutations',async()=>{
+ let writes=0;const deps:InvoiceWorkflowDeps={saveOwnerInvoiceEdit:async(_url,bookingId,revision,rows,action,actor)=>{writes++;assert.equal(bookingId,id);assert.equal(revision,1);assert.equal(action,'edit');assert.equal(actor,owner);assert.deepEqual(rows,{lines:[],discounts:[]});return {revision:2};}};
+ const fields={revision:'1',rows:JSON.stringify({lines:[],discounts:[]}),editAction:'edit'};
+ assert.equal((await invoiceStaffRoute(req('edit',fields),env,owner,deps)).status,200);
+ assert.equal((await invoiceStaffRoute(req('edit',fields),env,'staff@example.test',deps)).status,403);
+ assert.equal((await handleWorkerRequest(req('edit',fields),env,undefined,{context:context(),invoiceWorkflow:deps})).status,403);
+ assert.equal((await invoiceStaffRoute(req('edit',{...fields,revision:'1e0'}),env,owner,deps)).status,400);
+ assert.equal((await invoiceStaffRoute(req('edit',{...fields,rows:'broken'}),env,owner,deps)).status,400);
+ assert.equal((await invoiceStaffRoute(req('edit',{...fields,sourceQuote:'forged'}),env,owner,deps)).status,400);
+ assert.equal((await invoiceStaffRoute(req('edit',{...fields,rows:'x'.repeat(65537)}),env,owner,deps)).status,413);
+ const cross=req('edit',fields);cross.headers.set('Origin','https://attacker.test');assert.equal((await invoiceStaffRoute(cross,env,owner,deps)).status,403);
+ assert.equal(writes,1);
+});
+
+test('recorded corrections remain visible alongside immutable PDF and remove issue/send/retry controls',()=>{
+ const issued={...invoice(),status:'issued' as const};
+ const correction={kind:'replace' as const,reason:'Synthetic correction',replacementNumber:'0102',replacementReference:'manual synthetic ledger reference',actor:owner,createdAt:new Date().toISOString()};
+ const html=renderInvoiceApprovalPage({invoice:issued,correction,delivery:{state:'queued',attempts:0,updatedAt:new Date().toISOString(),providerMessageId:null,errorKind:null},approvalEnabled:true,issuanceEnabled:true,sendEnabled:true});
+ assert.match(html,/Recorded correction/);assert.match(html,/external replacement record/);assert.match(html,/Download issued PDF/);
+ assert.doesNotMatch(html,/action="\/staff\/invoices\/(send|retry|issue|correct)"/);
 });

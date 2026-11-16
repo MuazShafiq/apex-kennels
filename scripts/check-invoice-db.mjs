@@ -12,7 +12,8 @@ import {readFile} from 'node:fs/promises';
 import {Client} from 'pg';
 import {pathToFileURL} from 'node:url';
 import {prepareStaffDraftReview} from '../src/staff-invoice-draft.ts';
-import {makeReviewSnapshot} from '../src/staff-saved-review.ts';
+import {saveOwnerInvoiceEdit} from '../src/owner-invoice-edit.ts';
+import {makeReviewSnapshot,saveReviewDraft} from '../src/staff-saved-review.ts';
 import {approveInvoice,issueInvoice,loadApprovedInvoice,loadIssuedInvoicePdf} from '../src/invoice-approval-store.ts';
 import {renderCanvaApprovedPdf} from '../src/canva-invoice-pdf.ts';
 import {enqueueInvoiceDelivery,dispatchInvoiceDelivery,loadInvoiceDelivery,retryInvoiceDelivery,reconcileInvoiceDelivery,applyInvoiceWebhook} from '../src/invoice-delivery-store.ts';
@@ -82,9 +83,35 @@ function provider({messageId='wamid.synthetic_'+randomUUID().replaceAll('-',''),
   return {calls,fetcher,messageId};
 }
 try{
-  if(applySchema)for(const file of ['db/schema.sql','db/migrations/001_full_form_details.sql','db/migrations/002_whatsapp_consent.sql','db/migrations/003_invoice_draft_reviews.sql','migrations/20261106_customer_transport_locations.sql','migrations/20261111_distinct_dropoff_location.sql','db/migrations/004_invoice_approval.sql','db/migrations/005_invoice_delivery.sql'])
+  if(applySchema)for(const file of ['db/schema.sql','db/migrations/001_full_form_details.sql','db/migrations/002_whatsapp_consent.sql','db/migrations/003_invoice_draft_reviews.sql','migrations/20261106_customer_transport_locations.sql','migrations/20261111_distinct_dropoff_location.sql','db/migrations/004_invoice_approval.sql','db/migrations/005_invoice_delivery.sql','db/migrations/007_invoice_corrections.sql'])
     await db.query(await readFile(new URL('../'+file,import.meta.url),'utf8'));
   pass(applySchema?'baseline plus additive migrations applied to new local database':'existing development schema supports invoice approval/delivery checks');
+
+  const editInput=await fixture({consent:false});
+  const manualRows={lines:[{label:'Owner final price',quantity:2,unitPricePkr:1000},{label:'Zero item',quantity:1,unitPricePkr:0}],discounts:[{label:'Owner courtesy',amountPkr:100}]};
+  await saveOwnerInvoiceEdit(dbUrl,editInput.bookingId,1,manualRows,'edit',owner,config,factory);
+  await assert.rejects(saveOwnerInvoiceEdit(dbUrl,editInput.bookingId,1,manualRows,'edit',owner,config,factory),/another tab/);
+  const edited=await db.query('SELECT snapshot,revision FROM public.invoice_draft_reviews WHERE booking_id=$1',[editInput.bookingId]);
+  assert.equal(edited.rows[0].snapshot.quote.totalPkr,1900);assert.equal(edited.rows[0].snapshot.ownerOverride.sourceQuote.totalPkr,7500);
+  const frozenEdited=await approve({...editInput,revision:2});
+  await assert.rejects(saveOwnerInvoiceEdit(dbUrl,editInput.bookingId,2,manualRows,'reset',owner,config,factory),/frozen/);
+  const editPdf=await renderCanvaApprovedPdf(frozenEdited.snapshot,template);
+  await issueInvoice(dbUrl,frozenEdited.id,owner,config,editPdf,factory);
+  const readEdited=await loadApprovedInvoice(dbUrl,frozenEdited.id,factory);assert.equal(readEdited.snapshot.review.quote.totalPkr,1900);
+  assert.deepEqual(await loadIssuedInvoicePdf(dbUrl,frozenEdited.id,factory),editPdf);
+  pass('owner arbitrary edit and source proof persist, stale edit rejected, approved/issued rows and PDF immutable');
+
+  const refreshInput=await fixture({consent:false});
+  const originalReview=(await db.query('SELECT snapshot FROM public.invoice_draft_reviews WHERE booking_id=$1',[refreshInput.bookingId])).rows[0].snapshot;
+  await saveOwnerInvoiceEdit(dbUrl,refreshInput.bookingId,1,manualRows,'edit',owner,config,factory);
+  await assert.rejects(saveReviewDraft(dbUrl,originalReview,2,owner,factory),/owner edits/);
+  await saveOwnerInvoiceEdit(dbUrl,refreshInput.bookingId,2,null,'reset',owner,config,factory);
+  await saveReviewDraft(dbUrl,originalReview,3,owner,factory);
+  const refreshed=(await db.query('SELECT snapshot FROM public.invoice_draft_reviews WHERE booking_id=$1',[refreshInput.bookingId])).rows[0].snapshot;
+  assert.equal(refreshed.ownerOverride.history.length,2);assert.equal(refreshed.ownerOverride.history.at(-1).action,'reset');
+  await approve({...refreshInput,revision:4});
+  await assert.rejects(saveReviewDraft(dbUrl,originalReview,4,owner,factory),/frozen/);
+  pass('generic staff saves cannot clobber owner edits or frozen approval; explicit owner reset permits source refresh preserving history');
 
   const first=await fixture();
   const approvals=await Promise.all([approve(first),approve(first)]);

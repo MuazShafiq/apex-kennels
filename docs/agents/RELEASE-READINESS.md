@@ -2,14 +2,20 @@
 
 Scope: finish independently executable verification and engineering, merge verified changes, and retain every production activation gate closed. This brief does not authorize production migrations, provider sends, account registration, paid capacity, historical backfills or customer contact.
 
-## Standing mission checkpoint: 2026-11-16 PKT
+## Active founder scope: 2026-11-16 PKT
+
+Issues #92 (owner-editable invoice rows and Canva output) and #93 (search-first exact pickup/drop-off gates) supersede the earlier exhausted-queue checkpoint below. Implement on isolated branches, independently review, verify CI/builds and deployments; keep every activation gate closed. No paid mapping service is authorized.
+
+Production migrations 004–006 were applied and independently read back by the operator at `2026-11-15T23:42:44.842Z`, followed by operator-reported endpoint smoke. [Authoritative #39 evidence](https://github.com/MuazShafiq/apex-kennels/issues/39#issuecomment-6903361839) identifies the exact production target, atomic transaction, eight private RLS-enabled tables, guards and indexes, unchanged six booking count, and zero invoice/outbox rows. The observed owner role has preexisting BYPASSRLS; RLS does not constrain that privileged role. Do not repeat these migrations. Root independently reran endpoint smoke on 2026-11-16 during this scope and it passed; this is not authenticated Form submission or invoice/provider acceptance.
+
+## Historical standing mission checkpoint: before #92/#93 approval
 
 Issue #84's currently executable non-design engineering queue is exhausted after independently reviewed PRs #85–90. This is **not production launch completion**. Main `4df0b91ddbc863c19e1b7002357dae048eaf1712` passes Node 22/24 CI `43771181657`, Windows PS5.1/7 checks `43771181647`, production smoke `43771181717` and Workers Build `08259df1-192c-4d00-ac20-f555e4546687`. Measured deployment `1e0cdcc2-9cef-4cdc-92d0-f60642cf3185`, version `48a30d5e-8742-474e-9e11-bc356dc6c8ee`, 100%, created `2026-11-15T22:47:28.276832Z`; fresh endpoint smoke passes, all five activation bindings are absent and no WhatsApp bindings are configured. These measurements precede this documentation checkpoint; later merges require their own release read.
 
 | Mission lane | Completed evidence / remaining boundary |
 | --- | --- |
 | Infrastructure #78 | Feature/main builds, existing Access policy, positive staff acceptance and anonymous/forged denial verified; a valid unallowlisted identity still needs actual acceptance evidence. |
-| Migration #39 | Named development Neon proof and guarded atomic production preparation/readback complete; fresh production catalog-only check confirms 15 existing tables and no target objects. No production DDL executed. |
+| Migration #39 | Named development Neon proof and guarded atomic production preparation/readback complete; fresh production catalog-only check confirms 15 existing tables and no target objects. Production DDL subsequently completed; see active scope above. |
 | Booking #28/#37 | Existing four browser suites pass; [single device/network and owner acceptance record](../release-acceptance.md) prepared. Actual device/ISP and exact copy/six-terms acceptance remain human work. |
 | Invoice/owner alerts #39 | Shared synthetic classification now prevents marked test bookings becoming payable; 322 application tests and actual PostgreSQL/browser suites pass. Business identity/bank/numbering, physical driving access and current pump/fuel acceptance remain private human inputs. |
 | Meta | Published Graph version availability checked against official documentation; callbacks/configuration/consent/recovery use existing synthetic tests. Sender/app/templates/private credentials, opt-in and live provider acceptance remain external. |
@@ -23,9 +29,9 @@ Independent final read-only audit identified no further concrete unblocked engin
 
 The authenticated connector execution used endpoint `ep-wandering-river-azwakr4g`, database `neondb`, and the unchanged identity/URI/empty-owner/RLS guards with TLS verification. All migrations 004–006 rollback/commit checks, 18 invoice and 15 owner integration groups, and eight-table RLS checks passed with fake providers. An independent read-only target audit confirmed all eight tables have RLS enabled and zero policies. Digests and connector direct-host accommodation are recorded in the runbook; no standalone API-key CLI run is claimed.
 
-The test branch retains synthetic rows and its original `2026-11-15T00:54:47Z` expiration; do not reuse it by bypassing schema comparison or emptiness checks. The standalone CLI still needs private API authentication for future fresh targets. Production application remains separately authorized; no production schema/data change, credential rotation, provider contact or activation occurred.
+The test branch retains synthetic rows and its original `2026-11-15T00:54:47Z` expiration; do not reuse it by bypassing schema comparison or emptiness checks. The standalone CLI still needs private API authentication for future fresh targets. At that development checkpoint no production change occurred. Production migrations were subsequently authorized and completed as recorded in the active scope above; activation remains separate.
 
-The [production read-only preflight](https://github.com/MuazShafiq/apex-kennels/issues/39#issuecomment-6901217372), SQL timestamp `2026-11-15T20:52:12.997Z`, confirmed production project `holy-bar-96685960`, branch `br-dry-lab-azyb3ewl`, endpoint `ep-bold-mud-azjqt3cx`, database `neondb`, 15 existing public tables and all migration target tables/functions/triggers/indexes absent. These are historical observations, not current guarantees. Exact atomic preparation and readback are now available in [the production migration procedure](../production-migration-procedure.md); its generator never connects or executes SQL. Production application and each activation remain distinct release actions. Preserve live Form intake; never run synthetic integration suites against production.
+The [production read-only preflight](https://github.com/MuazShafiq/apex-kennels/issues/39#issuecomment-6901217372), SQL timestamp `2026-11-15T20:52:12.997Z`, confirmed production project `holy-bar-96685960`, branch `br-dry-lab-azyb3ewl`, endpoint `ep-bold-mud-azjqt3cx`, database `neondb`, 15 existing public tables and all migration target tables/functions/triggers/indexes absent. These are historical observations, not current guarantees. Exact atomic preparation and readback are now available in [the production migration procedure](../production-migration-procedure.md); its generator never connects or executes SQL. This historical preflight is superseded by the completed production application recorded above. Each activation remains a distinct release action. Preserve live Form intake; never run synthetic integration suites against production.
 
 ## Priority 2: infrastructure issue #78
 

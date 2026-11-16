@@ -4,9 +4,10 @@ import {readFileSync} from 'node:fs';
 import {PDFArray, PDFDict, PDFDocument, PDFName, type PDFRawStream, StandardFonts} from 'pdf-lib';
 import {inflateSync} from 'node:zlib';
 import {
-  renderCanvaStaffPdf,renderCanvaApprovedPdf,drawCanvaIbanSingleLine,layoutCanvaValue
+  renderCanvaStaffPdf,renderCanvaApprovedPdf,drawCanvaIbanSingleLine,layoutCanvaValue,layoutCanvaItems
 } from './canva-invoice-pdf.ts';
 import type {ReviewSnapshot} from './staff-saved-review.ts';
+import type {ApprovalSnapshot} from './invoice-approval.ts';
 import {handleWorkerRequest} from './cloudflare-worker.ts';
 import {parseNotifiedPetrolRate} from './islamabad-petrol-rate.ts';
 
@@ -195,8 +196,8 @@ test('values are positioned from the Canva MediaBox top edge, not y=0',async()=>
 });
 
 /** Decode actual saved overlay text via its embedded font's ToUnicode map. */
-async function savedText(bytes:Uint8Array):Promise<{text:string;x:number;y:number}[]> {
-  const pdf=await PDFDocument.load(bytes),page=pdf.getPage(0);
+async function savedText(bytes:Uint8Array,pageIndex=0):Promise<{text:string;x:number;y:number}[]> {
+  const pdf=await PDFDocument.load(bytes),page=pdf.getPage(pageIndex);
   const fonts=page.node.Resources()!.lookup(PDFName.of('Font'),PDFDict);
   const maps=new Map<string,Map<string,string>>();
   const streamText=(stream:PDFRawStream)=>Buffer.from(
@@ -233,7 +234,7 @@ async function savedText(bytes:Uint8Array):Promise<{text:string;x:number;y:numbe
   return result;
 }
 
-const approvedSample=()=>({
+const approvedSample=():ApprovalSnapshot=>({
   version:1 as const,review:{...structuredClone(sample),booking:{...sample.booking,
     customerName:'PDF Fixture Owner',petNames:'Test Pet',petBreeds:'Test Breed',synthetic:false}},
   reviewRevision:2,invoiceNumber:'0123',approvedBy:'owner@example.test',
@@ -303,4 +304,164 @@ test('approved monthly PDF preserves exact package discount and distinct total b
   for(const [text,baseline] of [['75,000',630.232],['10,000',669.247],['65,000',709.012]] as const)
     assert.ok(rows.some(r=>r.text===text&&Math.abs(r.y-(850.07998-baseline))<.02),
       `frozen package money at original baseline: ${text}`);
+});
+
+function editedSample():ReviewSnapshot {
+  const snapshot=structuredClone(sample);
+  snapshot.ownerOverride={version:1,sourceQuote:structuredClone(snapshot.quote),history:[]};
+  snapshot.quote.lines=[
+    {label:'Gate collection agreed price',quantity:1,unitPricePkr:1800,totalPkr:1800},
+    {label:'Owner boarding charge',quantity:2,unitPricePkr:3000,totalPkr:6000},
+    {label:'Complimentary care',quantity:1,unitPricePkr:0,totalPkr:0},
+  ];
+  snapshot.quote.discounts=[{source:'manual',label:'Owner approved goodwill',amountPkr:300}];
+  snapshot.quote.subtotalPkr=7800;snapshot.quote.totalPkr=7500;
+  return snapshot;
+}
+
+test('owner-edited Canva PDF renders actual ordered descriptions, zero rows and named discounts',async()=>{
+  const snapshot=editedSample(),before=structuredClone(snapshot);
+  const bytes=await renderCanvaStaffPdf(snapshot,'2026-11-07',blank),rows=await savedText(bytes);
+  assert.deepEqual(snapshot,before);
+  const descriptions=['Gate collection agreed price','Owner boarding charge','Complimentary care','Owner approved goodwill'];
+  const actual=rows.filter(r=>descriptions.includes(r.text));
+  assert.deepEqual(actual.map(r=>r.text),descriptions);
+  assert.ok(actual.every((r,i)=>i===0||actual[i-1].y>r.y));
+  assert.ok(rows.some(r=>r.text==='-300'));
+  assert.ok(rows.some(r=>r.text==='0'&&Math.abs(r.y-actual[2].y)<.02));
+  assert.ok(rows.some(r=>r.text==='7,800'&&Math.abs(r.y-(850.07998-630.232))<.02));
+  assert.ok(rows.some(r=>r.text==='7,500'&&Math.abs(r.y-(850.07998-709.012))<.02));
+});
+
+test('owner may remove every line and render an explicit zero total',async()=>{
+  const snapshot=editedSample();
+  snapshot.quote.lines=[];snapshot.quote.discounts=[];
+  snapshot.quote.subtotalPkr=0;snapshot.quote.totalPkr=0;
+  const bytes=await renderCanvaStaffPdf(snapshot,'2026-11-07',blank);
+  const rows=await savedText(bytes);
+  assert.equal((await PDFDocument.load(bytes)).getPageCount(),1);
+  assert.ok(rows.some(r=>r.text==='0'&&Math.abs(r.y-(850.07998-669.247))<.02));
+  assert.ok(rows.some(r=>r.text==='INTERNAL / NOT PAYABLE'));
+});
+
+test('measured Canva row wrapping and pagination keep every description inside table columns',async()=>{
+  const pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Helvetica);
+  const q=editedSample().quote;
+  q.lines=Array.from({length:60},(_,i)=>({label:i%2?'W'.repeat(160):('Long owner item '+i+' description ').repeat(4),quantity:1,unitPricePkr:i,totalPkr:i}));
+  q.discounts=Array.from({length:20},(_,i)=>({source:'manual' as const,label:'Owner discount '+i,amountPkr:0}));
+  const layouts=layoutCanvaItems(q,font);
+  assert.ok(layouts.length>3);
+  assert.equal(layouts.flat().length,80);
+  assert.equal(layouts.flat().flatMap(r=>r.description).filter(l=>l.includes('W')).join('').length,30*160);
+  for(const rows of layouts){
+    assert.ok(rows.reduce((s,r)=>s+r.height,0)<=205);
+    let baseline=395;
+    for(const row of rows){
+      for(const [i,line] of row.description.entries()){
+        assert.ok(font.widthOfTextAtSize(line,10)<=204.02);
+        assert.ok(baseline+i*13<=590,'description baseline remains above footer/totals');
+      }
+      baseline+=row.height;
+    }
+  }
+});
+
+test('many-row approved Canva PDF preserves all rows across pages and payment only on final page',async()=>{
+  const approved=approvedSample();
+  const edited=editedSample();
+  edited.booking=structuredClone(approved.review.booking);
+  edited.quote.lines=Array.from({length:24},(_,i)=>({label:'Owner line '+String(i+1).padStart(2,'0'),quantity:1,unitPricePkr:100+i,totalPkr:100+i}));
+  edited.quote.subtotalPkr=edited.quote.lines.reduce((s,l)=>s+l.totalPkr,0);
+  edited.quote.totalPkr=edited.quote.subtotalPkr-300;
+  approved.review=edited;
+  const before=structuredClone(approved),bytes=await renderCanvaApprovedPdf(approved,blank),pdf=await PDFDocument.load(bytes);
+  assert.deepEqual(approved,before);
+  assert.ok(pdf.getPageCount()>1);
+  const all:string[]=[];
+  for(let i=0;i<pdf.getPageCount();i++){
+    const rows=await savedText(bytes,i);
+    const items=rows.filter(r=>/^Owner line \d+$/.test(r.text));
+    all.push(...items.map(r=>r.text));
+    assert.ok(items.every(r=>r.x>=54&&r.x<=55&&r.y>=250&&r.y<=456));
+    assert.ok(rows.some(r=>r.text==='Number # 0123'));
+    assert.ok(rows.some(r=>r.text==='Page '+(i+1)+' of '+pdf.getPageCount()));
+    assert.equal(rows.some(r=>r.text==='TEST ACCOUNT ONLY'),i===pdf.getPageCount()-1);
+    assert.equal(rows.some(r=>r.text==='PK00HABB0000000000000000'),i===pdf.getPageCount()-1);
+    assert.equal(rows.some(r=>r.text===edited.quote.totalPkr.toLocaleString('en-PK')&&Math.abs(r.y-(850.07998-709.012))<.02),i===pdf.getPageCount()-1);
+  }
+  assert.deepEqual(all,edited.quote.lines.map(l=>l.label));
+  assert.ok((await savedText(bytes,pdf.getPageCount()-1)).some(r=>r.text==='Owner approved goodwill'));
+});
+
+test('synthetic continuation pages retain nonpayable markers and no private payment',async()=>{
+  const s=editedSample();
+  s.quote.lines=Array.from({length:14},(_,i)=>({label:'Synthetic item '+i,quantity:1,unitPricePkr:100,totalPkr:100}));
+  s.quote.subtotalPkr=1400;s.quote.totalPkr=1100;
+  const bytes=await renderCanvaStaffPdf(s,'2026-11-07',blank),pdf=await PDFDocument.load(bytes);
+  assert.ok(pdf.getPageCount()>1);
+  for(let i=0;i<pdf.getPageCount();i++){
+    const rows=await savedText(bytes,i);
+    assert.ok(rows.some(r=>r.text==='SYNTHETIC EXAMPLE'));
+    assert.ok(rows.some(r=>r.text==='INTERNAL / NOT PAYABLE'));
+    assert.ok(!rows.some(r=>r.text.startsWith('PK00HABB')));
+  }
+});
+
+test('PDF rejects unsafe arithmetic, overflow and text rather than clipping or silently changing totals',async()=>{
+  for(const change of [
+    (s:ReviewSnapshot)=>{s.quote.lines[0].quantity=-1;},
+    (s:ReviewSnapshot)=>{s.quote.lines[0].unitPricePkr=Number.MAX_SAFE_INTEGER;s.quote.lines[0].quantity=2;s.quote.lines[0].totalPkr=Number.MAX_SAFE_INTEGER*2;},
+    (s:ReviewSnapshot)=>{s.quote.totalPkr=-1;},
+    (s:ReviewSnapshot)=>{s.quote.discounts[0].amountPkr=-1;},
+    (s:ReviewSnapshot)=>{s.quote.lines[0].label='unsafe\ntext';},
+    (s:ReviewSnapshot)=>{s.quote.lines[0].label='Unsupported \u0645';},
+  ]){
+    const s=editedSample();change(s);
+    await assert.rejects(renderCanvaStaffPdf(s,'2026-11-07',blank));
+  }
+});
+
+
+test('edited PDF physically removes obsolete fixed service text from its Canva form',async()=>{
+  for(const discount of [true,false]){
+    const s=editedSample();
+    if(!discount){s.quote.discounts=[];s.quote.totalPkr=s.quote.subtotalPkr;}
+    const pdf=await PDFDocument.load(await renderCanvaStaffPdf(s,'2026-11-07',blank));
+    const objects=pdf.getPage(0).node.Resources()!.lookup(PDFName.of('XObject'),PDFDict);
+    const stream=pdf.context.lookup(objects.entries()[0][1]) as PDFRawStream;
+    const text=inflateSync(stream.contents).toString('latin1');
+    const segments=new Map([...text.matchAll(/\/MCID (\d+)([\s\S]*?)(?=\/MCID \d+|$)/g)].map(m=>[Number(m[1]),m[2]]));
+    for(const id of [4,5,6,7]){
+      assert.ok(segments.has(id),'original marker '+id+' retained');
+      assert.ok(!segments.get(id)!.includes('BT'),'no hidden original text for fixed service '+id);
+    }
+    assert.ok(segments.get(0)?.includes('BT'),'original service heading artwork retained');
+    assert.ok(segments.get(15)?.includes('BT'),'original payment heading retained');
+  }
+});
+
+
+test('maximum allowed long row payload remains issuable below the stored PDF size limit',async()=>{
+  const s=editedSample();
+  s.quote.lines=Array.from({length:60},(_,i)=>({label:('W'.repeat(155)+String(i).padStart(2,'0')),quantity:1,unitPricePkr:100,totalPkr:100}));
+  s.quote.discounts=Array.from({length:20},()=>({source:'manual' as const,label:'W'.repeat(160),amountPkr:0}));
+  s.quote.subtotalPkr=6000;s.quote.totalPkr=6000;
+  const bytes=await renderCanvaStaffPdf(s,'2026-11-07',blank),pdf=await PDFDocument.load(bytes);
+  assert.ok(pdf.getPageCount()>20,'long rows exercise many continuation pages');
+  assert.ok(bytes.length<2_000_000,'shared artwork/font objects keep maximum payload within issuance limit: '+bytes.length);
+  let seen=0;
+  for(let i=0;i<pdf.getPageCount();i++){
+    const rows=await savedText(bytes,i);
+    seen+=rows.filter(r=>r.text==='100').length;
+  }
+  assert.equal(seen,120,'each of 60 actual item unit prices and amounts appears exactly once, with no inherited page rows');
+});
+
+test('largest valid safe-integer quantity and money fit dynamic Canva numeric columns',async()=>{
+  const s=editedSample();
+  s.quote.lines=[{label:'Zero price large quantity',quantity:Number.MAX_SAFE_INTEGER,unitPricePkr:0,totalPkr:0},
+    {label:'Largest safe integer amount',quantity:1,unitPricePkr:Number.MAX_SAFE_INTEGER,totalPkr:Number.MAX_SAFE_INTEGER}];
+  s.quote.discounts=[];s.quote.subtotalPkr=Number.MAX_SAFE_INTEGER;s.quote.totalPkr=Number.MAX_SAFE_INTEGER;
+  const rows=await savedText(await renderCanvaStaffPdf(s,'2026-11-07',blank));
+  assert.equal(rows.filter(r=>r.text===Number.MAX_SAFE_INTEGER.toLocaleString('en-PK')).length,5);
 });

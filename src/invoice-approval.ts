@@ -1,3 +1,4 @@
+import {validateOwnerQuote} from './owner-invoice-pricing.ts';
 import {buildApexInvoiceDraft} from './apex-invoice-draft.ts';
 import {validateSnapshot,type SavedReview,type ReviewSnapshot} from './staff-saved-review.ts';
 import {normalizePakistanWhatsappPhone} from './whatsapp-cloud.ts';
@@ -36,11 +37,12 @@ function bank(config:ApprovalConfig):ApprovalSnapshot['payment'] {
 /** Reconstruct confirmed pricing for validation only; never replace the saved monetary snapshot. */
 export function validateApprovalPricing(input:unknown):ReviewSnapshot {
   const review=validateSnapshot(input);
-  const q=review.quote,boarding=q.lines[0];
+  const q=review.ownerOverride?.sourceQuote??review.quote,boarding=q.lines[0];
   if(!boarding||!['Standard boarding','Camera cage boarding'].includes(boarding.label)||!Number.isSafeInteger(q.billedDays)||q.billedDays<1)fail('Unsupported boarding snapshot');
   const pets=boarding.quantity/q.billedDays;
   if(!Number.isSafeInteger(pets)||pets<1||pets>100||q.startDate!==review.booking.startDate||q.endDate!==review.booking.endDate||review.rateVersion!=='fatima-confirmed-2026-11-06')fail('Draft pricing needs fresh review');
   const expected=buildApexInvoiceDraft({startDate:q.startDate,endDate:q.endDate,cage:boarding.label==='Camera cage boarding'?'camera':'normal',petCount:pets,fullMonthPackageSelected:review.packageChoice==='monthly',groomingRequested:q.lines.some(l=>l.label==='Grooming (complimentary)'),transport:review.transport?{requested:true,totalDrivenKm:review.transport.route.totalDrivenKm,fuelRate:review.transport.fuelRate}:undefined}).quote;
+  if(review.ownerOverride)validateOwnerQuote(review.quote,q);
   if(canonical(q)!==canonical(expected))fail('Saved pricing is incomplete or differs from confirmed rules');
   if(review.transport){
     const r=review.transport.route;
@@ -58,7 +60,7 @@ export function validateApprovalPricing(input:unknown):ReviewSnapshot {
     if(!Number.isFinite(km)||Math.abs(km-r.totalDrivenKm)>0.001)fail('Transport loops require independent verification');
   }
   // Explicit projection: arbitrary persisted fields must never reach a customer PDF.
-  return {version:1,booking:{id:review.booking.id,customerName:review.booking.customerName,petNames:review.booking.petNames,...(review.booking.petBreeds?{petBreeds:review.booking.petBreeds}:{}),startDate:review.booking.startDate,endDate:review.booking.endDate,synthetic:review.booking.synthetic},packageChoice:review.packageChoice,rateVersion:review.rateVersion,quote:structuredClone(q),...(review.transport?{transport:structuredClone(review.transport),transportService:review.transportService,transportLocationSource:review.transportLocationSource}:{})};
+  return {version:1,booking:{id:review.booking.id,customerName:review.booking.customerName,petNames:review.booking.petNames,...(review.booking.petBreeds?{petBreeds:review.booking.petBreeds}:{}),startDate:review.booking.startDate,endDate:review.booking.endDate,synthetic:review.booking.synthetic},packageChoice:review.packageChoice,rateVersion:review.rateVersion,quote:review.ownerOverride?validateOwnerQuote(review.quote,q):structuredClone(q),...(review.ownerOverride?{ownerOverride:{version:1 as const,sourceQuote:structuredClone(q),...(review.ownerOverride.previousQuote?{previousQuote:validateOwnerQuote(review.ownerOverride.previousQuote,q)}:{}),history:review.ownerOverride.history.map(h=>({revision:h.revision,actor:h.actor,at:h.at,action:h.action,totalPkr:h.totalPkr}))}}:{}),...(review.transport?{transport:structuredClone(review.transport),transportService:review.transportService,transportLocationSource:review.transportLocationSource}:{})};
 }
 export function prepareApproval(saved:SavedReview,input:ApprovalInput,actor:string,config:ApprovalConfig,now=new Date()):ApprovalSnapshot {
   requireInvoiceOwner(actor,config);

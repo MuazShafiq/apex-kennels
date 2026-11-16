@@ -1,3 +1,5 @@
+import type {InvoiceDb} from './invoice-approval-store.ts';
+import {validateOwnerQuote,type OwnerOverride} from './owner-invoice-pricing.ts';
 import {Client} from '@neondatabase/serverless';
 import {isSyntheticBooking} from './synthetic-booking.ts';
 import type {StaffDraftReview} from './staff-invoice-draft.ts';
@@ -14,6 +16,7 @@ export type ReviewSnapshot={
   packageChoice:'daily'|'monthly';
   rateVersion:string;
   quote:Quote;
+  ownerOverride?:OwnerOverride;
   /** Immutable transport route + petrol evidence for priced transport drafts. */
   transport?:NonNullable<StaffDraftReview['transport']>;
   /** Exact selected service; older saved estimates must be refreshed for approval. */
@@ -72,7 +75,13 @@ export function validateSnapshot(snapshot:unknown):ReviewSnapshot {
      !value.quote||!Array.isArray(value.quote.lines)||!Array.isArray(value.quote.discounts)||
      (value.packageChoice!=='daily'&&value.packageChoice!=='monthly'))
     throw new DraftSaveError('Invalid saved draft',422);
-  const priced=value.quote.lines.some(l=>l.label==='Pet transport'&&l.totalPkr>0);
+  if(value.ownerOverride){
+    const o=value.ownerOverride;
+    if(o.version!==1||!o.sourceQuote||!Array.isArray(o.history)||o.history.length>20||o.history.some(h=>!Number.isSafeInteger(h.revision)||h.revision<1||typeof h.actor!=='string'||h.actor.length>254||!Number.isFinite(Date.parse(h.at))||!['edit','reset','undo'].includes(h.action)||!Number.isSafeInteger(h.totalPkr)||h.totalPkr<0))throw new DraftSaveError('Invalid owner edit history',422);
+    validateOwnerQuote(value.quote,o.sourceQuote);
+    if(o.previousQuote)validateOwnerQuote(o.previousQuote,o.sourceQuote);
+  }
+  const priced=(value.ownerOverride?.sourceQuote??value.quote).lines.some(l=>l.label==='Pet transport'&&l.totalPkr>0);
   if(priced){
     const t=value.transport;
     if(!t||!t.route||t.route.status!=='ROUTE_REVIEW_REQUIRED'||
@@ -108,20 +117,29 @@ export function savedReviewStatement(snapshot:ReviewSnapshot,expectedRevision:nu
 
 /** Compare-and-swap prevents two staff browsers overwriting each other. */
 export async function saveReviewDraft(databaseUrl:string,snapshot:ReviewSnapshot,
-  expectedRevision:number,updatedBy:string):Promise<SaveReviewResult>{
+  expectedRevision:number,updatedBy:string,factory:(url:string)=>InvoiceDb=url=>new Client(url) as unknown as InvoiceDb):Promise<SaveReviewResult>{
   if(!UUID.test(snapshot.booking.id)||!Number.isSafeInteger(expectedRevision)||
      expectedRevision<0||expectedRevision>1_000_000||
      !/^[^@\s]{1,80}@[^@\s]{1,160}$/.test(updatedBy))
     throw new DraftSaveError('Invalid draft save request',400);
-  const db=new Client(databaseUrl);
+  const db=factory(databaseUrl);
   await db.connect();
   try{
-    const statement=savedReviewStatement(snapshot,expectedRevision,updatedBy);
-    const result=await db.query<{revision:number}>(statement.sql,statement.params);
+    await db.query('BEGIN');
+    await db.query('SELECT pg_advisory_xact_lock(617340024)');
+    await db.query('SELECT id FROM public.booking_requests WHERE id=$1 FOR UPDATE',[snapshot.booking.id]);
+    if((await db.query('SELECT id FROM public.approved_invoices WHERE booking_id=$1',[snapshot.booking.id])).rows.length)throw new DraftSaveError('Approved invoices are frozen; use the correction procedure',409);
+    const existing=await db.query('SELECT snapshot FROM public.invoice_draft_reviews WHERE booking_id=$1 FOR UPDATE',[snapshot.booking.id]);
+    if((existing.rows[0]?.snapshot as ReviewSnapshot|undefined)?.ownerOverride&&(existing.rows[0].snapshot as ReviewSnapshot).ownerOverride!.history?.at(-1)?.action!=='reset')throw new DraftSaveError('This invoice has owner edits. Reset it in owner review before replacing the calculation.',409);
+    const priorOverride=(existing.rows[0]?.snapshot as ReviewSnapshot|undefined)?.ownerOverride as OwnerOverride|undefined;
+    const refreshedSnapshot=priorOverride?{...snapshot,ownerOverride:{version:1 as const,sourceQuote:structuredClone(snapshot.quote),history:structuredClone(priorOverride.history)}}:snapshot;
+    const statement=savedReviewStatement(refreshedSnapshot,expectedRevision,updatedBy);
+    const result=await db.query(statement.sql,statement.params);
     const row=result.rows[0];
     if(!row)throw new DraftSaveError('This estimate changed in another tab. Refresh and review it.',409);
+    await db.query('COMMIT');
     return {revision:Number(row.revision)};
-  }finally{await db.end();}
+  }catch(error){await db.query('ROLLBACK');throw error;}finally{await db.end();}
 }
 
 export async function loadSavedReview(databaseUrl:string,bookingId:string):Promise<SavedReview|null>{

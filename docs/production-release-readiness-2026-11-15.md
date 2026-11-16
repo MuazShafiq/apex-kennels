@@ -6,6 +6,10 @@
 
 A fresh executor production smoke on 2026-11-16 PKT passed health, disabled booking config/rejected public POST, current preview, unauthenticated intake rejection, anonymous/forged staff denial and synthetic previews. Main Node 22/24 [CI](https://github.com/MuazShafiq/apex-kennels/actions/runs/43757250241) and [scheduled smoke](https://github.com/MuazShafiq/apex-kennels/actions/runs/43757250263) also pass for `7e80973`. Endpoint checks do not establish current remote variable/secret inventory, authenticated Form submission or authenticated Form success. A fresh Wrangler read independently confirms latest deployment `35e7fcc0-ebc3-40a6-b887-0f9d3b4e9f4a`, full version `48d496e2-a5ea-4e9a-be72-39502efb3589`, 100% traffic, created `2026-11-15T20:18:13.783726Z`. Last recorded remote settings have the five activation gates absent; recheck them before release.
 
+## Scope and migration update: 2026-11-16
+
+Founder-approved #92 and #93 reopen the engineering queue for arbitrary owner-edited invoices and search-first exact transport gates. Existing branding and all activation boundaries remain. Production migrations 004–006 are now complete: [#39 atomic application/readback](https://github.com/MuazShafiq/apex-kennels/issues/39#issuecomment-6903361839), SQL timestamp `2026-11-15T23:42:44.842Z`, confirms eight RLS-enabled private tables, expected guards/indexes, unchanged existing booking count and zero invoice/outbox records. The preexisting privileged owner role has BYPASSRLS. Operator postmigration smoke and a fresh root endpoint smoke both pass. Historical absent-schema statements below describe earlier observations and must not be used to rerun migrations. Financial, messaging and booking activation remain unauthorized.
+
 ## Booking launch — issue #28
 
 - **Implemented:** `/book`, exact customer-confirmed pin handling, independent Pickup / Drop-off / No transport choices, Turnstile hostname/action checks, atomic booking/location persistence, staff review, and legacy authenticated Google Form intake. Mobile and booking E2E CI use synthetic stubs.

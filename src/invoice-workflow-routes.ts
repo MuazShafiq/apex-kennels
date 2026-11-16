@@ -1,3 +1,6 @@
+import {recordInvoiceCorrection,loadInvoiceCorrection} from './invoice-correction.ts';
+import {saveOwnerInvoiceEdit} from './owner-invoice-edit.ts';
+import {OwnerPricingError} from './owner-invoice-pricing.ts';
 import type {WorkerEnv} from './cloudflare-worker.ts';
 import {InvoiceApprovalError,INVOICE_UUID,requireInvoiceOwner,type ApprovalConfig,type ApprovedInvoice} from './invoice-approval.ts';
 import {approveInvoice,issueInvoice,loadApprovedInvoice,loadIssuedInvoicePdf} from './invoice-approval-store.ts';
@@ -10,7 +13,7 @@ import {renderInvoiceApprovalPage} from './staff-invoice-approval.ts';
 const response=(error:string,status:number)=>new Response(JSON.stringify({error}),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
 export const approvalConfig=(env:WorkerEnv):ApprovalConfig=>({enabled:env.APEX_INVOICE_APPROVAL_ENABLED,issuanceEnabled:env.APEX_INVOICE_ISSUANCE_ENABLED,deliveryEnabled:env.APEX_INVOICE_WHATSAPP_ENABLED,ownerEmail:env.APEX_INVOICE_OWNER_EMAIL,bankDetailsJson:env.APEX_INVOICE_BANK_JSON,manualNumberFloor:env.APEX_INVOICE_MANUAL_NUMBER_FLOOR});
 const deliveryConfig=(env:WorkerEnv)=>({enabled:env.APEX_INVOICE_WHATSAPP_ENABLED,accessToken:env.WHATSAPP_ACCESS_TOKEN??'',phoneNumberId:env.WHATSAPP_PHONE_NUMBER_ID??'',apiVersion:env.WHATSAPP_GRAPH_VERSION??'',template:env.APEX_INVOICE_WHATSAPP_TEMPLATE??'',language:env.APEX_INVOICE_WHATSAPP_LANGUAGE??'en_US'});
-const services={approveInvoice,issueInvoice,loadApprovedInvoice,loadIssuedInvoicePdf,enqueueInvoiceDelivery,loadInvoiceDelivery,dispatchInvoiceDelivery,retryInvoiceDelivery,reconcileInvoiceDelivery,loadSavedReview,applyInvoiceWebhook};
+const services={recordInvoiceCorrection,loadInvoiceCorrection,saveOwnerInvoiceEdit,approveInvoice,issueInvoice,loadApprovedInvoice,loadIssuedInvoicePdf,enqueueInvoiceDelivery,loadInvoiceDelivery,dispatchInvoiceDelivery,retryInvoiceDelivery,reconcileInvoiceDelivery,loadSavedReview,applyInvoiceWebhook};
 export type InvoiceWorkflowDeps=Partial<typeof services>;
 async function rawBody(request:Request,limit:number):Promise<Uint8Array>{
   if(!request.body)throw new InvoiceApprovalError('Empty request',400);
@@ -39,9 +42,9 @@ export async function invoiceWebhookRoute(request:Request,env:WorkerEnv,deps:Inv
 
 /** Authentication, exact owner and recent signed Access identity checked by caller. */
 export async function invoiceStaffRoute(request:Request,env:WorkerEnv,email:string,deps:InvoiceWorkflowDeps={}):Promise<Response>{
-  const {approveInvoice,issueInvoice,loadApprovedInvoice,loadIssuedInvoicePdf,enqueueInvoiceDelivery,loadInvoiceDelivery,dispatchInvoiceDelivery,retryInvoiceDelivery,reconcileInvoiceDelivery,loadSavedReview}={...services,...deps};
+  const {recordInvoiceCorrection,loadInvoiceCorrection,saveOwnerInvoiceEdit,approveInvoice,issueInvoice,loadApprovedInvoice,loadIssuedInvoicePdf,enqueueInvoiceDelivery,loadInvoiceDelivery,dispatchInvoiceDelivery,retryInvoiceDelivery,reconcileInvoiceDelivery,loadSavedReview}={...services,...deps};
   const path=new URL(request.url).pathname,writing=request.method==='POST';
-  const actions=['approve','issue','send','retry','reconcile'];
+  const actions=['correct','edit','approve','issue','send','retry','reconcile'];
   const action=path.split('/').pop()??'';
   if(!['review','view','pdf','preview.pdf',...actions].includes(action)||path!=='/staff/invoices/'+action)return response('Not found',404);
   if(request.method!==(actions.includes(action)?'POST':'GET'))return response('Method not allowed',405);
@@ -52,9 +55,9 @@ export async function invoiceStaffRoute(request:Request,env:WorkerEnv,email:stri
     const url=new URL(request.url);let form:URLSearchParams;
     if(writing){
       if(!/^application\/x-www-form-urlencoded(?:\s*;|$)/i.test(request.headers.get('content-type')??''))return response('Expected browser form',415);
-      form=new URLSearchParams(new TextDecoder('utf-8',{fatal:true}).decode(await rawBody(request,4096)));
+      form=new URLSearchParams(new TextDecoder('utf-8',{fatal:true}).decode(await rawBody(request,action==='edit'?65536:4096)));
       if(url.search)return response('Invalid invoice action URL',400);
-      const allowed=action==='approve'?['id','revision','invoiceNumber','transportVerified','fuelVerified','phone','consentedAt','evidence','confirmed','intent']:action==='reconcile'?['id','messageId','confirmedNotSent','evidence','confirmed']:['id','confirmed'];
+      const allowed=action==='correct'?['id','kind','reason','replacementNumber','replacementReference','confirmed']:action==='edit'?['id','revision','rows','editAction','confirmed']:action==='approve'?['id','revision','invoiceNumber','transportVerified','fuelVerified','phone','consentedAt','evidence','confirmed','intent']:action==='reconcile'?['id','messageId','confirmedNotSent','evidence','confirmed']:['id','confirmed'];
       if([...form.keys()].some(k=>!allowed.includes(k)||form.getAll(k).length!==1)||form.get('confirmed')!=='true')return response('Confirm the action using the review form',400);
     }else{
       form=url.searchParams;
@@ -74,6 +77,20 @@ export async function invoiceStaffRoute(request:Request,env:WorkerEnv,email:stri
       if(invoice.snapshot.deliveryRequested)await dispatchInvoiceDelivery(env.DATABASE_URL!,invoice.id,deliveryConfig(env));
       return redirect(invoice.id);
     };
+    if(action==='correct'){
+      const kind=form.get('kind');
+      if(kind!=='cancel'&&kind!=='replace')return response('Choose cancellation or a recorded manual replacement',400);
+      await recordInvoiceCorrection(env.DATABASE_URL,id,email,config,{kind,reason:form.get('reason')??'',replacementNumber:form.get('replacementNumber')||undefined,replacementReference:form.get('replacementReference')||undefined});
+      return redirect(id);
+    }
+    if(action==='edit'){
+      const revision=form.get('revision')??'',editAction=form.get('editAction')??'edit';
+      if(!/^[1-9]\d{0,5}$/.test(revision)||!['edit','reset','undo'].includes(editAction))return response('Invalid owner edit request',400);
+      let rows:unknown;
+      try{rows=JSON.parse(form.get('rows')??'null');}catch{return response('Invalid invoice rows',400);}
+      const result=await saveOwnerInvoiceEdit(env.DATABASE_URL,id,Number(revision),rows,editAction as 'edit'|'reset'|'undo',email,config);
+      return Response.json(result,{headers:{'Cache-Control':'private, no-store'}});
+    }
     if(action==='approve'){
       const revision=form.get('revision')??'';
       if(!/^[1-9]\d{0,6}$/.test(revision))return response('Invalid revision',400);
@@ -121,8 +138,8 @@ export async function invoiceStaffRoute(request:Request,env:WorkerEnv,email:stri
         return new Response(new Blob([new Uint8Array(pdf)]),{headers:{'Content-Type':'application/pdf','Content-Disposition':'attachment; filename="apex-'+(action==='preview.pdf'?'review':'invoice')+'-'+invoice.snapshot.invoiceNumber+'.pdf"','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
       }
       const delivery=await loadInvoiceDelivery(env.DATABASE_URL,invoice.id);
-      body=renderInvoiceApprovalPage({invoice,delivery:delivery??undefined,approvalEnabled:true,issuanceEnabled:env.APEX_INVOICE_ISSUANCE_ENABLED==='true',sendEnabled:env.APEX_INVOICE_WHATSAPP_ENABLED==='true'});
+      body=renderInvoiceApprovalPage({invoice,correction:await loadInvoiceCorrection(env.DATABASE_URL,invoice.id)??undefined,delivery:delivery??undefined,approvalEnabled:true,issuanceEnabled:env.APEX_INVOICE_ISSUANCE_ENABLED==='true',sendEnabled:env.APEX_INVOICE_WHATSAPP_ENABLED==='true'});
     }
-    return new Response(body,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"}});
-  }catch(e){if(e instanceof InvoiceApprovalError||e instanceof DraftSaveError)return response(e.message,e.status);if(e instanceof DeliveryError)return response('Customer WhatsApp delivery is disabled or not fully configured',503);return response('Invoice action could not be completed; refresh its status before retrying',500);}
+    return new Response(body,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"}});
+  }catch(e){if(e instanceof OwnerPricingError)return response(e.message,422);if(e instanceof InvoiceApprovalError||e instanceof DraftSaveError)return response(e.message,e.status);if(e instanceof DeliveryError)return response('Customer WhatsApp delivery is disabled or not fully configured',503);return response('Invoice action could not be completed; refresh its status before retrying',500);}
 }

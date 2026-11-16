@@ -105,3 +105,17 @@ test('search reserves budget once after validation and edge checks; refusals and
   assert.equal(refused.status,503);assert.doesNotMatch(await refused.text(),/private budget/);
   assert.equal(providers,2);
 });
+
+test('production failure classification reveals only fixed stages, never sensitive details',async()=>{
+  const leaking=async()=>{throw new Error('private-provider-secret');};
+  const badLimiter={...env,LOCATION_SEARCH_RATE_LIMIT:{limit:async()=>{throw new Error('sensitive-limiter-data');}}};
+  const declinedBudget={...env,LOCATION_SEARCH_BUDGET:{idFromName:()=>0,get:()=>({fetch:async()=>Response.json({success:false})})}};
+  for(const [configured,expected] of [
+    [badLimiter,'rate-limiter'],[declinedBudget,'daily-budget'],[env,'provider']
+  ] as const){
+    const response=await placeSearchRoute(post({query:'F-10 Markaz'}),configured,leaking);
+    assert.equal(response.status,503);
+    assert.equal(response.headers.get('x-apex-search-failure-stage'),expected);
+    assert.doesNotMatch(await response.text(),/private-provider-secret|sensitive-limiter-data|F-10 Markaz|API_KEY/);
+  }
+});

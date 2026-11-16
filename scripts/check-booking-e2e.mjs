@@ -365,11 +365,22 @@ try{
   await actual.page.locator('#transport-pickup').check();
   const response=await actual.page.request.get(origin+'/book');
   assert.match(response.headers()['content-security-policy'],/worker-src 'self'/);
+  assert.equal(await actual.page.evaluate(()=>performance.getEntriesByType('resource')
+    .some(item=>/maplibre|tiles\.openfreemap\.org/.test(item.name))),false,
+    'Initial booking and transport selection must not download the map');
+  const mapStarted=Date.now();
   await actual.page.locator('#choose-map').click();
   await actual.page.locator('#map-canvas canvas').waitFor({state:'visible'});
   await waitForBrowser(actual.page,()=>document.querySelector('#map-loading')?.hidden===true,45000);
   assert.equal(await actual.page.evaluate(()=>typeof window.maplibregl?.Map),'function');
   assert.equal(await actual.page.evaluate(()=>window.__syntheticMaps),undefined);
+  const mapAssets=await actual.page.evaluate(()=>performance.getEntriesByType('resource')
+    .filter(item=>item.name.includes('/book/vendor/')).map(item=>({name:item.name,bytes:item.decodedBodySize})));
+  assert.equal(mapAssets.filter(item=>item.name.endsWith('/maplibre-gl-5.6.1.js')).length,1,
+    'Load the map library only once');
+  assert(mapAssets.reduce((total,item)=>total+item.bytes,0)<1_500_000,
+    'Local map assets exceeded the download budget');
+  console.log('Lazy map ready in '+(Date.now()-mapStarted)+'ms; initial booking downloaded no map assets.');
   const canvas=actual.page.locator('#map-canvas canvas');
   assert((await canvas.boundingBox()).width>300,'Actual map canvas must have usable width');
   await canvas.focus();

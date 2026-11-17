@@ -211,10 +211,10 @@ try{
   await page.locator('#choose-map').click();
   await page.locator('#map-close').click();
   await page.locator('#google-gate summary').press('Enter');
-  assert.equal(await page.locator('#google-gate li:visible').count(),4,name+' Google Maps instructions missing');
+  assert(await page.locator('#google-gate li:visible').count()===4,name+' Google Maps instructions missing');
   const openMaps=page.locator('#open-google-maps');
   assert((await openMaps.boundingBox()).height>=44,name+' Google Maps link has an undersized touch target');
-  assert.equal(await page.locator('#maps-link').evaluate(input=>getComputedStyle(input).fontSize),'16px',
+  assert(await page.locator('#maps-link').evaluate(input=>getComputedStyle(input).fontSize)==='16px',
     name+' paste field is too small for mobile focus');
   await page.locator('#google-gate').screenshot({path:'mobile-'+name+'-google-gate.png'});
   await page.locator('#maps-link').fill('https://www.google.com/maps/search/?api=1&query=33.7%2C73.08');

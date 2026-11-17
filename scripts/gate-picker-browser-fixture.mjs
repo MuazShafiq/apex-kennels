@@ -18,7 +18,6 @@ export async function revealPinFallback(page,prefix=''){
 export async function confirmExactPin(page,value,prefix=''){
   await revealPinFallback(page,prefix);
   await page.locator('#'+prefix+'maps-link').fill(value);
-  await page.locator('#'+prefix+'confirm-gate').waitFor({state:'visible'});
   await page.locator('#gate-picker').waitFor({state:'visible'});
   await page.locator('#map-fallback').click();
   await page.locator('#'+prefix+'confirm-gate').click();
@@ -45,7 +44,7 @@ export async function stubMapLibrary(page){
             event.preventDefault();this.panTo([this.center.lng+(event.key==='ArrowRight'?.001:event.key==='ArrowLeft'?-.001:0),
               this.center.lat+(event.key==='ArrowUp'?.001:event.key==='ArrowDown'?-.001:0)]);
           });
-          window.__syntheticMaps.push(this);setTimeout(()=>{this.emit('load');this.emit('idle');},0);
+          window.__syntheticMaps.push(this);setTimeout(()=>{this.emit('style.load');this.emit('render');},0);
         }
         on(name,fn){(this.events[name]??=[]).push(fn);return this;}
         once(name,fn){const once=(...args)=>{this.off(name,once);fn(...args);};return this.on(name,once);}
@@ -58,6 +57,8 @@ export async function stubMapLibrary(page){
         loaded(){return true;}
         isStyleLoaded(){return true;}
         resize(){return this;}
+        stop(){return this;}
+        getStyle(){return {sources:{}};}
         triggerRepaint(){setTimeout(()=>this.emit('idle'),0);return this;}
         addControl(){return this;}
         remove(){this.canvas.remove();}

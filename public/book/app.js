@@ -38,13 +38,14 @@
   function locationControl(prefix){
     const name=prefix?'drop-off':'pickup';
     const input=document.getElementById(prefix+'maps-link');
+    const google=document.getElementById(prefix+'google-gate');
     const status=document.getElementById(prefix+'coordinate-status');
     const link=document.getElementById(prefix+'selected-location-link');
     const locate=document.getElementById(prefix+'locate');
     const choose=document.getElementById(prefix+'choose-map');
     const review=document.getElementById(prefix+'gate-review');
     const confirm=document.getElementById(prefix+'confirm-gate');
-    let point=null,candidate=null,version=0,timer=null;
+    let point=null,candidate=null,fallbackCandidate=false,version=0,timer=null;
     function clear(text){
       point=null;candidate=null;review.hidden=true;link.hidden=true;link.removeAttribute('href');
       status.textContent=text||'No '+name+' gate selected';
@@ -55,7 +56,8 @@
       }
       point=null;
       candidate={latitude:Math.round(latitude*1e7)/1e7,longitude:Math.round(longitude*1e7)/1e7};
-      review.hidden=source==='Map pin';
+      fallbackCandidate=source!=='Map pin';
+      review.hidden=!fallbackCandidate;
       status.textContent=(source||'Pin')+' selected. Check the vehicle entrance and confirm this gate.';
       link.href='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(candidate.latitude+','+candidate.longitude);link.hidden=false;
       return true;
@@ -66,8 +68,10 @@
       status.textContent=name==='pickup'?'Pickup vehicle gate confirmed.':'Drop-off vehicle gate confirmed.';
     }
     const control={
-      name,input,choose,slot:document.getElementById(prefix+'map-slot'),
+      name,choose,slot:document.getElementById(prefix+'map-slot'),
       point:()=>point,candidate:()=>candidate,setCandidate,confirm:confirmCandidate,
+      showFallbackReview:visible=>{review.hidden=!visible||!candidate||!!point||!fallbackCandidate;},
+      openGoogle:()=>{google.open=true;input.focus();},
       invalidate:()=>{input.value='';clear('Map moved. Confirm the vehicle gate again.');},
       focus:()=>candidate&&!review.hidden?confirm.focus():choose.focus(),
       cancelPending:()=>{version++;clearTimeout(timer);},
@@ -86,7 +90,7 @@
         const response=await fetch('/api/book/location',{method:'POST',credentials:'omit',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({link:value})});
         const data=await response.json();if(requestVersion!==version)return;
         if(!response.ok){
-          clear(data?.code==='OUT_OF_SERVICE_AREA'?'Pickup and drop-off are available only in Islamabad and Rawalpindi.':'That link does not expose an exact gate pin. Drop a pin in Google Maps and copy its link, or paste its latitude, longitude.');return;
+          clear(data?.code==='OUT_OF_SERVICE_AREA'?'Pickup and drop-off are available only in Islamabad and Rawalpindi.':'That link has no exact gate pin. Touch and hold your vehicle entrance to drop a pin, then tap Share → Copy link. Paste that link or the pin’s latitude, longitude.');return;
         }
         if(setCandidate(data.latitude,data.longitude,'Google Maps pin'))gateMap.open(control,intent);
       }catch{
@@ -119,35 +123,43 @@
     const status=document.getElementById('map-status');
     const loading=document.getElementById('map-loading');
     const confirm=document.getElementById('map-confirm');
+    const closeButton=document.getElementById('map-close');
+    const mapStyle='https://tiles.openfreemap.org/styles/liberty';
     const mobile=window.matchMedia('(max-width:700px)');
-    let active=null,map=null,library=null,ready=false,failed=false,positioning=false,loadTimer=null,openVersion=0,intentVersion=0,lastView=null,movementActive=false;
+    let active=null,map=null,library=null,ready=false,failed=false,contextLost=false,positioning=false,loadTimer=null,openVersion=0,intentVersion=0,lastView=null,movementActive=false;
     function loadLibrary(){
       if(window.maplibregl)return Promise.resolve();
       if(library)return library;
+      if(!document.getElementById('gate-map-css')){
+        const css=document.createElement('link');css.id='gate-map-css';css.rel='stylesheet';css.href='/book/vendor/maplibre-gl-5.6.1.css';document.head.append(css);
+      }
       library=new Promise((resolve,reject)=>{
-        const css=document.createElement('link');css.rel='stylesheet';css.href='/book/vendor/maplibre-gl-5.6.1.css';document.head.append(css);
         const script=document.createElement('script');script.src='/book/vendor/maplibre-gl-5.6.1.js';
-        const timeout=setTimeout(()=>reject(new Error('map timeout')),12000);
+        const timeout=setTimeout(()=>{script.remove();reject(new Error('map timeout'));},12000);
         script.onload=()=>{clearTimeout(timeout);window.maplibregl?resolve():reject(new Error('map unavailable'));};
-        script.onerror=()=>{clearTimeout(timeout);reject(new Error('map unavailable'));};
+        script.onerror=()=>{clearTimeout(timeout);script.remove();reject(new Error('map unavailable'));};
         document.head.append(script);
-      });
+      }).catch(error=>{library=null;throw error;});
       return library;
     }
     function update(){
       const closeEnough=map&&map.getZoom()>=16;
-      confirm.disabled=!ready||failed||!closeEnough||!active?.candidate();
-      if(failed){loading.hidden=false;loading.textContent='Map unavailable';status.textContent='The map could not load. You can still paste an exact gate link, use GPS or paste coordinates.';return;}
+      confirm.disabled=!ready||failed||contextLost||movementActive||!closeEnough||!active?.candidate();
       loading.hidden=ready;
+      loading.textContent=failed?'Map unavailable':'Loading map…';
+      if(failed||contextLost){
+        status.textContent=contextLost?'The map display was interrupted. You can use Google Maps to check your gate.':'The map could not load. Use Google Maps or reopen the map to try again.';
+        return;
+      }
       status.textContent=!ready?'Loading the map. Link, coordinate and GPS selection also work without it.':!closeEnough?'Zoom in to the vehicle entrance, then place the pin at your gate.':active?.candidate()?'Check the pin is at the vehicle entrance, then confirm.':'Move the map or tap your vehicle gate, then confirm.';
     }
-    function fail(){failed=true;clearTimeout(loadTimer);update();}
-    function waitForTiles(){
-      ready=false;clearTimeout(loadTimer);loadTimer=setTimeout(fail,12000);
+    function fail(){
+      clearTimeout(loadTimer);
+      map?.remove();map=null;ready=false;failed=true;contextLost=false;update();
     }
     function position(){
       if(!map||!active)return;
-      positioning=true;movementActive=false;waitForTiles();
+      positioning=true;movementActive=false;map.stop();
       const p=active.candidate()||active.point();
       map.resize();map.jumpTo({center:p?[p.longitude,p.latitude]:[73.06,33.65],zoom:p?17:11.5});
       lastView={...map.getCenter(),zoom:map.getZoom()};
@@ -157,7 +169,11 @@
       openVersion++;movementActive=false;if(userAction)intentVersion++;
       if(panel.open)panel.close();
       document.body.classList.remove('gate-map-open');
-      if(active){active.choose.setAttribute('aria-expanded','false');if(restoreFocus)active.choose.focus();}
+      if(active){
+        active.showFallbackReview(true);
+        active.choose.setAttribute('aria-expanded','false');
+        if(restoreFocus)active.choose.focus();
+      }
     }
     async function open(control,intent){
       if(control.slot.closest('[hidden]')||(intent!==undefined&&intent!==intentVersion))return;
@@ -165,24 +181,32 @@
       close(false,false);active=control;control.slot.append(panel);
       document.getElementById('gate-picker-title').textContent='Choose your '+control.name+' gate';
       if(mobile.matches){panel.showModal();document.body.classList.add('gate-map-open');}else panel.setAttribute('open','');
+      control.showFallbackReview(false);
       control.choose.setAttribute('aria-expanded','true');
+      closeButton.focus();failed=false;
       const thisOpen=++openVersion;update();
       try{
         await loadLibrary();if(thisOpen!==openVersion||control.slot.closest('[hidden]'))return;
         if(!map){
           window.maplibregl.setWorkerUrl('/book/vendor/maplibre-gl-csp-worker-5.6.1.js');
-          map=new window.maplibregl.Map({container:'map-canvas',style:'https://tiles.openfreemap.org/styles/liberty',center:[73.06,33.65],zoom:11.5,minZoom:9,maxZoom:20,maxBounds:SERVICE_BOUNDS,attributionControl:false,dragRotate:false,pitchWithRotate:false});
+          map=new window.maplibregl.Map({container:'map-canvas',style:mapStyle,center:[73.06,33.65],zoom:11.5,minZoom:9,maxZoom:20,maxBounds:SERVICE_BOUNDS,attributionControl:false,dragRotate:false,pitchWithRotate:false});
           map.touchZoomRotate.disableRotation();
           map.addControl(new window.maplibregl.NavigationControl({showCompass:false}),'top-right');
           map.getCanvas().setAttribute('aria-label','Gate map. Use arrow keys to move and plus or minus to zoom.');
           map.getCanvas().setAttribute('aria-describedby','map-instructions');
-          map.on('idle',()=>{ready=true;clearTimeout(loadTimer);update();});
-          map.on('error',fail);
+          // The first rendered frame after style initialization makes the
+          // controls usable. Tile requests can continue independently.
+          map.once('style.load',()=>map.once('render',()=>{
+            ready=true;clearTimeout(loadTimer);update();
+          }));
+          map.on('webglcontextlost',()=>{contextLost=true;update();});
+          map.on('webglcontextrestored',()=>{contextLost=false;update();});
+          loadTimer=setTimeout(fail,12000);
           map.on('movestart',event=>{
             // MapLibre also emits movement events on resize. Resizing the sheet
             // does not change the selected gate or restart its loading state.
             if(positioning||!panel.open||!active||(!event.originalEvent&&!event.gateSelection))return;
-            movementActive=true;clearTimeout(loadTimer);ready=false;active.invalidate();update();
+            movementActive=true;active.invalidate();update();
           });
           map.on('moveend',()=>{
             if(positioning||!panel.open||!active)return;
@@ -190,18 +214,23 @@
             const changed=!lastView||Math.abs(center.lat-lastView.lat)>1e-8||Math.abs(center.lng-lastView.lng)>1e-8||Math.abs(zoom-lastView.zoom)>1e-7;
             lastView={...center,zoom};
             if(!changed&&!movementActive)return;
-            movementActive=false;active.invalidate();waitForTiles();active.setCandidate(center.lat,center.lng,'Map pin');update();
+            movementActive=false;active.invalidate();active.setCandidate(center.lat,center.lng,'Map pin');update();
           });
           // Tapping and keyboard controls provide alternatives to dragging.
           map.on('click',event=>map.jumpTo({center:[event.lngLat.lng,event.lngLat.lat]},{gateSelection:true}));
-          map.getCanvas().addEventListener('webglcontextlost',fail);
-          waitForTiles();
         }
-        position();map.getCanvas().focus({preventScroll:true});
+        position();if(document.activeElement===closeButton)map.getCanvas().focus({preventScroll:true});
       }catch{if(thisOpen===openVersion)fail();}
     }
-    document.getElementById('map-close').addEventListener('click',()=>close());
-    document.getElementById('map-fallback').addEventListener('click',()=>{const control=active;close(false);control?.input.focus();});
+    // MapLibre can retain an errored tile for the current view. Retry visible
+    // sources on reconnection while preserving the view and gate selection.
+    window.addEventListener('online',()=>{
+      if(failed&&panel.open){open(active);return;}
+      if(!ready||!map)return;
+      for(const source of Object.keys(map.getStyle().sources))map.refreshTiles(source);
+    });
+    closeButton.addEventListener('click',()=>close());
+    document.getElementById('map-fallback').addEventListener('click',()=>{const control=active;close(false);control?.openGoogle();});
     panel.addEventListener('cancel',event=>{event.preventDefault();close();});
     panel.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();close();}});
     confirm.addEventListener('click',()=>{if(!confirm.disabled&&active){active.confirm();close();}});

@@ -38,6 +38,20 @@ cdx-18
 
 All additional Codex CLI arguments pass through; the launcher restores inherited environment variables afterward.
 
+## Choose the model for the selected session
+
+Model routing is documented in [ROUTING.md](ROUTING.md). Use **GPT-6 Luna** Low/Medium for routine tasks, **GPT-6.1 Terra** Medium selectively for visual/browser and invoice/document layout QA, and **GPT-6.2 Sol** Medium/High for substantial engineering and difficult security/debugging work.
+
+Examples using **one explicitly selected agent**, not both accounts at once:
+
+```powershell
+cdx-18 --model gpt-6.2-sol
+cdx-18 --model gpt-6.1-terra
+```
+
+Use `cdx-74` instead only when that is the account you selected. Model IDs and access are subject to the actual authenticated Codex CLI; check its displayed model and reasoning effort. This repository **does not** override existing `~/.codex-18/config.toml` or `~/.codex-74/config.toml`, change already-running sessions, silently fall back to GPT-6.1 Sol, or launch extra agents. A CLI launch command or explicitly selected model in-session is required for an actual model change. No API-key billing is required or authorized.
+
+
 ## What conversations are actually shared?
 
 - **Project instructions:** root `AGENTS.md` for Codex, and `CLAUDE.md` imports the same file for Claude Code.

@@ -35,12 +35,12 @@ Open task-specific docs as needed, not all on every task: `docs/customer-booking
 
 - At the start of substantive work, read `docs/agents/THREAD.md` and the current task brief under `docs/agents/`, in addition to these instructions. This is the **common repo-facing conversation** for Claude and Codex profiles, not a native session to resume.
 - After substantive changes or a change of writer, append a concise dated entry to `docs/agents/THREAD.md` describing actual changed files/commits, evidence, blockers and the next owner. Preserve older entries; do not paste full chat logs or secrets.
-- Use `cc-umer` for the normal Claude engineering lane, `cc-muaz` for design, `cdx-18` as primary Codex, and `cdx-74` as secondary Codex. Profile mapping is a local launcher matter; never put auth tokens or complete user credential records in Git.
+- Available profiles: `cc-umer` (Claude engineering), `cc-muaz` (Claude design), `cdx-18` (primary Codex), and `cdx-74` (secondary Codex). **This inventory is not authorization to launch another profile:** only run the founder-selected agent unless the founder explicitly authorizes delegation. Profile mapping is a local launcher matter; never put auth tokens or complete user credential records in Git.
 - Each profile has a private native history. Selected full transcripts may be exported to gitignored `.agent-conversations/` for **local** reading by another profile, but cannot be resumed as a single cross-vendor conversation. One writer per file/production lane.
 
 ## Agent routing
 
-Follow [the tool-aware routing SOP](docs/agents/ROUTING.md) at session start, after `/clear`, compaction, and handoff. GPT-6 Luna is the economical default for routine work; escalate substantial engineering to GPT-6.1 Sol as specified there. GPT-6 Astra and Fable are prohibited, including automatic escalation, fallback, and subagents, until a plan upgrade.
+Follow [the tool-aware routing SOP](docs/agents/ROUTING.md) at session start, after `/clear`, compaction, and handoff. **GPT-6 Luna** (Low/Medium) remains the economical default; use **GPT-6.1 Terra** (Medium) selectively for visual QA, computer use and document/invoice layouts; use **GPT-6.2 Sol** (Medium) for substantial engineering and **High** for security, concurrency, hard debugging and integrations. Do not silently select older GPT-6.1 Sol when 6.2 Sol is unavailable. **GPT-6 Astra, GPT-6.2 Astra and Fable** remain prohibited without explicit founder authorization. These are model-routing instructions, not a verified automatic switch.
 
 ## Development and proof
 

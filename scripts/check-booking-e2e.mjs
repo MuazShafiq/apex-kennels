@@ -271,7 +271,6 @@ try{
   await fallback.page.locator('#transport-pickup').check();
   await revealPinFallback(fallback.page);
   await fallback.page.locator('#maps-link').fill('https://www.google.com/maps/search/?api=1&query=33.7%2C73.08');
-  await fallback.page.locator('#confirm-gate').waitFor({state:'visible'});
   await fallback.page.locator('#map-fallback').click();
   await fallback.page.locator('#submit').click();
   assert.equal(saved.length,6,'Exact pasted pin still requires explicit gate confirmation');
@@ -317,6 +316,7 @@ try{
   await delayed.page.locator('#transport-pickup').check();
   await delayed.page.locator('#transport-dropoff').check();
   await delayed.page.locator('#same-dropoff').uncheck();
+  await revealPinFallback(delayed.page,'dropoff-');
   await delayed.page.locator('#dropoff-maps-link').fill('https://maps.app.goo.gl/synthetic-held-response');
   await linkRequest;
   await delayed.page.locator('#same-dropoff').check();
@@ -405,6 +405,99 @@ try{
   console.log(liveTiles?'Real MapLibre / local CSP worker / live OpenFreeMap rendered and keyboard-selected a gate.':'Real MapLibre / local CSP worker rendered with a synthetic style (provider network untested).');
   await actual.page.close();
 
+  // Hold the style and then hold actual vector requests independently.
+  // Simulate a dropped connection while the customer is navigating, then
+  // check that a reconnection fetches usable tiles without recreating the map.
+  const interrupted=await newPage({map:'real',viewport:{width:1280,height:900}});
+  const outagePage=interrupted.page;
+  // Minimal version-2 vector tile with an empty roads layer and extent 4096.
+  const tilePbf=Buffer.from('1a0c78020a05726f616473288020','hex');
+  let releaseStyle,releaseTiles,styleRequests=0,tileRequests=0,failedTiles=0,recoveredTiles=0;
+  const slowStyle=new Promise(resolve=>{releaseStyle=resolve;});
+  const slowTiles=new Promise(resolve=>{releaseTiles=resolve;});
+  let connection='slow';
+  await outagePage.route('https://tiles.openfreemap.org/**',async route=>{
+    const url=route.request().url();
+    if(url.endsWith('/styles/liberty')){
+      styleRequests++;
+      await slowStyle;
+      return route.fulfill({json:{version:8,sources:{roads:{type:'vector',tiles:['https://tiles.openfreemap.org/fixture/{z}/{x}/{y}.pbf']}},
+        layers:[{id:'roads',type:'line',source:'roads','source-layer':'roads'}]}});
+    }
+    tileRequests++;
+    if(connection==='slow')await slowTiles;
+    if(connection==='offline'){
+      failedTiles++;
+      return route.abort('internetdisconnected');
+    }
+    return route.fulfill({contentType:'application/x-protobuf',body:tilePbf,headers:{'access-control-allow-origin':'*'}});
+  });
+  outagePage.on('response',response=>{
+    if(response.url().includes('/fixture/')&&response.status()===200)recoveredTiles++;
+  });
+  await outagePage.locator('#transport-pickup').check();
+  await outagePage.locator('#transport-dropoff').check();
+  await outagePage.locator('#same-dropoff').uncheck();
+  const googleGuide=outagePage.locator('#dropoff-google-gate');
+  await googleGuide.locator('summary').press('Enter');
+  assert.equal(await googleGuide.locator('li:visible').count(),4);
+  assert.match(await googleGuide.locator('ol').innerText(),/exact vehicle entrance[\s\S]*Share → Copy link[\s\S]*Return to Apex/);
+  assert.equal(await googleGuide.getByRole('link',{name:'Open Google Maps'}).getAttribute('target'),'_blank');
+  await googleGuide.getByRole('textbox',{name:'Paste your copied gate link'}).fill('not a maps link');
+  await outagePage.locator('#dropoff-coordinate-status').filter({hasText:'exact gate pin'}).waitFor();
+  assert.equal(await outagePage.locator('#gate-picker').isVisible(),false);
+  await googleGuide.getByRole('textbox',{name:'Paste your copied gate link'}).fill('https://www.google.com/maps/search/?api=1&query=33.7%2C73.08');
+  await outagePage.locator('#gate-picker-title').filter({hasText:'drop-off'}).waitFor();
+  assert.equal(await outagePage.locator('#map-loading').isVisible(),true);
+  assert.equal(await outagePage.locator('#map-confirm').isDisabled(),true);
+  assert.equal(await outagePage.locator('#dropoff-confirm-gate').isVisible(),false);
+  releaseStyle();
+  await outagePage.locator('#map-loading').waitFor({state:'hidden'});
+  const outageCanvas=outagePage.locator('#map-canvas canvas');
+  await waitForBrowser(outagePage,()=>!document.querySelector('#map-confirm').disabled);
+  assert(tileRequests>0,'Fixture should hold actual tile requests');
+  assert.equal(recoveredTiles,0,'Confirmation must work while all tile responses are pending');
+  await outagePage.locator('#map-confirm').click();
+  assert.match(await outagePage.locator('#dropoff-coordinate-status').innerText(),/confirmed/i);
+  await outagePage.locator('#dropoff-choose-map').click();
+  assert.equal(await outagePage.locator('#map-loading').isVisible(),false);
+  await outagePage.evaluate(()=>{
+    window.__loadingReturned=false;
+    new MutationObserver(()=>{
+      window.__loadingReturned||=!document.querySelector('#map-loading').hidden;
+    }).observe(document.querySelector('#map-loading'),{attributeFilter:['hidden']});
+  });
+  connection='offline';
+  const tileFailed=outagePage.waitForEvent('requestfailed',request=>request.url().includes('/fixture/'));
+  releaseTiles();
+  await tileFailed;
+  await outageCanvas.scrollIntoViewIfNeeded();
+  const box=await outageCanvas.boundingBox();
+  await outagePage.mouse.move(box.x+box.width/2,box.y+box.height/2);
+  await outagePage.mouse.down();
+  await outagePage.mouse.move(box.x+box.width/2+60,box.y+box.height/2+35,{steps:12});
+  assert.equal(await outagePage.locator('#map-confirm').isDisabled(),true);
+  assert.equal(await outagePage.locator('#map-loading').isVisible(),false);
+  assert.doesNotMatch(await outagePage.locator('#dropoff-coordinate-status').innerText(),/confirmed/i);
+  await outagePage.mouse.up();
+  await outageCanvas.press('+');
+  await waitForBrowser(outagePage,()=>!document.querySelector('#map-confirm').disabled);
+  assert(failedTiles>0);
+  connection='online';
+  const restoredTile=outagePage.waitForResponse(response=>response.url().includes('/fixture/')&&response.ok());
+  await outagePage.evaluate(()=>window.dispatchEvent(new Event('online')));
+  await restoredTile;
+  assert.equal(await outagePage.evaluate(()=>window.__loadingReturned),false);
+  await outagePage.locator('#map-confirm').click();
+  await outagePage.locator('#choose-map').click();
+  await outagePage.locator('#map-loading').waitFor({state:'hidden'});
+  assert.equal(styleRequests,1,'Reopen and gate switch must reuse the style and map');
+  assert.equal(await outagePage.locator('.map-attribution a:visible').count(),3);
+  assert.match(await outagePage.locator('#dropoff-coordinate-status').innerText(),/confirmed/i);
+  assert.deepEqual(interrupted.errors,[]);
+  await outagePage.close();
+  console.log('Slow style and pending tiles, tile outage, reconnection, and Google Maps drop-off review passed with real MapLibre.');
+
   // A real mobile MapLibre canvas catches ResizeObserver/layout feedback
   // loops which a Map stub cannot reproduce. Basemap data stays synthetic.
   const phoneMap=await newPage({map:'real'});
@@ -418,6 +511,14 @@ try{
     await phoneCanvas.press('+');
     await phoneMap.page.waitForTimeout(350);
   }
+  const touch=await phoneMap.page.context().newCDPSession(phoneMap.page);
+  const touchBox=await phoneCanvas.boundingBox();
+  const touchPoint={x:Math.round(touchBox.x+touchBox.width/2),y:Math.round(touchBox.y+touchBox.height/2)};
+  await touch.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[touchPoint]});
+  for(let offset=10;offset<=60;offset+=10)
+    await touch.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:touchPoint.x+offset,y:touchPoint.y}]});
+  await touch.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  assert.equal(await phoneMap.page.locator('#map-loading').isVisible(),false);
   await phoneCanvas.tap({position:{x:160,y:120}});
   await waitForBrowser(phoneMap.page,()=>!document.querySelector('#map-confirm').disabled,15000);
   await phoneMap.page.evaluate(()=>{

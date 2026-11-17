@@ -82,7 +82,7 @@ test('link endpoint refuses cross-origin and unrelated fields without resolving 
 test('book page lazily loads one pinned local map and keeps private credentials off the client',()=>{
   const html=readFileSync('public/book/index.html','utf8');
   const js=readFileSync('public/book/app.js','utf8');
-  assert.match(html,/Find in Google Maps/);
+  assert.match(html,/Find your gate in Google Maps/);
   assert.match(html,/id="maps-link"/);
   assert.match(html,/Use my current location/);
   assert.doesNotMatch(html,/<script[^>]+(?:unpkg|maplibre|openfreemap|TomTom)/);

@@ -10,7 +10,7 @@ import {renderStaffDraftReview,prepareStaffDraftReview} from '../src/staff-invoi
 import {renderStaffPinChecker} from '../src/staff-location.ts';
 import {renderInvoiceApprovalPage} from '../src/staff-invoice-approval.ts';
 import {makeReviewSnapshot} from '../src/staff-saved-review.ts';
-import {confirmExactPin,revealPinFallback,stubMapLibrary,moveSyntheticMap,waitForBrowser} from './gate-picker-browser-fixture.mjs';
+import {confirmExactPin,stubMapLibrary,moveSyntheticMap,waitForBrowser} from './gate-picker-browser-fixture.mjs';
 
 const demoSource={
   bookingId:'a2026111-0e00-4c11-8a00-000000000033',
@@ -210,9 +210,14 @@ try{
   assert(await page.locator('#choose-map').evaluate(el=>el===document.activeElement),name+' map confirmation does not restore launcher focus');
   await page.locator('#choose-map').click();
   await page.locator('#map-close').click();
-  await revealPinFallback(page);
+  await page.locator('#google-gate summary').press('Enter');
+  assert(await page.locator('#google-gate li:visible').count()===4,name+' Google Maps instructions missing');
+  const openMaps=page.locator('#open-google-maps');
+  assert((await openMaps.boundingBox()).height>=44,name+' Google Maps link has an undersized touch target');
+  assert(await page.locator('#maps-link').evaluate(input=>getComputedStyle(input).fontSize)==='16px',
+    name+' paste field is too small for mobile focus');
+  await page.locator('#google-gate').screenshot({path:'mobile-'+name+'-google-gate.png'});
   await page.locator('#maps-link').fill('https://www.google.com/maps/search/?api=1&query=33.7%2C73.08');
-  await page.locator('#confirm-gate').waitFor({state:'visible'});
   await page.locator('#map-fallback').click();
   await page.locator('#confirm-gate').click();
   assert(await page.locator('#selected-location-link').isVisible(),name+' pickup pin not visible');

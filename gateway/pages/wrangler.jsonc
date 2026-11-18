@@ -1,0 +1,12 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "apexkennels",
+  "compatibility_date": "2026-11-17",
+  "pages_build_output_dir": "./site",
+  "services": [
+    {
+      "binding": "APEX_BACKEND",
+      "service": "apex-kennels-api"
+    }
+  ]
+}

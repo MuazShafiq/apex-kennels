@@ -33,6 +33,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test gateway/pages/gateway.test.mjs
       - run: node --check scripts/check-local.mjs
       - run: node --check scripts/check-production-gate-picker.mjs
       - run: node --test scripts/check-booking-cutover.test.mjs

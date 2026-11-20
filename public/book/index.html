@@ -4,206 +4,250 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
-  <meta name="theme-color" content="#ddf4ff">
+  <meta name="theme-color" content="#120709">
   <title>Request boarding | Apex Kennels</title>
   <link rel="stylesheet" href="/book/styles.css">
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" defer></script>
   <script src="/book/app.js" defer></script>
 </head>
 <body>
-  <div class="shell">
-    <header class="topbar">
-      <a class="brand" href="/book" aria-label="Apex Kennels home"><img class="brand-mark" src="/book/apex-dog-mark.svg" alt="" width="48" height="41"><span class="brand-wordmark"><strong>APEX</strong><span>KENNELS</span></span></a>
-      <p>ISLAMABAD · BOARDING REQUESTS</p>
-    </header>
-    <div class="lead-grid">
-      <div>
-        <span class="eyebrow">A stay worth planning properly</span>
-        <h1>Tell us about<br><em>your dog.</em></h1>
+  <a class="skip-link" href="#booking-content">Skip to booking</a>
+  <header class="topbar">
+    <nav class="navigation" aria-label="Main">
+      <a class="brand" href="/" aria-label="Apex Kennels home">
+        <span class="brand-tile" aria-hidden="true"><img src="/site/dog-mark.svg" alt="" width="30" height="25"></span>
+        <span class="brand-wordmark" aria-hidden="true"><strong>APEX</strong><span>KENNELS</span></span>
+      </a>
+      <span class="brand-slash" aria-hidden="true"></span>
+      <div class="navigation-links">
+        <a href="/#prices">Boarding</a>
+        <a href="/#camera-cage">Camera cage</a>
+        <a href="/#contact">Contact</a>
       </div>
-      <div class="intro"><p>Safe, comfortable boarding from <strong>Rs. 2,500/day.</strong> Tell us about your dog and we’ll take care of the details.</p><ul class="benefits"><li>Two meals every day</li><li>Morning and evening playtime, matched to your dog</li><li>Weekly vet check-ups</li><li>Optional camera cage with 24/7 CCTV</li></ul></div>
-    </div>
-    <div class="preview" id="preview">This form is being prepared. Booking submissions are not enabled here yet. Please use the existing booking Form.</div>
-    <form id="booking">
-      <section class="panel">
-        <div class="step-heading"><span class="step">01</span><div><h2>Your details</h2><p>Where to reach you and when your dog will stay.</p></div></div>
-        <div class="fields">
-          <label>Full name <input name="customerName" autocomplete="name" maxlength="200" required></label>
-          <label>Phone or WhatsApp number <input name="phone" type="tel" autocomplete="tel" maxlength="40" required></label>
-          <label>Email (optional) <input name="email" type="email" autocomplete="email" maxlength="254"></label>
-          <label>Home address <input name="ownerAddress" autocomplete="street-address" maxlength="600" required></label>
-          <label>Boarding start date <input name="startDate" type="date" required></label>
-          <label>Last boarding day <input name="endDate" type="date" required></label>
-          <label>Emergency contact number <input name="emergencyContactPhone" type="tel" maxlength="120" required></label>
-        </div>
-      </section>
-      <section class="panel">
-        <div class="step-heading"><span class="step">02</span><div><h2>Your dog</h2><p>The essentials for a safe, comfortable stay.</p></div></div>
-        <div class="fields">
-          <label>Dog's name <input name="petName" maxlength="200" required></label>
-          <label>Breed <input name="breed" maxlength="140" required></label>
-          <label>Gender <input name="gender" maxlength="80" required></label>
-          <label>Age <input name="age" maxlength="100" required></label>
-          <label>Vaccination status
-            <select name="vaccinationStatus" required><option value="">Choose one</option>
-              <option>Fully vaccinated and booster is up to date</option>
-              <option>Fully vaccinated without boosters</option>
-              <option>Partially vaccinated</option><option>None</option>
-            </select>
-          </label>
-          <fieldset class="field-choice"><legend>Has your dog ever had canine distemper?</legend><div class="choice-row">
-            <label class="option"><input type="radio" name="distemperHistory" value="Yes" required><span>Yes</span></label>
-            <label class="option"><input type="radio" name="distemperHistory" value="No"><span>No</span></label>
-            <label class="option"><input type="radio" name="distemperHistory" value="Not Sure"><span>Not sure</span></label>
-          </div></fieldset>
-          <label>Vet phone (optional) <input name="veterinarianPhone" type="tel" maxlength="120"></label>
-          <fieldset class="field-choice wide"><legend>Choose your boarding space</legend><div class="choice-cards">
-            <label class="option option-card"><input type="radio" name="cameraCageRequested" value="no" required><span><strong>Standard boarding</strong><small>Daily care and playtime</small></span></label>
-            <label class="option option-card"><input type="radio" name="cameraCageRequested" value="yes"><span><strong>Camera cage</strong><small>24/7 CCTV access</small></span></label>
-          </div></fieldset>
-        </div>
-      </section>
-      <section class="panel">
-        <div class="step-heading"><span class="step">03</span><div><h2>Transport</h2><p>Pickup and drop-off are available in Islamabad and Rawalpindi only.</p></div></div>
-        <fieldset class="field-choice transport-services" aria-describedby="transport-help">
-          <legend>Which services do you need?</legend>
-          <p class="transport-help" id="transport-help">Select pickup, drop-off, or both.</p>
-          <div class="transport-service-list" id="transport">
-            <div class="transport-service-block">
-              <label class="transport-service-option">
-                <input type="checkbox" id="transport-pickup" name="pickupRequested" aria-controls="pickup-location">
-                <span class="transport-service-copy"><strong>Pickup</strong><small>Collect my dog before boarding</small></span>
-              </label>
-              <div id="pickup-location" class="transport-location-panel" hidden>
-                <h3>Pickup location</h3>
-                <p>Where should we collect your dog?</p>
-                <div class="gate-methods">
-                  <button type="button" class="gate-primary" id="choose-map" aria-controls="gate-picker" aria-expanded="false"><span>Choose on map</span><small>Move the pin to your exact vehicle gate</small></button>
-                  <details class="google-gate" id="google-gate">
-                    <summary>Find your gate in Google Maps</summary>
-                    <div class="google-gate-steps">
-                      <ol>
-                        <li>Search for your address or area.</li>
-                        <li>Touch and hold your exact vehicle entrance to drop a pin.</li>
-                        <li>Tap <strong>Share → Copy link</strong>.</li>
-                        <li>Return to Apex and paste the link below to review and confirm your gate.</li>
-                      </ol>
-                      <a class="maps-button" id="open-google-maps" href="https://www.google.com/maps/search/?api=1&amp;query=Islamabad%20Rawalpindi" target="_blank" rel="noopener noreferrer">Open Google Maps <span aria-hidden="true">↗</span></a>
-                      <label class="maps-link-label" for="maps-link">Paste your copied gate link</label>
-                      <input id="maps-link" type="text" maxlength="2048" autocomplete="off" spellcheck="false" aria-describedby="maps-help coordinate-status" placeholder="Link or coordinates">
-                      <p class="location-help" id="maps-help">If the link has no exact pin, paste the pin’s latitude, longitude.</p>
-                    </div>
-                  </details>
-                  <button type="button" class="secondary gate-gps" id="locate">Use my current location</button>
+    </nav>
+  </header>
+  <main class="shell" id="booking-content" tabindex="-1">
+    <div class="booking-layout">
+      <div class="booking-intro">
+        <h1>Request a stay<span aria-hidden="true">.</span></h1>
+        <p>The front desk replies with a confirmed estimate before anything is booked.</p>
+        <nav aria-label="Booking sections">
+          <ol class="booking-steps">
+            <li><a href="#dog-and-dates">Your dog and dates</a></li>
+            <li><a href="#space">Space</a></li>
+            <li><a href="#transport-step">Transport and your gate</a></li>
+            <li><a href="#check-and-send">Check and send</a></li>
+          </ol>
+        </nav>
+        <details class="booking-care">
+          <summary>What’s included in your stay</summary>
+          <ul>
+            <li>Two meals every day</li>
+            <li>Morning and evening playtime</li>
+            <li>Weekly vet check-ups</li>
+            <li>Optional camera cage with 24/7 CCTV</li>
+            <li>Free grooming</li>
+          </ul>
+        </details>
+      </div>
+      <div class="booking-main">
+        <div class="preview" id="preview" role="status">Online booking submissions are currently closed.</div>
+        <form id="booking" aria-label="Request a stay">
+          <section class="panel" id="dog-and-dates" tabindex="-1" aria-labelledby="dog-and-dates-heading">
+            <div class="step-heading"><span class="step" aria-hidden="true">1</span><h2 id="dog-and-dates-heading">Your dog and dates</h2></div>
+            <div class="fields">
+              <label>Boarding start date <input name="startDate" type="date" placeholder="YYYY-MM-DD" pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}" required></label>
+              <label>Last boarding day <input name="endDate" type="date" placeholder="YYYY-MM-DD" pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}" required></label>
+              <label>Dog's name <input name="petName" maxlength="200" required></label>
+              <label>Breed <input name="breed" maxlength="140" required></label>
+            </div>
+            <p class="fineprint billed-days">Arrival and collection are both billed days.</p>
+          </section>
+          <section class="panel" id="space" tabindex="-1" aria-labelledby="space-heading">
+            <div class="step-heading"><span class="step" aria-hidden="true">2</span><h2 id="space-heading">Space</h2></div>
+            <div class="choice-cards">
+              <label class="option option-card"><input type="radio" name="cameraCageRequested" value="no" data-daily-rate="2500" required><span><strong>Standard</strong><small>Rs 2,500 a day</small></span></label>
+              <label class="option option-card"><input type="radio" name="cameraCageRequested" value="yes" data-daily-rate="3000"><span><strong>Camera cage</strong><small>Rs 3,000 a day · 24/7 CCTV</small></span></label>
+            </div>
+          </section>
+          <section class="panel" id="transport-step" tabindex="-1" aria-labelledby="transport-heading">
+            <div class="step-heading"><span class="step" aria-hidden="true">3</span><h2 id="transport-heading">Transport</h2></div>
+            <p class="section-help">Pickup and drop-off are available in Islamabad and Rawalpindi only.</p>
+            <fieldset class="field-choice transport-services" aria-describedby="transport-help">
+              <legend>Which services do you need?</legend>
+              <p class="transport-help" id="transport-help">Select pickup, drop-off, or both.</p>
+              <div class="transport-service-list" id="transport">
+                <div class="transport-choices">
+                  <label class="transport-service-option">
+                    <input type="checkbox" id="transport-pickup" name="pickupRequested" aria-controls="pickup-location">
+                    <span class="transport-service-copy"><strong>Pickup</strong></span>
+                  </label>
+                  <label class="transport-service-option">
+                    <input type="checkbox" id="transport-dropoff" name="dropoffRequested" aria-controls="dropoff-location">
+                    <span class="transport-service-copy"><strong>Drop-off</strong></span>
+                  </label>
+                  <label class="transport-service-option">
+                    <input type="checkbox" id="transport-none" name="noTransport">
+                    <span class="transport-service-copy"><strong>No transport</strong></span>
+                  </label>
                 </div>
-                <p id="coordinate-status" class="location-status" role="status">No pickup gate selected</p>
-                <div id="map-slot" class="map-slot"></div>
-                <a id="selected-location-link" class="pin-link" target="_blank" rel="noopener noreferrer" hidden>View pickup gate in Google Maps</a>
-                <div id="gate-review" class="gate-review" hidden>
-                  <p>Open the exact pin above and check that it marks your vehicle entrance before confirming.</p>
-                  <button id="confirm-gate" class="secondary" type="button">Confirm this vehicle gate</button>
+                <div id="pickup-location" class="transport-location-panel" hidden>
+                  <h3>Pickup location</h3>
+                  <p>Where should we collect your dog?</p>
+                  <div class="gate-methods">
+                    <button type="button" class="gate-primary" id="choose-map" aria-controls="gate-picker" aria-expanded="false"><span>Choose on map</span><small>Move the pin to your exact vehicle gate</small></button>
+                    <details class="google-gate" id="google-gate">
+                      <summary>Find your gate in Google Maps</summary>
+                      <div class="google-gate-steps">
+                        <ol>
+                          <li>Search for your address or area.</li>
+                          <li>Touch and hold your exact vehicle entrance to drop a pin.</li>
+                          <li>Tap <strong>Share → Copy link</strong>.</li>
+                          <li>Return to Apex and paste the link below to review and confirm your gate.</li>
+                        </ol>
+                        <a class="maps-button" id="open-google-maps" href="https://www.google.com/maps/search/?api=1&amp;query=Islamabad%20Rawalpindi" target="_blank" rel="noopener noreferrer">Open Google Maps <span aria-hidden="true">↗</span></a>
+                        <label class="maps-link-label" for="maps-link">Paste your copied gate link</label>
+                        <input id="maps-link" type="text" maxlength="2048" autocomplete="off" spellcheck="false" aria-describedby="maps-help coordinate-status" placeholder="Link or coordinates">
+                        <p class="location-help" id="maps-help">If the link has no exact pin, paste the pin’s latitude, longitude.</p>
+                      </div>
+                    </details>
+                    <button type="button" class="secondary gate-gps" id="locate">Use my current location</button>
+                  </div>
+                  <p id="coordinate-status" class="location-status" role="status">No pickup gate selected</p>
+                  <div id="map-slot" class="map-slot"></div>
+                  <a id="selected-location-link" class="pin-link" target="_blank" rel="noopener noreferrer" hidden>View pickup gate in Google Maps</a>
+                  <div id="gate-review" class="gate-review" hidden>
+                    <p>Open the exact pin above and check that it marks your vehicle entrance before confirming.</p>
+                    <button id="confirm-gate" class="secondary" type="button">Confirm this vehicle gate</button>
+                  </div>
+                </div>
+                <div id="dropoff-reuse" class="transport-location-reuse" hidden>
+                  <label class="reuse-checkbox">
+                    <input type="checkbox" id="same-dropoff" checked>
+                    <span>Use pickup location for drop-off</span>
+                  </label>
+                </div>
+                <div id="dropoff-location" class="transport-location-panel" hidden>
+                  <h3>Drop-off location</h3>
+                  <p>Where should we bring your dog after boarding?</p>
+                  <div class="gate-methods">
+                    <button type="button" class="gate-primary" id="dropoff-choose-map" aria-controls="gate-picker" aria-expanded="false"><span>Choose on map</span><small>Move the pin to your exact vehicle gate</small></button>
+                    <details class="google-gate" id="dropoff-google-gate">
+                      <summary>Find your gate in Google Maps</summary>
+                      <div class="google-gate-steps">
+                        <ol>
+                          <li>Search for your address or area.</li>
+                          <li>Touch and hold your exact vehicle entrance to drop a pin.</li>
+                          <li>Tap <strong>Share → Copy link</strong>.</li>
+                          <li>Return to Apex and paste the link below to review and confirm your gate.</li>
+                        </ol>
+                        <a class="maps-button" id="dropoff-open-google-maps" href="https://www.google.com/maps/search/?api=1&amp;query=Islamabad%20Rawalpindi" target="_blank" rel="noopener noreferrer">Open Google Maps <span aria-hidden="true">↗</span></a>
+                        <label class="maps-link-label" for="dropoff-maps-link">Paste your copied gate link</label>
+                        <input id="dropoff-maps-link" type="text" maxlength="2048" autocomplete="off" spellcheck="false" aria-describedby="dropoff-maps-help dropoff-coordinate-status" placeholder="Link or coordinates">
+                        <p class="location-help" id="dropoff-maps-help">If the link has no exact pin, paste the pin’s latitude, longitude.</p>
+                      </div>
+                    </details>
+                    <button type="button" class="secondary gate-gps" id="dropoff-locate">Use my current location</button>
+                  </div>
+                  <p id="dropoff-coordinate-status" class="location-status" role="status">No drop-off gate selected</p>
+                  <div id="dropoff-map-slot" class="map-slot"></div>
+                  <a id="dropoff-selected-location-link" class="pin-link" target="_blank" rel="noopener noreferrer" hidden>View drop-off gate in Google Maps</a>
+                  <div id="dropoff-gate-review" class="gate-review" hidden>
+                    <p>Open the exact pin above and check that it marks your vehicle entrance before confirming.</p>
+                    <button id="dropoff-confirm-gate" class="secondary" type="button">Confirm this vehicle gate</button>
+                  </div>
                 </div>
               </div>
+            </fieldset>
+            <p class="fineprint">We'll confirm transport charges separately before your booking is finalized.</p>
+          </section>
+          <section class="panel" id="check-and-send" tabindex="-1" aria-labelledby="check-and-send-heading">
+            <div class="step-heading"><span class="step" aria-hidden="true">4</span><h2 id="check-and-send-heading">Check and send</h2></div>
+            <div class="subsection">
+              <h3>Your details</h3>
+              <div class="fields">
+                <label>Full name <input name="customerName" autocomplete="name" maxlength="200" required></label>
+                <label>Phone or WhatsApp number <input name="phone" type="tel" autocomplete="tel" maxlength="40" required></label>
+                <label>Email (optional) <input name="email" type="email" autocomplete="email" maxlength="254"></label>
+                <label>Home address <input name="ownerAddress" autocomplete="street-address" maxlength="600" required></label>
+                <label>Emergency contact number <input name="emergencyContactPhone" type="tel" maxlength="120" required></label>
+              </div>
             </div>
-            <div class="transport-service-block">
-              <label class="transport-service-option">
-                <input type="checkbox" id="transport-dropoff" name="dropoffRequested" aria-controls="dropoff-location">
-                <span class="transport-service-copy"><strong>Drop-off</strong><small>Bring my dog back after boarding</small></span>
-              </label>
-              <div id="dropoff-reuse" class="transport-location-reuse" hidden>
-                <label class="reuse-checkbox">
-                  <input type="checkbox" id="same-dropoff" checked>
-                  <span>Use pickup location for drop-off</span>
+            <div class="subsection">
+              <h3>Health and care</h3>
+              <div class="fields">
+                <label>Gender <input name="gender" maxlength="80" required></label>
+                <label>Age <input name="age" maxlength="100" required></label>
+                <label>Vaccination status
+                  <select name="vaccinationStatus" required><option value="">Choose one</option>
+                    <option>Fully vaccinated and booster is up to date</option>
+                    <option>Fully vaccinated without boosters</option>
+                    <option>Partially vaccinated</option><option>None</option>
+                  </select>
                 </label>
-              </div>
-              <div id="dropoff-location" class="transport-location-panel" hidden>
-                <h3>Drop-off location</h3>
-                <p>Where should we bring your dog after boarding?</p>
-                <div class="gate-methods">
-                  <button type="button" class="gate-primary" id="dropoff-choose-map" aria-controls="gate-picker" aria-expanded="false"><span>Choose on map</span><small>Move the pin to your exact vehicle gate</small></button>
-                  <details class="google-gate" id="dropoff-google-gate">
-                    <summary>Find your gate in Google Maps</summary>
-                    <div class="google-gate-steps">
-                      <ol>
-                        <li>Search for your address or area.</li>
-                        <li>Touch and hold your exact vehicle entrance to drop a pin.</li>
-                        <li>Tap <strong>Share → Copy link</strong>.</li>
-                        <li>Return to Apex and paste the link below to review and confirm your gate.</li>
-                      </ol>
-                      <a class="maps-button" id="dropoff-open-google-maps" href="https://www.google.com/maps/search/?api=1&amp;query=Islamabad%20Rawalpindi" target="_blank" rel="noopener noreferrer">Open Google Maps <span aria-hidden="true">↗</span></a>
-                      <label class="maps-link-label" for="dropoff-maps-link">Paste your copied gate link</label>
-                      <input id="dropoff-maps-link" type="text" maxlength="2048" autocomplete="off" spellcheck="false" aria-describedby="dropoff-maps-help dropoff-coordinate-status" placeholder="Link or coordinates">
-                      <p class="location-help" id="dropoff-maps-help">If the link has no exact pin, paste the pin’s latitude, longitude.</p>
-                    </div>
-                  </details>
-                  <button type="button" class="secondary gate-gps" id="dropoff-locate">Use my current location</button>
-                </div>
-                <p id="dropoff-coordinate-status" class="location-status" role="status">No drop-off gate selected</p>
-                <div id="dropoff-map-slot" class="map-slot"></div>
-                <a id="dropoff-selected-location-link" class="pin-link" target="_blank" rel="noopener noreferrer" hidden>View drop-off gate in Google Maps</a>
-                <div id="dropoff-gate-review" class="gate-review" hidden>
-                  <p>Open the exact pin above and check that it marks your vehicle entrance before confirming.</p>
-                  <button id="dropoff-confirm-gate" class="secondary" type="button">Confirm this vehicle gate</button>
-                </div>
+                <fieldset class="field-choice"><legend>Has your dog ever had canine distemper?</legend><div class="choice-row">
+                  <label class="option"><input type="radio" name="distemperHistory" value="Yes" required><span>Yes</span></label>
+                  <label class="option"><input type="radio" name="distemperHistory" value="No"><span>No</span></label>
+                  <label class="option"><input type="radio" name="distemperHistory" value="Not Sure"><span>Not sure</span></label>
+                </div></fieldset>
+                <label>Vet phone (optional) <input name="veterinarianPhone" type="tel" maxlength="120"></label>
               </div>
             </div>
-            <div class="transport-divider"><span>or</span></div>
-            <label class="transport-service-option transport-service-none">
-              <input type="checkbox" id="transport-none" name="noTransport">
-              <span class="transport-service-copy"><strong>No transport needed</strong></span>
-            </label>
-          </div>
-        </fieldset>
-        <p class="fineprint">We'll confirm transport charges separately before your booking is finalized.</p>
-      </section>
-      <section class="panel">
-        <div class="step-heading"><span class="step">04</span><div><h2>Care details</h2><p>Tell us about their behaviour and health.</p></div></div>
-        <div class="traits">
-          <fieldset class="trait"><legend>Friendly</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_friendly" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_friendly" value="No"><span>No</span></label></div></fieldset>
-          <fieldset class="trait"><legend>Fears / anxiety</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_fears" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_fears" value="No"><span>No</span></label></div></fieldset>
-          <fieldset class="trait"><legend>Climbs or escapes enclosures</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_climber" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_climber" value="No"><span>No</span></label></div></fieldset>
-          <fieldset class="trait"><legend>Food sensitivities</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_foodSensitivities" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_foodSensitivities" value="No"><span>No</span></label></div></fieldset>
-          <fieldset class="trait"><legend>Excessive barking</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_barksExcessively" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_barksExcessively" value="No"><span>No</span></label></div></fieldset>
-          <fieldset class="trait"><legend>Allergies</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_allergies" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_allergies" value="No"><span>No</span></label></div></fieldset>
-          <fieldset class="trait"><legend>Bite history</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_biteHistory" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_biteHistory" value="No"><span>No</span></label></div></fieldset>
-          <fieldset class="trait"><legend>Medical conditions</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_medicalConditions" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_medicalConditions" value="No"><span>No</span></label></div></fieldset>
-        </div>
-        <div class="notes">
-          <label>Medication and feeding instructions (optional) <textarea name="medicationFeedingInstructions" maxlength="3000"></textarea></label>
-          <label>Anything else we should know? (optional) <textarea name="specialInstructions" maxlength="3000"></textarea></label>
-        </div>
-      </section>
-      <div class="finish">
-        <details class="terms" id="boarding-terms"><summary>Read boarding terms</summary>
-  <ol>
-    <li>I will allow Apex Kennel staff to choose an appropriate supervised playgroup or playmate for my dog while in the exercise yard. If I give my permission for my dog to have a playmate, I understand that there is a minimal risk of injury to my dog. I hold Apex Kennels harmless in case of such injury.</li>
-    <li>I authorize Apex Kennels to do whatever is deemed necessary for the health and well-being of my pet and I will pay for any and all expenses relating to my pet. I understand that if my pet needs medical attention, my emergency contacts will be called. I also understand that my emergency contacts will not be called for minor incidents that do not require immediate medical attention.</li>
-    <li>Boarding may be stressful for some dogs. A change in environment, water, and possibly different food, as well as a noisy dog next door can sometimes cause a stress-related colitis resulting in soft stools. There is no known prevention for this condition. Apex Kennels will monitor your pet and if soft stools occur, your pet will be given medication according to the vet's prescription.</li>
-    <li>I understand that Apex Kennels is going to act in the best interest of my pet. A daily inspection of my pet's physical condition will be done. If my pet needs any care which will enable it to be more comfortable during its stay, that service will be performed. Some examples: bath, pedicure, ear cleaning, daily eye cleaning, etc.</li>
-    <li>I hold Apex Kennels and staff completely harmless in the event of sickness, loss or injury of my dog.</li>
-    <li>I will be completely financially responsible if my dog causes any property damage while boarding at Apex Kennels.</li>
-  </ol>
-</details>
-        <label class="confirm"><input name="termsAccepted" type="checkbox" required><span>I have read and agree to the boarding terms below.</span></label>
-        <label class="confirm"><input name="whatsappInvoiceOptIn" type="checkbox"><span>Send me booking updates and my approved invoice on WhatsApp at the number I provided (optional).</span></label>
-        <p class="fineprint">This is a booking request, not a confirmed reservation. We will contact you about availability, care needs and any additional charges.</p>
-        <div id="turnstile"></div>
-        <div class="sendrow"><span>Your request goes to Apex Kennels.</span>
-          <button id="submit" type="submit" disabled>Send booking request</button></div>
-        <div id="message" class="message" role="status" aria-live="polite" hidden></div>
+            <div class="traits">
+              <fieldset class="trait"><legend>Friendly</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_friendly" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_friendly" value="No"><span>No</span></label></div></fieldset>
+              <fieldset class="trait"><legend>Fears / anxiety</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_fears" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_fears" value="No"><span>No</span></label></div></fieldset>
+              <fieldset class="trait"><legend>Climbs or escapes enclosures</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_climber" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_climber" value="No"><span>No</span></label></div></fieldset>
+              <fieldset class="trait"><legend>Food sensitivities</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_foodSensitivities" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_foodSensitivities" value="No"><span>No</span></label></div></fieldset>
+              <fieldset class="trait"><legend>Excessive barking</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_barksExcessively" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_barksExcessively" value="No"><span>No</span></label></div></fieldset>
+              <fieldset class="trait"><legend>Allergies</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_allergies" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_allergies" value="No"><span>No</span></label></div></fieldset>
+              <fieldset class="trait"><legend>Bite history</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_biteHistory" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_biteHistory" value="No"><span>No</span></label></div></fieldset>
+              <fieldset class="trait"><legend>Medical conditions</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_medicalConditions" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_medicalConditions" value="No"><span>No</span></label></div></fieldset>
+            </div>
+            <div class="notes">
+              <label>Medication and feeding instructions (optional) <textarea name="medicationFeedingInstructions" maxlength="3000"></textarea></label>
+              <label>Anything else we should know? (optional) <textarea name="specialInstructions" maxlength="3000"></textarea></label>
+            </div>
+            <div class="finish">
+              <details class="terms" id="boarding-terms"><summary>Read boarding terms</summary>
+                <ol>
+                  <li>I will allow Apex Kennel staff to choose an appropriate supervised playgroup or playmate for my dog while in the exercise yard. If I give my permission for my dog to have a playmate, I understand that there is a minimal risk of injury to my dog. I hold Apex Kennels harmless in case of such injury.</li>
+                  <li>I authorize Apex Kennels to do whatever is deemed necessary for the health and well-being of my pet and I will pay for any and all expenses relating to my pet. I understand that if my pet needs medical attention, my emergency contacts will be called. I also understand that my emergency contacts will not be called for minor incidents that do not require immediate medical attention.</li>
+                  <li>Boarding may be stressful for some dogs. A change in environment, water, and possibly different food, as well as a noisy dog next door can sometimes cause a stress-related colitis resulting in soft stools. There is no known prevention for this condition. Apex Kennels will monitor your pet and if soft stools occur, your pet will be given medication according to the vet's prescription.</li>
+                  <li>I understand that Apex Kennels is going to act in the best interest of my pet. A daily inspection of my pet's physical condition will be done. If my pet needs any care which will enable it to be more comfortable during its stay, that service will be performed. Some examples: bath, pedicure, ear cleaning, daily eye cleaning, etc.</li>
+                  <li>I hold Apex Kennels and staff completely harmless in the event of sickness, loss or injury of my dog.</li>
+                  <li>I will be completely financially responsible if my dog causes any property damage while boarding at Apex Kennels.</li>
+                </ol>
+              </details>
+              <label class="confirm"><input name="termsAccepted" type="checkbox" required><span>I have read and agree to the boarding terms.</span></label>
+              <label class="confirm"><input name="whatsappInvoiceOptIn" type="checkbox"><span>Send me booking updates and my approved invoice on WhatsApp at the number I provided (optional).</span></label>
+              <dl class="estimate">
+                <dt>Boarding estimate</dt>
+                <dd><output id="boarding-estimate">Choose dates and a space</output></dd>
+                <dt>Transport</dt>
+                <dd id="transport-estimate">Choose a transport option</dd>
+              </dl>
+              <p class="fineprint">The front desk confirms availability and the final price before anything is booked.</p>
+              <div id="turnstile"></div>
+              <div class="sendrow">
+                <button id="submit" type="submit" disabled aria-describedby="preview">Send booking request</button>
+              </div>
+              <div id="message" class="message" role="status" aria-live="polite" hidden></div>
+            </div>
+          </section>
+        </form>
+        <section class="complete panel" id="complete" tabindex="-1" hidden>
+          <span class="eyebrow">REQUEST RECEIVED</span><h2>Thanks. We'll be in touch.</h2>
+          <p>Your request is with Apex Kennels. We'll review the details and contact you to confirm the next steps.</p>
+          <p class="fineprint">Reference: <span id="reference"></span></p>
+        </section>
       </div>
-    </form>
-    <section class="complete panel" id="complete" hidden>
-      <span class="eyebrow">REQUEST RECEIVED</span><h2>Thanks. We'll be in touch.</h2>
-      <p>Your request is with Apex Kennels. We'll review the details and contact you to confirm the next steps.</p>
-      <p class="fineprint">Reference: <span id="reference"></span></p>
-    </section>
+    </div>
     <dialog id="gate-picker" class="gate-picker" aria-labelledby="gate-picker-title" aria-describedby="map-instructions">
       <div class="map-heading"><div><h4 id="gate-picker-title">Choose your pickup gate</h4><p id="map-instructions">Move the map beneath the pin, or tap your gate. Zoom in to the vehicle entrance. Arrow keys also move the map.</p></div><button id="map-close" class="secondary" type="button" aria-label="Close gate map">Close</button></div>
-      <div class="map-surface"><div id="map-canvas" aria-label="Gate map"></div><svg class="gate-pin" aria-hidden="true" viewBox="0 0 32 40"><path fill="#fff" d="M16 0C7.2 0 0 7.2 0 16c0 10 16 24 16 24s16-14 16-24C32 7.2 24.8 0 16 0Z"/><path fill="#3e4095" d="M16 3C8.8 3 3 8.8 3 16c0 7.2 10.1 18.1 13 21 2.9-2.9 13-13.8 13-21 0-7.2-5.8-13-13-13Z"/><circle cx="16" cy="15" r="5" fill="#fff"/></svg><span id="map-loading" class="map-loading">Loading map…</span></div>
+      <div class="map-surface"><div id="map-canvas" aria-label="Gate map"></div><svg class="gate-pin" aria-hidden="true" viewBox="0 0 32 40"><path fill="#fff" d="M16 0C7.2 0 0 7.2 0 16c0 10 16 24 16 24s16-14 16-24C32 7.2 24.8 0 16 0Z"/><path fill="#120709" d="M16 3C8.8 3 3 8.8 3 16c0 7.2 10.1 18.1 13 21 2.9-2.9 13-13.8 13-21 0-7.2-5.8-13-13-13Z"/><circle cx="16" cy="15" r="5" fill="#fff"/></svg><span id="map-loading" class="map-loading">Loading map…</span></div>
       <div class="map-footer"><p id="map-status" class="location-status" role="status">Move the map to your vehicle gate.</p><button id="map-confirm" class="gate-primary" type="button" disabled>Confirm this vehicle gate</button><button id="map-fallback" type="button" class="map-fallback">Use Google Maps instead</button><p class="map-attribution"><a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> · <a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">© OpenMapTiles</a> · Data from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a></p></div>
     </dialog>
-    <footer>APEX KENNELS · Islamabad · Google Maps opens separately</footer>
-  </div>
+    <footer class="booking-footer">Apex Kennels · dog boarding near Bawli, Islamabad</footer>
+  </main>
 </body>
 </html>

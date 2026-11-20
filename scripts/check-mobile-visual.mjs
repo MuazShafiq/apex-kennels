@@ -63,7 +63,7 @@ const server=createServer(async(req,res)=>{
   }
   let route=url.pathname;
   if(route==='/book'||route==='/book/')route='/book/index.html';
-  if(!route.startsWith('/book/') || route.includes('..')){
+  if((!route.startsWith('/book/')&&!route.startsWith('/site/')) || route.includes('..')){
     res.writeHead(404);res.end();return;
   }
   const filename=resolve(base,'public',route.slice(1));
@@ -71,7 +71,7 @@ const server=createServer(async(req,res)=>{
   try{
     const bytes=await readFile(filename);
     const mime=route.endsWith('.css')?'text/css':route.endsWith('.js')?'application/javascript':
-      route.endsWith('.svg')?'image/svg+xml':'text/html';
+      route.endsWith('.svg')?'image/svg+xml':route.endsWith('.woff2')?'font/woff2':'text/html';
     res.writeHead(200,{'content-type':mime});res.end(bytes);
   }catch{res.writeHead(404);res.end();}
 });
@@ -139,7 +139,8 @@ try{
      assert(paint.bodyHeight>=viewport.height-1,name+' '+label+' background too short');
      assert(paint.bodyBackground?.includes('linear-gradient'),name+' '+label+' body gradient missing');
    }
-   const logo=await page.locator('img[src="/book/apex-dog-mark.svg"]').first();
+   const markPath=label==='book'?'/site/dog-mark.svg':'/book/apex-dog-mark.svg';
+   const logo=await page.locator('img[src="'+markPath+'"]').first();
    assert(await logo.count()===1,name+' '+label+' missing Apex mark');
    assert(await logo.evaluate(el=>el.complete&&el.naturalWidth>0),name+' '+label+' logo failed to load');
    if(label==='book'){

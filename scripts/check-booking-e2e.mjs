@@ -126,8 +126,13 @@ try{
   // requests a different drop-off location.
   const first=await newPage();
   await fill(first.page);
+  assert.equal(await first.page.locator('#boarding-estimate').innerText(),'Rs 7,500 for 3 billed days');
+  await first.page.locator('[name="endDate"]').fill('2027-01-08');
+  assert.equal(await first.page.locator('#boarding-estimate').innerText(),'Rs 75,000 for 30 billed days at the daily rate');
+  await first.page.locator('[name="endDate"]').fill('2026-12-12');
   await first.page.locator('#transport-pickup').check();
   await first.page.locator('#transport-dropoff').check();
+  assert.equal(await first.page.locator('#transport-estimate').innerText(),'Priced after the route check');
   assert.equal(await first.page.locator('#same-dropoff').isChecked(),true);
   assert.equal(await first.page.locator('#dropoff-location').isVisible(),false);
   await first.page.locator('#submit').click();
@@ -138,6 +143,7 @@ try{
   await first.page.locator('[name="whatsappInvoiceOptIn"]').check();
   await first.page.locator('#submit').click();
   await first.page.locator('#complete').waitFor({state:'visible'});
+  assert.equal(await first.page.evaluate(()=>document.activeElement.id),'complete');
   assert.equal(saved.length,1);
   assert.deepEqual(saved[0].transportLocation,{
     latitude:33.7,longitude:73.08,service:'both',customerConfirmed:true});

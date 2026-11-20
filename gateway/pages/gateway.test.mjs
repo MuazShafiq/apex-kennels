@@ -20,14 +20,14 @@ function mock() {
 }
 
 const publicAssets = ['/', '/book', '/book/', '/book/index.html', '/book/app.js',
-  '/book/styles.css', '/book/vendor/maplibre-gl-5.6.1.js'];
+  '/book/styles.css', '/site/site.css', '/site/inter-tight.woff2', '/book/vendor/maplibre-gl-5.6.1.js'];
 for (const path of publicAssets) {
   test('GET ' + path + ' forwards through binding', async () => {
     const {env, forwarded} = mock();
     const response = await gateway.fetch(new Request(base + path), env);
     assert.equal(response.status, 200);
     assert.equal(forwarded.length, 1);
-    assert.equal(new URL(forwarded[0].url).pathname, path === '/' ? '/book' : path);
+    assert.equal(new URL(forwarded[0].url).pathname, path);
     assert.equal(new URL(forwarded[0].url).origin, base);
     assert.equal(response.headers.get('X-Robots-Tag'), 'noindex, nofollow');
   });

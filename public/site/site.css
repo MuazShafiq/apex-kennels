@@ -145,10 +145,10 @@ body {
   color: #9e122b;
   flex: none;
 }
-.desktop-hero .cta:active {
+.desktop-hero .cta:is(:active, [data-pressed]) {
   transform: translateY(1px);
 }
-.desktop-hero .cta:active::after {
+.desktop-hero .cta:is(:active, [data-pressed])::after {
   background: linear-gradient(180deg, #c2dae8, #cfe5f1);
 }
 .desktop-hero .cta:focus-visible {
@@ -504,7 +504,7 @@ body {
 .desktop-hero .cta.cta-97 {
   -webkit-tap-highlight-color: transparent;
 }
-.desktop-hero .cta.cta-97:active {
+.desktop-hero .cta.cta-97:is(:active, [data-pressed]) {
   transform: none;
 }
 .desktop-hero .cta.cta-97 .ar-b {
@@ -513,7 +513,7 @@ body {
 .desktop-hero .cta.cta-97::after {
   transition: box-shadow 0.38s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.desktop-hero .cta.cta-97:active::after {
+.desktop-hero .cta.cta-97:is(:active, [data-pressed])::after {
   background:
     radial-gradient(
       32% 78% at 100% 0%,
@@ -538,7 +538,7 @@ body {
     opacity 0.42s cubic-bezier(0.16, 1, 0.3, 1),
     filter 0.15s ease;
 }
-.desktop-hero .cta.cta-97:active::before {
+.desktop-hero .cta.cta-97:is(:active, [data-pressed])::before {
   transform: scale(0.982, 0.935);
   opacity: 0.78;
   transition-duration: 0.08s;
@@ -551,15 +551,15 @@ body {
 .desktop-hero .cta.cta-97:focus-visible > svg.ar {
   transform: none;
 }
-.desktop-hero .cta.cta-97:active > .cta-l,
-.desktop-hero .cta.cta-97:active > svg.ar {
+.desktop-hero .cta.cta-97:is(:active, [data-pressed]) > .cta-l,
+.desktop-hero .cta.cta-97:is(:active, [data-pressed]) > svg.ar {
   transform: translateY(0.8px);
   transition-duration: 0.07s;
 }
 .desktop-hero .cta.cta-97 .cta-fx {
   transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.desktop-hero .cta.cta-97:active .cta-fx {
+.desktop-hero .cta.cta-97:is(:active, [data-pressed]) .cta-fx {
   opacity: 0.4;
   transition-duration: 0.08s;
 }
@@ -780,10 +780,10 @@ body {
   color: #9e122b;
   flex: none;
 }
-.mobile-hero .cta:active {
+.mobile-hero .cta:is(:active, [data-pressed]) {
   transform: translateY(1px);
 }
-.mobile-hero .cta:active::after {
+.mobile-hero .cta:is(:active, [data-pressed])::after {
   background: linear-gradient(180deg, #c2dae8, #cfe5f1);
 }
 .mobile-hero .cta:focus-visible {
@@ -984,7 +984,7 @@ body {
 .mobile-hero .cta.cta-97 {
   -webkit-tap-highlight-color: transparent;
 }
-.mobile-hero .cta.cta-97:active {
+.mobile-hero .cta.cta-97:is(:active, [data-pressed]) {
   transform: none;
 }
 .mobile-hero .cta.cta-97 .ar-b {
@@ -993,7 +993,7 @@ body {
 .mobile-hero .cta.cta-97::after {
   transition: box-shadow 0.38s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.mobile-hero .cta.cta-97:active::after {
+.mobile-hero .cta.cta-97:is(:active, [data-pressed])::after {
   background:
     radial-gradient(
       32% 78% at 100% 0%,
@@ -1018,7 +1018,7 @@ body {
     opacity 0.42s cubic-bezier(0.16, 1, 0.3, 1),
     filter 0.15s ease;
 }
-.mobile-hero .cta.cta-97:active::before {
+.mobile-hero .cta.cta-97:is(:active, [data-pressed])::before {
   transform: scale(0.982, 0.935);
   opacity: 0.78;
   transition-duration: 0.08s;
@@ -1031,15 +1031,15 @@ body {
 .mobile-hero .cta.cta-97:focus-visible > svg.ar {
   transform: none;
 }
-.mobile-hero .cta.cta-97:active > .cta-l,
-.mobile-hero .cta.cta-97:active > svg.ar {
+.mobile-hero .cta.cta-97:is(:active, [data-pressed]) > .cta-l,
+.mobile-hero .cta.cta-97:is(:active, [data-pressed]) > svg.ar {
   transform: translateY(0.8px);
   transition-duration: 0.07s;
 }
 .mobile-hero .cta.cta-97 .cta-fx {
   transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.mobile-hero .cta.cta-97:active .cta-fx {
+.mobile-hero .cta.cta-97:is(:active, [data-pressed]) .cta-fx {
   opacity: 0.4;
   transition-duration: 0.08s;
 }
@@ -1591,13 +1591,13 @@ button:focus-visible {
   .cta.cta-97:focus-visible .ar-b g > path:nth-child(2) {
     transform: translateX(3px);
   }
-  .cta.cta-97:active .ar-b g > path:first-child {
+  .cta.cta-97:is(:active, [data-pressed]) .ar-b g > path:first-child {
     d: path(
       "M6.8 12.35 C11.1 12.35 12.6 6.35 17.3 6.35 C21.4 6.35 22.8 9 32.4 9"
     );
     transition-duration: 0.09s;
   }
-  .cta.cta-97:active .ar-b g > path:nth-child(2) {
+  .cta.cta-97:is(:active, [data-pressed]) .ar-b g > path:nth-child(2) {
     transform: translateX(1px);
     transition-duration: 0.09s;
   }
@@ -1610,12 +1610,12 @@ button:focus-visible {
     .cta.cta-97:hover .ar-b g > path:nth-child(2) {
       transform: translateX(3px);
     }
-    .cta.cta-97:hover:active .ar-b g > path:first-child {
+    .cta.cta-97:hover:is(:active, [data-pressed]) .ar-b g > path:first-child {
       d: path(
         "M6.8 12.35 C11.1 12.35 12.6 6.35 17.3 6.35 C21.4 6.35 22.8 9 32.4 9"
       );
     }
-    .cta.cta-97:hover:active .ar-b g > path:nth-child(2) {
+    .cta.cta-97:hover:is(:active, [data-pressed]) .ar-b g > path:nth-child(2) {
       transform: translateX(1px);
     }
   }

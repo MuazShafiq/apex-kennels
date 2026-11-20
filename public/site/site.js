@@ -35,7 +35,17 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+const bookingLinks = document.querySelectorAll(".cta-97");
+for (const link of bookingLinks) {
+  link.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "touch") link.setAttribute("data-pressed", "");
+  });
+  for (const event of ["pointerup", "pointercancel", "lostpointercapture"]) {
+    link.addEventListener(event, () => link.removeAttribute("data-pressed"));
+  }
+}
+
 if (!CSS.supports("d", 'path("M0 0")')) {
   const { animateRouteArrow } = await import("./route-arrow.js");
-  document.querySelectorAll(".cta-97").forEach(animateRouteArrow);
+  bookingLinks.forEach(animateRouteArrow);
 }

@@ -22,7 +22,7 @@ export function animateRouteArrow(button) {
   }
 
   function update() {
-    const active = button.matches(":active");
+    const active = button.matches(":active, [data-pressed]");
     const highlighted =
       button.matches(":focus-visible") ||
       (hover.matches && button.matches(":hover"));
@@ -54,6 +54,7 @@ export function animateRouteArrow(button) {
     "pointerdown",
     "pointerup",
     "pointercancel",
+    "lostpointercapture",
     "focus",
     "blur",
     "keydown",

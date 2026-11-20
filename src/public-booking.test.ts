@@ -52,6 +52,24 @@ test('source restrictions keep Google Form intake unchanged, including fingerpri
   assert.throws(()=>parseIntake(booking),/Unsupported booking source/);
 });
 
+test('public homepage and shared assets have a self-only policy and leave other paths private',async()=>{
+  const forwarded:string[]=[];
+  const assets={ASSETS:{fetch:async(request:Request)=>{
+    forwarded.push(new URL(request.url).pathname);
+    return new Response(null,{status:200});
+  }}};
+  for(const path of ['/','/site/site.js','/site/inter-tight.woff2']){
+    const response=await handleWorkerRequest(new Request(base+path),assets);
+    assert.equal(response.status,200);
+    assert.equal(response.headers.get('x-content-type-options'),'nosniff');
+    assert.match(response.headers.get('content-security-policy')??'', /script-src 'self';.*font-src 'self';.*frame-ancestors 'none'/);
+  }
+  assert.equal((await handleWorkerRequest(new Request(base+'/',{method:'POST'}),assets)).status,405);
+  const staffEnv={...assets,DATABASE_URL:env.DATABASE_URL,STAFF_ACCESS_AUD:'test-audience',STAFF_ALLOWED_EMAILS:'staff@example.invalid'};
+  assert.equal((await handleWorkerRequest(new Request(base+'/staff'),staffEnv)).status,403);
+  assert.deepEqual(forwarded,['/','/site/site.js','/site/inter-tight.woff2']);
+});
+
 test('public form page is only a preview without write configuration and does not leak secrets',async()=>{
   const asset='<html>private independent preview fixture</html>';
   const res=await handleWorkerRequest(new Request(base+'/book'),{
@@ -60,6 +78,8 @@ test('public form page is only a preview without write configuration and does no
   assert.equal(res.status,200);
   assert.equal(await res.text(),asset);
   assert.match(res.headers.get('content-security-policy')??'',/connect-src 'self' https:\/\/tiles\.openfreemap\.org;/);
+  assert.match(res.headers.get('content-security-policy')??'',/font-src 'self';/);
+  assert.equal(res.headers.get('x-robots-tag'),'noindex, nofollow');
   assert.match(res.headers.get('content-security-policy')??'',/challenges\.cloudflare\.com/);
   const config=await handleWorkerRequest(new Request(base+'/api/book/config'),{
     TURNSTILE_SITE_KEY:'visible-but-not-enabled'

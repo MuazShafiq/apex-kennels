@@ -249,6 +249,18 @@ export async function handleWorkerRequest(
     if (request.method !== 'GET') return json({error:'Method not allowed'}, 405, {Allow:'GET'});
     return json({status:'ok',service:'apex-intake'});
   }
+  if(path==='/'||path.startsWith('/site/')){
+    if(request.method!=='GET'&&request.method!=='HEAD')
+      return json({error:'Method not allowed'},405,{Allow:'GET, HEAD'});
+    if(!env.ASSETS)return json({error:'Website unavailable'},503);
+    const response=await env.ASSETS.fetch(request);
+    const headers=new Headers(response.headers);
+    headers.set('X-Content-Type-Options','nosniff');
+    headers.set('Content-Security-Policy',
+      "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; "+
+      "font-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'");
+    return new Response(response.body,{status:response.status,headers});
+  }
   if(path==='/book'||path==='/book/'||path.startsWith('/book/')){
     if(request.method!=='GET')return json({error:'Method not allowed'},405,{Allow:'GET'});
     if(!env.ASSETS)return json({error:'Booking page unavailable'},503);
@@ -261,7 +273,7 @@ export async function handleWorkerRequest(
       headers.set('X-Robots-Tag','noindex, nofollow');
       headers.set('Content-Security-Policy',
         "default-src 'none'; script-src 'self' https://challenges.cloudflare.com; "+
-        "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://tiles.openfreemap.org; worker-src 'self'; "+
+        "style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://tiles.openfreemap.org; worker-src 'self'; "+
         "frame-src https://challenges.cloudflare.com; form-action 'self'; "+
         "base-uri 'none'; frame-ancestors 'none'");
       return new Response(response.body,{status:response.status,headers});

@@ -20,18 +20,34 @@ function mock() {
 }
 
 const publicAssets = ['/', '/book', '/book/', '/book/index.html', '/book/app.js',
-  '/book/styles.css', '/book/vendor/maplibre-gl-5.6.1.js'];
+  '/book/styles.css', '/site/site.css', '/site/inter-tight.woff2', '/book/vendor/maplibre-gl-5.6.1.js'];
 for (const path of publicAssets) {
   test('GET ' + path + ' forwards through binding', async () => {
     const {env, forwarded} = mock();
     const response = await gateway.fetch(new Request(base + path), env);
     assert.equal(response.status, 200);
     assert.equal(forwarded.length, 1);
-    assert.equal(new URL(forwarded[0].url).pathname, path === '/' ? '/book' : path);
+    assert.equal(new URL(forwarded[0].url).pathname, path);
     assert.equal(new URL(forwarded[0].url).origin, base);
     assert.equal(response.headers.get('X-Robots-Tag'), 'noindex, nofollow');
   });
 }
+
+test('root falls back to booking when the upstream homepage is unavailable on the old Worker', async () => {
+  const forwarded = [];
+  const response = await gateway.fetch(new Request(base + '/?campaign=boarding', {
+    headers: {Cookie: 'discard-this'},
+  }), {APEX_BACKEND: {async fetch(request) {
+    forwarded.push(request);
+    return request.url.includes('/book?')
+      ? new Response('booking', {headers: {'X-Robots-Tag': 'noindex, nofollow'}})
+      : new Response('not found', {status: 404});
+  }}});
+  assert.equal(await response.text(), 'booking');
+  assert.equal(response.headers.get('X-Robots-Tag'), 'noindex, nofollow');
+  assert.deepEqual(forwarded.map(request => request.url), [base + '/?campaign=boarding', base + '/book?campaign=boarding']);
+  assert.ok(forwarded.every(request => request.headers.get('cookie') === null));
+});
 
 test('GET config is forwarded without changing public origin', async () => {
   const {env, forwarded} = mock();

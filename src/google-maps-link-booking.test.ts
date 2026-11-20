@@ -99,7 +99,7 @@ test('customer-facing booking retains service details, exact six terms and no re
   const html=readFileSync('public/book/index.html','utf8');
   const js=readFileSync('public/book/app.js','utf8');
   assert.doesNotThrow(()=>new Script(js));
-  for(const benefit of ['Two meals every day','Weekly vet check-ups','Rs. 2,500/day']){
+  for(const benefit of ['Two meals every day','Weekly vet check-ups','Rs 2,500 a day']){
     assert.ok(html.includes(benefit),benefit);
   }
   const terms=html.match(/<details class="terms"[\s\S]*?<\/details>/)?.[0]??'';

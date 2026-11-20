@@ -1,5 +1,5 @@
 /**
- * Public-only Apex booking hostname on Cloudflare Pages.
+ * Public-only Apex website hostname on Cloudflare Pages.
  * Keep the existing Worker, Access-protected staff paths and intake webhook
  * on their current hostname. The binding is internal to Cloudflare.
  */
@@ -32,9 +32,8 @@ export default {
     }
 
     let allowedMethod;
-    if (path === '/' || path === '/book' || path === '/book/' || path.startsWith('/book/')) {
+    if (path === '/' || path.startsWith('/site/') || path === '/book' || path === '/book/' || path.startsWith('/book/')) {
       allowedMethod = 'GET';
-      if (path === '/') url.pathname = '/book';
     } else {
       allowedMethod = ALLOWED.get(path);
     }
@@ -54,6 +53,13 @@ export default {
       'x-forwarded-host', 'x-forwarded-proto',
     ]) headers.delete(name);
 
-    return env.APEX_BACKEND.fetch(new Request(forwarded, {headers}));
+    const response = await env.APEX_BACKEND.fetch(new Request(forwarded, {headers}));
+    // During the staged release (or Worker rollback), the older Worker only serves /book.
+    if (path === '/' && response.status === 404) {
+      await response.body?.cancel();
+      url.pathname = '/book';
+      return env.APEX_BACKEND.fetch(new Request(url, {headers}));
+    }
+    return response;
   },
 };

@@ -354,7 +354,8 @@
       const success=document.getElementById('complete');
       success.hidden=false;
       document.getElementById('reference').textContent=body.reference||'';
-      success.scrollIntoView({behavior:'smooth',block:'start'});
+      success.focus({preventScroll:true});
+      success.scrollIntoView({block:'start'});
     }catch(e){
       showMessage(e.message||'Network error. Check your connection and try again.',true);
       challenge=null;
@@ -364,6 +365,46 @@
       submit.disabled=challenge===null;
     }
   });
+  const boardingEstimate=document.getElementById('boarding-estimate');
+  const transportEstimate=document.getElementById('transport-estimate');
+  const numberFormat=new Intl.NumberFormat('en-PK');
+  const millisecondsPerDay=24*60*60*1000;
+  function dateMilliseconds(input){
+    // Count calendar days in UTC, including when the browser provides a text fallback.
+    const value=input.value;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return NaN;
+    const ms=Date.parse(value+'T00:00:00Z');
+    return Number.isFinite(ms)&&new Date(ms).toISOString().slice(0,10)===value?ms:NaN;
+  }
+  function updateEstimate(){
+    const startDate=form.elements.startDate;
+    const endDate=form.elements.endDate;
+    const start=dateMilliseconds(startDate);
+    const end=dateMilliseconds(endDate);
+    const rate=Number(form.querySelector('input[name="cameraCageRequested"]:checked')?.dataset.dailyRate);
+    const days=(end-start)/millisecondsPerDay+1;
+    if(days>0&&Number.isFinite(rate)){
+      const price='Rs '+numberFormat.format(days*rate);
+      const label=days===1?'1 billed day':numberFormat.format(days)+' billed days';
+      boardingEstimate.value=price+' for '+label+(days===30?' at the daily rate':'');
+    }else{
+      const invalidDate=(startDate.value&&!Number.isFinite(start))||(endDate.value&&!Number.isFinite(end));
+      boardingEstimate.value=invalidDate||end<start?'Check your dates':'Choose dates and a space';
+    }
+    transportEstimate.textContent=pickupRequested.checked||dropoffRequested.checked
+      ? 'Priced after the route check'
+      : noTransport.checked?'No transport requested':'Choose a transport option';
+  }
+  const estimateFields=new Set(['startDate','endDate','cameraCageRequested','pickupRequested','dropoffRequested','noTransport']);
+  form.addEventListener('input',function(event){
+    if(event.target.name==='startDate'||event.target.name==='endDate')updateEstimate();
+  });
+  // The transport change handlers first reconcile the mutually exclusive choices.
+  form.addEventListener('change',function(event){
+    if(estimateFields.has(event.target.name))updateEstimate();
+  });
+  window.addEventListener('pageshow',updateEstimate);
+  updateEstimate();
   displayTransport();
   fetch('/api/book/config',{credentials:'omit',cache:'no-store'}).then(function(res){
     if(!res.ok)throw new Error('Not available');
@@ -379,5 +420,6 @@
       'error-callback':function(){challenge=null;submit.disabled=true;}
     });
     preview.hidden=true;
-  }).catch(function(){preview.textContent='Booking submissions are unavailable here. Please use the existing booking Form.';});
+    submit.removeAttribute('aria-describedby');
+  }).catch(function(){preview.textContent='Online booking submissions are temporarily unavailable.';});
 })();

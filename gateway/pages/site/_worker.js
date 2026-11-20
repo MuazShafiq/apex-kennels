@@ -53,6 +53,13 @@ export default {
       'x-forwarded-host', 'x-forwarded-proto',
     ]) headers.delete(name);
 
-    return env.APEX_BACKEND.fetch(new Request(forwarded, {headers}));
+    const response = await env.APEX_BACKEND.fetch(new Request(forwarded, {headers}));
+    // During the staged release (or Worker rollback), the older Worker only serves /book.
+    if (path === '/' && response.status === 404) {
+      await response.body?.cancel();
+      url.pathname = '/book';
+      return env.APEX_BACKEND.fetch(new Request(url, {headers}));
+    }
+    return response;
   },
 };

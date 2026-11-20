@@ -33,6 +33,22 @@ for (const path of publicAssets) {
   });
 }
 
+test('root falls back to booking when the upstream homepage is unavailable on the old Worker', async () => {
+  const forwarded = [];
+  const response = await gateway.fetch(new Request(base + '/?campaign=boarding', {
+    headers: {Cookie: 'discard-this'},
+  }), {APEX_BACKEND: {async fetch(request) {
+    forwarded.push(request);
+    return request.url.includes('/book?')
+      ? new Response('booking', {headers: {'X-Robots-Tag': 'noindex, nofollow'}})
+      : new Response('not found', {status: 404});
+  }}});
+  assert.equal(await response.text(), 'booking');
+  assert.equal(response.headers.get('X-Robots-Tag'), 'noindex, nofollow');
+  assert.deepEqual(forwarded.map(request => request.url), [base + '/?campaign=boarding', base + '/book?campaign=boarding']);
+  assert.ok(forwarded.every(request => request.headers.get('cookie') === null));
+});
+
 test('GET config is forwarded without changing public origin', async () => {
   const {env, forwarded} = mock();
   assert.equal((await gateway.fetch(new Request(base + '/api/book/config'), env)).status, 200);

@@ -83,3 +83,36 @@ export async function moveSyntheticMap(page,latitude,longitude){
     map.jumpTo({center:[longitude,latitude],zoom:17});
   },{latitude,longitude});
 }
+
+
+export function futureBookingDate(daysFromToday){
+  return new Date(Date.now()+daysFromToday*86400000).toISOString().slice(0,10);
+}
+
+export async function fillBookingThroughDog(page){
+  await page.locator('[name="startDate"]').fill(futureBookingDate(10));
+  await page.locator('[name="endDate"]').fill(futureBookingDate(12));
+  await page.locator('label.card:has([name="cameraCageRequested"][value="no"])').click();
+  await page.locator('[data-next="1"]').click();
+  await page.locator('[name="petName"]').fill('APEX SYNTHETIC CANARY DOG');
+  await page.locator('[name="breed"]').fill('Synthetic mixed breed');
+  await page.locator('label:has([name="gender"][value="Female"])').click();
+  await page.locator('[name="age"]').fill('2 years');
+  await page.locator('label:has([name="vaccinationStatus"][value="Fully vaccinated and booster is up to date"])').click();
+  await page.locator('label:has([name="distemperHistory"][value="No"])').click();
+  await page.locator('[data-next="2"]').click();
+  await page.locator('#booking-step-3').waitFor({state:'visible'});
+}
+
+export async function fillBookingCareAndContact(page){
+  await page.locator('[data-next="3"]').click();
+  for(const key of ['friendly','fears','climber','foodSensitivities','barksExcessively','allergies','biteHistory','medicalConditions']){
+    await page.locator('label:has([name="trait_'+key+'"][value="No"])').click();
+  }
+  await page.locator('[data-next="4"]').click();
+  await page.locator('[name="customerName"]').fill('APEX CANARY BROWSER TEST');
+  await page.locator('[name="phone"]').fill('03000000000');
+  await page.locator('[name="ownerAddress"]').fill('Synthetic gate, not a customer address');
+  await page.locator('[name="emergencyContactPhone"]').fill('03000000001');
+  await page.locator('[name="termsAccepted"]').check();
+}

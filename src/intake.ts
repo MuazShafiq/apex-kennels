@@ -61,7 +61,7 @@ export function parseIntake(value: unknown, expectedSource: 'google_form'|'websi
   const end = checkDate(endDate, 'endDate');
   if (end < start || (end - start) / 86400000 > 366) throw new IntakeError('Invalid stay duration');
   const accommodationType = textField(row.accommodationType, 'accommodationType', 120, false);
-  const details = parseBoardingDetails(row.details);
+  const details = parseBoardingDetails(row.details,expectedSource==='website');
   if(details?.whatsappInvoiceOptIn===true && !phone)
     throw new IntakeError('WhatsApp consent requires a contact phone number');
   if(expectedSource==='website' && !details)throw new IntakeError('Website booking requires full boarding details');

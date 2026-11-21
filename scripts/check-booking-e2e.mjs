@@ -9,7 +9,7 @@ import {resolve,sep} from 'node:path';
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 import {handleWorkerRequest} from '../src/cloudflare-worker.ts';
-import {confirmExactPin,revealPinFallback,stubMapLibrary,moveSyntheticMap,waitForBrowser} from './gate-picker-browser-fixture.mjs';
+import {confirmExactPin,revealPinFallback,stubMapLibrary,moveSyntheticMap,waitForBrowser,fillBookingThroughDog,fillBookingCareAndContact,futureBookingDate} from './gate-picker-browser-fixture.mjs';
 
 const site='http://127.0.0.1';
 const env={
@@ -23,13 +23,14 @@ const saved=[];
 // deployed Content-Security-Policy, including the CSP map-worker build.
 env.ASSETS={async fetch(request){
   const path=new URL(request.url).pathname;
-  const root=resolve(process.cwd(),'public','book');
-  const dest=resolve(root,path.slice('/book/'.length));
-  if(!path.startsWith('/book/')||!dest.startsWith(root+sep))return new Response(null,{status:404});
+  const root=resolve(process.cwd(),'public');
+  const dest=resolve(root,path.slice(1));
+  if((!path.startsWith('/book/')&&!path.startsWith('/site/'))||!dest.startsWith(root+sep))return new Response(null,{status:404});
   try{
     const bytes=await readFile(dest);
     const type=path.endsWith('.css')?'text/css':path.endsWith('.js')?'application/javascript':
-      path.endsWith('.svg')?'image/svg+xml':'text/html';
+      path.endsWith('.svg')?'image/svg+xml':path.endsWith('.woff2')?'font/woff2':
+      path.endsWith('.webp')?'image/webp':path.endsWith('.png')?'image/png':'text/html';
     return new Response(bytes,{headers:{'Content-Type':type}});
   }catch{return new Response(null,{status:404});}
 }};
@@ -76,29 +77,12 @@ await new Promise(done=>server.listen(0,'127.0.0.1',done));
 port=server.address().port;
 const origin=site+':'+port;
 const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
-const choice=async(page,name,value)=>{
-  await page.locator('label.option:has(input[name="'+name+'"][value="'+value+'"]) > span').click();
-};
-const fill=async page=>{
-  await page.locator('[name="customerName"]').fill('APEX CANARY BROWSER TEST');
-  await page.locator('[name="phone"]').fill('03000000000');
-  await page.locator('[name="ownerAddress"]').fill('Synthetic gate, not a customer address');
-  await page.locator('[name="startDate"]').fill('2026-12-10');
-  await page.locator('[name="endDate"]').fill('2026-12-12');
-  await page.locator('[name="emergencyContactPhone"]').fill('03000000001');
-  await page.locator('[name="petName"]').fill('APEX SYNTHETIC CANARY DOG');
-  await page.locator('[name="breed"]').fill('Synthetic mixed breed');
-  await page.locator('[name="gender"]').fill('Female');
-  await page.locator('[name="age"]').fill('2 years');
-  await page.locator('[name="vaccinationStatus"]').selectOption('Fully vaccinated and booster is up to date');
-  await choice(page,'distemperHistory','No');
-  await choice(page,'cameraCageRequested','no');
-  for(const key of ['friendly','fears','climber','foodSensitivities',
-    'barksExcessively','allergies','biteHistory','medicalConditions'])
-    await choice(page,'trait_'+key,'No');
-  await page.locator('[name="termsAccepted"]').check();
-};
-const newPage=async({map='synthetic',viewport={width:390,height:844}}={})=>{
+async function submitRequest(page){
+  await fillBookingCareAndContact(page);
+  await page.locator('[name="whatsappServiceOptIn"]').check();
+  await page.locator('#submit').click();
+}
+const newPage=async({map='synthetic',viewport={width:390,height:844},atTransport=true}={})=>{
   const page=await browser.newPage({viewport,hasTouch:true});
   if(map==='synthetic')await stubMapLibrary(page);
   await page.addInitScript(()=>{
@@ -116,31 +100,52 @@ const newPage=async({map='synthetic',viewport={width:390,height:844}}={})=>{
     route.fulfill({status:200,contentType:'application/javascript',body:'// CI stub only'}));
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(origin+'/book',{waitUntil:'domcontentloaded'});
-  await page.locator('#preview').waitFor({state:'hidden'});
-  await page.locator('#submit').waitFor({state:'visible'});
-  assert.equal(await page.locator('#submit').isEnabled(),true);
+  await page.locator('#preview').waitFor({state:'attached'});
+  await page.waitForFunction(()=>document.querySelector('#submit')?.disabled===false);
+  if(atTransport)await fillBookingThroughDog(page);
   return {page,errors};
 };
 try{
   // Both selected: reuse the pickup gate unless the customer explicitly
   // requests a different drop-off location.
-  const first=await newPage();
-  await fill(first.page);
-  assert.equal(await first.page.locator('#boarding-estimate').innerText(),'Rs 7,500 for 3 billed days');
-  await first.page.locator('[name="endDate"]').fill('2027-01-08');
-  assert.equal(await first.page.locator('#boarding-estimate').innerText(),'Rs 75,000 for 30 billed days at the daily rate');
-  await first.page.locator('[name="endDate"]').fill('2026-12-12');
+  const first=await newPage({atTransport:false});
+  await first.page.locator('[data-next="1"]').click();
+  assert.equal(await first.page.locator('#bk-start').getAttribute('aria-invalid'),'true');
+  assert.equal(await first.page.locator('[data-step-h="2"]').isDisabled(),true);
+  await fillBookingThroughDog(first.page);
+  await first.page.locator('[data-step-h="1"]').click();
+  assert.equal(await first.page.locator('[data-tk-tot]').textContent(),'Rs 7,500');
+  await first.page.locator('[name="endDate"]').fill(futureBookingDate(39));
+  assert.equal(await first.page.locator('[data-tk-tot]').textContent(),'Rs 65,000');
+  assert.match(await first.page.locator('[data-tk-pkg]').textContent(),/Save Rs 10,000 .* subject to confirmation/);
+  await first.page.locator('label.card:has([name="cameraCageRequested"][value="yes"])').click();
+  assert.equal(await first.page.locator('[data-tk-tot]').textContent(),'Rs 80,000');
+  await first.page.locator('[data-sum-open]').click();
+  assert.equal(await first.page.locator('#mobile-summary [data-tk-tot]').innerText(),'Rs 80,000');
+  await first.page.keyboard.press('Escape');
+  await first.page.locator('#mobile-summary').waitFor({state:'hidden'});
+  await first.page.waitForFunction(()=>document.activeElement.hasAttribute('data-sum-open'));
+  await first.page.locator('[name="endDate"]').fill(futureBookingDate(12));
+  await first.page.locator('label.card:has([name="cameraCageRequested"][value="no"])').click();
+  await first.page.locator('[data-step-h="3"]').click();
   await first.page.locator('#transport-pickup').check();
   await first.page.locator('#transport-dropoff').check();
-  assert.equal(await first.page.locator('#transport-estimate').innerText(),'Priced after the route check');
+  assert.equal(await first.page.locator('[data-tk-trans]').textContent(),'To be quoted');
   assert.equal(await first.page.locator('#same-dropoff').isChecked(),true);
   assert.equal(await first.page.locator('#dropoff-location').isVisible(),false);
-  await first.page.locator('#submit').click();
-  await first.page.locator('#message').waitFor({state:'visible'});
-  assert.match(await first.page.locator('#message').innerText(),/pickup (?:location|vehicle gate)/i);
+  await first.page.locator('[data-next="3"]').click();
+  assert.match(await first.page.locator('[data-f="pickupLink"] .f-err').innerText(),/confirm the pickup gate/i);
   assert.equal(saved.length,0);
   await confirmExactPin(first.page,'33.700000, 73.080000');
-  await first.page.locator('[name="whatsappInvoiceOptIn"]').check();
+  await fillBookingCareAndContact(first.page);
+  const consent=first.page.locator('[name="whatsappServiceOptIn"]');
+  assert.equal(await consent.isChecked(),false);
+  assert.equal(await consent.getAttribute('required'),'');
+  await first.page.locator('#submit').click();
+  assert.equal(saved.length,0,'Unchecked service consent must stop before persistence');
+  assert.equal(challengeChecks,0,'Unchecked service consent must stop before challenge verification');
+  assert.match(await first.page.locator('[data-f="whatsappServiceOptIn"] .f-err').innerText(),/please agree/i);
+  await consent.check();
   await first.page.locator('#submit').click();
   await first.page.locator('#complete').waitFor({state:'visible'});
   assert.equal(await first.page.evaluate(()=>document.activeElement.id),'complete');
@@ -148,7 +153,9 @@ try{
   assert.deepEqual(saved[0].transportLocation,{
     latitude:33.7,longitude:73.08,service:'both',customerConfirmed:true});
   assert.equal(saved[0].transportDropoffLocation,undefined);
-  assert.equal(saved[0].details.whatsappInvoiceOptIn,true);
+  assert.equal(saved[0].details.whatsappServiceOptIn,true);
+  assert.equal(await first.page.locator('#complete [data-np-name]').innerText(),'APEX SYNTHETIC CANARY DOG');
+  assert.equal(await first.page.locator('#complete [contenteditable]').count(),0);
   assert.equal(Object.keys(saved[0].details.personalityTraits).length,8);
   assert.deepEqual(first.errors,[]);
   await first.page.close();
@@ -156,13 +163,11 @@ try{
   // None is an explicit choice, exclusive with other services; an unanswered
   // transport question must not silently be interpreted as None.
   const second=await newPage();
-  await fill(second.page);
-  await second.page.locator('#submit').click();
-  await second.page.locator('#message').waitFor({state:'visible'});
-  assert.match(await second.page.locator('#message').innerText(),/pickup, drop-off, or no transport/i);
+  await second.page.locator('[data-next="3"]').click();
+  assert.match(await second.page.locator('[data-f="transport"] .f-err').innerText(),/pickup, drop-off, both, or no transport/i);
   assert.equal(saved.length,1);
   await second.page.locator('#transport-none').check();
-  await second.page.locator('#submit').click();
+  await submitRequest(second.page);
   await second.page.locator('#complete').waitFor({state:'visible'});
   assert.equal(saved.length,2);
   assert.equal(saved[1].transportLocation,undefined);
@@ -173,18 +178,16 @@ try{
   // Both with genuinely different gates must require and preserve two
   // independent Maps pins, not silently duplicate the first one.
   const third=await newPage();
-  await fill(third.page);
   await third.page.locator('#transport-pickup').check();
   await third.page.locator('#transport-dropoff').check();
   await confirmExactPin(third.page,'33.700000, 73.080000');
   await third.page.locator('#same-dropoff').uncheck();
   assert.equal(await third.page.locator('#dropoff-location').isVisible(),true);
-  await third.page.locator('#submit').click();
-  await third.page.locator('#message').waitFor({state:'visible'});
-  assert.match(await third.page.locator('#message').innerText(),/separate drop-off (?:location|vehicle gate)/i);
+  await third.page.locator('[data-next="3"]').click();
+  assert.match(await third.page.locator('[data-f="dropoffLink"] .f-err').innerText(),/confirm the drop-off gate/i);
   assert.equal(saved.length,2);
   await confirmExactPin(third.page,'33.580000, 73.020000','dropoff-');
-  await third.page.locator('#submit').click();
+  await submitRequest(third.page);
   await third.page.locator('#complete').waitFor({state:'visible'});
   assert.equal(saved.length,3);
   assert.deepEqual(saved[2].transportLocation,{
@@ -196,12 +199,11 @@ try{
 
   // Pickup can stand alone.
   const fourth=await newPage();
-  await fill(fourth.page);
   await fourth.page.locator('#transport-pickup').check();
   assert.equal(await fourth.page.locator('#pickup-location').isVisible(),true);
   assert.equal(await fourth.page.locator('#dropoff-location').isVisible(),false);
   await confirmExactPin(fourth.page,'33.700000, 73.080000');
-  await fourth.page.locator('#submit').click();
+  await submitRequest(fourth.page);
   await fourth.page.locator('#complete').waitFor({state:'visible'});
   assert.equal(saved.length,4);
   assert.equal(saved[3].transportLocation.service,'pickup');
@@ -211,12 +213,11 @@ try{
   // Drop-off can stand alone and must use its own pin, not the hidden pickup
   // field that used to serve both roles.
   const fifth=await newPage();
-  await fill(fifth.page);
   await fifth.page.locator('#transport-dropoff').check();
   assert.equal(await fifth.page.locator('#pickup-location').isVisible(),false);
   assert.equal(await fifth.page.locator('#dropoff-location').isVisible(),true);
   await confirmExactPin(fifth.page,'33.580000, 73.020000','dropoff-');
-  await fifth.page.locator('#submit').click();
+  await submitRequest(fifth.page);
   await fifth.page.locator('#complete').waitFor({state:'visible'});
   assert.equal(saved.length,5);
   assert.deepEqual(saved[4].transportLocation,{
@@ -238,7 +239,6 @@ try{
   // The map centre is only a candidate until explicit confirmation. Moving
   // it after reopening invalidates the saved pin before another submission.
   const mapped=await newPage();
-  await fill(mapped.page);
   await mapped.page.locator('#transport-pickup').check();
   await mapped.page.locator('#choose-map').click();
   await mapped.page.locator('#map-confirm').waitFor({state:'visible'});
@@ -252,9 +252,9 @@ try{
   await mapped.page.locator('#choose-map').click();
   await moveSyntheticMap(mapped.page,33.702,73.082);
   await mapped.page.locator('#map-close').click();
-  await mapped.page.locator('#submit').click();
+  await mapped.page.locator('[data-next="3"]').click();
   assert.equal(saved.length,5,'An unconfirmed moved map must never reach persistence');
-  assert.match(await mapped.page.locator('#message').innerText(),/pickup (?:location|vehicle gate)/i);
+  assert.match(await mapped.page.locator('[data-f="pickupLink"] .f-err').innerText(),/confirm the pickup gate/i);
   await mapped.page.locator('#choose-map').click();
   await mapped.page.locator('#map-confirm').click();
   await mapped.page.locator('#transport-dropoff').check();
@@ -262,7 +262,7 @@ try{
   await mapped.page.locator('#dropoff-choose-map').click();
   await moveSyntheticMap(mapped.page,33.58,73.02);
   await mapped.page.locator('#map-confirm').click();
-  await mapped.page.locator('#submit').click();
+  await submitRequest(mapped.page);
   await mapped.page.locator('#complete').waitFor({state:'visible'});
   assert.equal(saved.length,6);
   assert.deepEqual(saved[5].transportLocation,{latitude:33.702,longitude:73.082,service:'both',customerConfirmed:true});
@@ -273,19 +273,18 @@ try{
   // Exact Google coordinates are valid candidates; viewport centres and
   // ambiguous shared links never become a substitute for an exact gate.
   const fallback=await newPage();
-  await fill(fallback.page);
   await fallback.page.locator('#transport-pickup').check();
   await revealPinFallback(fallback.page);
   await fallback.page.locator('#maps-link').fill('https://www.google.com/maps/search/?api=1&query=33.7%2C73.08');
   await fallback.page.locator('#map-fallback').click();
-  await fallback.page.locator('#submit').click();
+  await fallback.page.locator('[data-next="3"]').click();
   assert.equal(saved.length,6,'Exact pasted pin still requires explicit gate confirmation');
   await fallback.page.locator('#confirm-gate').click();
   await fallback.page.locator('#maps-link').fill('https://www.google.com/maps/@33.7,73.08,16z');
   await waitForBrowser(fallback.page,()=>/exact gate pin/.test(document.querySelector('#coordinate-status').textContent));
   assert.equal(await fallback.page.locator('#selected-location-link').isVisible(),false);
   assert.equal(await fallback.page.locator('#confirm-gate').isVisible(),false);
-  await fallback.page.locator('#submit').click();
+  await fallback.page.locator('[data-next="3"]').click();
   assert.equal(saved.length,6);
   await fallback.page.locator('#maps-link').fill('31.5, 74.3');
   await waitForBrowser(fallback.page,()=>/Islamabad|Rawalpindi|service area/.test(document.querySelector('#coordinate-status').textContent));
@@ -294,7 +293,7 @@ try{
   await fallback.page.locator('#locate').click();
   assert.match(await fallback.page.locator('#coordinate-status').innerText(),/permission was not granted/i);
   await confirmExactPin(fallback.page,'33.7, 73.08');
-  await fallback.page.locator('#submit').click();
+  await submitRequest(fallback.page);
   await fallback.page.locator('#complete').waitFor({state:'visible'});
   assert.equal(saved.length,7);
   assert.deepEqual(fallback.errors,[]);
@@ -447,12 +446,12 @@ try{
   const googleGuide=outagePage.locator('#dropoff-google-gate');
   await googleGuide.locator('summary').press('Enter');
   assert.equal(await googleGuide.locator('li:visible').count(),4);
-  assert.match(await googleGuide.locator('ol').innerText(),/exact vehicle entrance[\s\S]*Share → Copy link[\s\S]*Return to Apex/);
-  assert.equal(await googleGuide.getByRole('link',{name:'Open Google Maps'}).getAttribute('target'),'_blank');
-  await googleGuide.getByRole('textbox',{name:'Paste your copied gate link'}).fill('not a maps link');
+  assert.match(await googleGuide.locator('ol').innerText(),/vehicle gate[\s\S]*Share, then Copy link[\s\S]*Come back here and paste/);
+  assert.equal(await outagePage.locator('#dropoff-open-google-maps').getAttribute('target'),'_blank');
+  await outagePage.getByRole('textbox',{name:'Or paste a Google Maps pin'}).last().fill('not a maps link');
   await outagePage.locator('#dropoff-coordinate-status').filter({hasText:'exact gate pin'}).waitFor();
   assert.equal(await outagePage.locator('#gate-picker').isVisible(),false);
-  await googleGuide.getByRole('textbox',{name:'Paste your copied gate link'}).fill('https://www.google.com/maps/search/?api=1&query=33.7%2C73.08');
+  await outagePage.getByRole('textbox',{name:'Or paste a Google Maps pin'}).last().fill('https://www.google.com/maps/search/?api=1&query=33.7%2C73.08');
   await outagePage.locator('#gate-picker-title').filter({hasText:'drop-off'}).waitFor();
   assert.equal(await outagePage.locator('#map-loading').isVisible(),true);
   assert.equal(await outagePage.locator('#map-confirm').isDisabled(),true);

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseIntake,fingerprintIntake} from './intake.ts';
 import {saveBooking,type DbClient,type QueryResult} from './booking-store.ts';
-import {readFileSync} from 'node:fs';
+import {parsePublicBookingEnvelope} from './public-booking.ts';
 
 const details={
   ownerAddress:'Synthetic Address',emergencyContactPhone:'03001112222',
@@ -33,21 +33,33 @@ const makeDb=()=>{
   };
   return {queries,pool:{async connect(){return db;}}};
 };
-test('WhatsApp checkbox is genuinely optional and separate from legal terms',()=>{
-  const html=readFileSync('public/book/index.html','utf8');
-  const js=readFileSync('public/book/app.js','utf8');
-  assert.match(html,/name="whatsappInvoiceOptIn" type="checkbox"/);
-  assert.doesNotMatch(html,/name="whatsappInvoiceOptIn" type="checkbox" required/);
-  assert.match(js,/whatsappInvoiceOptIn:data.get\('whatsappInvoiceOptIn'\)==='on'/);
+test('historical optional evidence remains independent of the new public form requirement',()=>{
   const no=parseIntake(base,'website');
   const yes=parseIntake({...base,details:{...details,whatsappInvoiceOptIn:true}},'website');
   assert.equal(no.details?.whatsappInvoiceOptIn,undefined);
   assert.equal(yes.details?.whatsappInvoiceOptIn,true);
+  assert.equal(yes.details?.whatsappServiceOptIn,undefined);
   assert.notEqual(fingerprintIntake(no),fingerprintIntake(yes));
   assert.throws(()=>parseIntake({...base,details:{...details,whatsappInvoiceOptIn:'yes'}},'website'));
   assert.throws(()=>parseIntake({...base,phone:undefined,email:'test@example.test',
     details:{...details,whatsappInvoiceOptIn:true}},'website'),/WhatsApp consent requires/);
 });
+
+test('V10.6 records distinguishable explicit service consent in the booking transaction',async()=>{
+  const db=makeDb();
+  const {booking}=parsePublicBookingEnvelope({
+    booking:{...base,details:{...details,whatsappServiceOptIn:true}},
+    turnstileToken:'synthetic-token'
+  });
+  const historical=parseIntake({...base,details:{...details,whatsappInvoiceOptIn:true}},'website');
+  assert.notEqual(fingerprintIntake(booking),fingerprintIntake(historical));
+  await saveBooking(db.pool,booking);
+  const consent=db.queries.find(x=>x.sql.includes('INSERT INTO public.booking_whatsapp_consents'));
+  assert.deepEqual(consent?.params,['booking-id','03001112222','website-booking-v2','website']);
+  assert.equal(db.queries[0].sql,'BEGIN');
+  assert.equal(db.queries.at(-1)?.sql,'COMMIT');
+});
+
 test('only explicitly opted-in website bookings persist a WhatsApp consent record',async()=>{
   const yes=makeDb();
   await saveBooking(yes.pool,parseIntake({
@@ -70,4 +82,7 @@ test('legacy Google Form submissions never imply WhatsApp permission',async()=>{
     details:{...details}
   }));
   assert.equal(form.queries.some(x=>x.sql.includes('booking_whatsapp_consents')),false);
+  assert.throws(()=>parseIntake({
+    ...base,source:'google_form',details:{...details,whatsappServiceOptIn:true}
+  }),/Unexpected details field/);
 });

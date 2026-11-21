@@ -117,11 +117,14 @@ try{
   assert.equal(await first.page.locator('[data-tk-tot]').textContent(),'Rs 7,500');
   await first.page.locator('[name="endDate"]').fill(futureBookingDate(39));
   assert.equal(await first.page.locator('[data-tk-tot]').textContent(),'Rs 65,000');
-  assert.match(await first.page.locator('[data-tk-pkg]').textContent(),/Save Rs 10,000 .* subject to confirmation/);
+  const packageCopy='30-day rate applied. You save Rs 10,000.';
+  assert.equal(await first.page.locator('[data-tk-pkg] [data-package-copy]').textContent(),packageCopy);
+  assert.equal(await first.page.locator('[data-pkg] [data-package-copy]').textContent(),packageCopy);
   await first.page.locator('label.card:has([name="cameraCageRequested"][value="yes"])').click();
   assert.equal(await first.page.locator('[data-tk-tot]').textContent(),'Rs 80,000');
   await first.page.locator('[data-sum-open]').click();
   assert.equal(await first.page.locator('#mobile-summary [data-tk-tot]').innerText(),'Rs 80,000');
+  assert.equal(await first.page.locator('#mobile-summary [data-package-copy]').textContent(),packageCopy);
   await first.page.keyboard.press('Escape');
   await first.page.locator('#mobile-summary').waitFor({state:'hidden'});
   await first.page.waitForFunction(()=>document.activeElement.hasAttribute('data-sum-open'));

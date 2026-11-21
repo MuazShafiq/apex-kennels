@@ -398,11 +398,11 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
     const days=end>=start?(end-start)/86400000+1:0;
     const space=field(data,'cameraCageRequested');
     const rate=rates[space];
-    const packageEstimate=days===30&&!!rate;
+    const hasPackageRate=days===30&&!!rate;
     const daily=rate?days*rate.daily:0;
     return {
-      start,end,days,rate,packageEstimate,daily,space,
-      total:packageEstimate?rate.package:daily,
+      start,end,days,rate,hasPackageRate,daily,space,
+      total:hasPackageRate?rate.package:daily,
       dates:days?dateFormat.format(start)+' → '+dateFormat.format(end):''
     };
   }
@@ -437,17 +437,17 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
     $('[data-tk-dates]').textContent=s.dates||'Dates not set';
     summaryValue('[data-tk-days]',s.days&&String(s.days),'—');
     summaryValue('[data-tk-space]',spaceLabel(s.space),'Not chosen');
-    summaryValue('[data-tk-board]',s.rate?(s.packageEstimate?'30-day package estimate':rupees(s.rate.daily)+' per billed day'):'','—');
+    summaryValue('[data-tk-board]',s.rate?(s.hasPackageRate?'30-day rate':rupees(s.rate.daily)+' per billed day'):'','—');
     summaryValue('[data-tk-trans]',transportChoice()==='none'?(noTransport.checked?'None':''):'To be quoted','Not chosen');
     $('[data-tk-tot]').textContent=rupees(s.total);
     $('[data-mb-v]').textContent=rupees(s.total);
     $('[data-mb-t]').textContent=s.days?billedDays(s.days)+' · boarding subtotal':'Boarding subtotal';
-    $('[data-pkg]').hidden=!s.packageEstimate;
-    $('[data-tk-pkg]').hidden=!s.packageEstimate;
-    $('[data-tk-was]').hidden=!s.packageEstimate;
+    $('[data-pkg]').hidden=!s.hasPackageRate;
+    $('[data-tk-pkg]').hidden=!s.hasPackageRate;
+    $('[data-tk-was]').hidden=!s.hasPackageRate;
     $('[data-tk-was]').textContent=rupees(s.daily);
     for(const node of $$('[data-package-copy]')){
-      node.textContent=s.packageEstimate?'Save '+rupees(s.daily-s.total)+' with the 30-day package, subject to confirmation.':'';
+      node.textContent=s.hasPackageRate?'30-day rate applied. You save '+rupees(s.daily-s.total)+'.':'';
     }
     $('[data-days]').hidden=!s.days;
     if(s.days){
@@ -646,7 +646,7 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
       '[data-d-r1]':s.dates,
       '[data-d-r2]':space,
       '[data-d-r3]':transportLabel(),
-      '[data-d-r4]':rupees(s.total)+(s.packageEstimate?' · 30-day package estimate':''),
+      '[data-d-r4]':rupees(s.total)+(s.hasPackageRate?' · 30-day rate':''),
       '[data-d-space]':space,
       '[data-d-sub]':s.space==='yes'?'24/7 CCTV':'Dog boarding',
       '[data-np-date]':s.dates,

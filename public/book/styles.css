@@ -2320,7 +2320,7 @@ body {
   margin-top: 8px;
 }
 .bk .note[data-yes-note] {
-  margin-top: 18px;
+  margin: 18px 0 20px;
 }
 .bk .care-notes {
   margin-top: 20px;

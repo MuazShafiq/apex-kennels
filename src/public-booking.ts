@@ -1,4 +1,4 @@
-import {parseIntake,type IntakeRequest} from './intake.ts';
+import {IntakeError,parseIntake,type IntakeRequest} from './intake.ts';
 
 /** Public request cannot supply prices, state transitions, or arbitrary fields. */
 export function parsePublicBookingEnvelope(value:unknown):{
@@ -12,7 +12,12 @@ export function parsePublicBookingEnvelope(value:unknown):{
   const token=request.turnstileToken;
   if(typeof token!=='string'||token.length<1||token.length>2048||
      /[\u0000-\u001f\u007f]/.test(token))throw new Error('Invalid security token');
-  return {booking:parseIntake(request.booking,'website'),turnstileToken:token};
+  const booking=parseIntake(request.booking,'website');
+  if(booking.details?.whatsappServiceOptIn!==true)
+    throw new IntakeError('Please agree to receive booking updates and your approved invoice on WhatsApp.');
+  if(!booking.phone || booking.phone.replace(/\D/g,'').length<10)
+    throw new IntakeError('Enter a valid WhatsApp number.');
+  return {booking,turnstileToken:token};
 }
 
 export async function verifyBookingChallenge(

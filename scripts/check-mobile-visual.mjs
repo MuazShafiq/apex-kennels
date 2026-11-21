@@ -10,7 +10,7 @@ import {renderStaffDraftReview,prepareStaffDraftReview} from '../src/staff-invoi
 import {renderStaffPinChecker} from '../src/staff-location.ts';
 import {renderInvoiceApprovalPage} from '../src/staff-invoice-approval.ts';
 import {makeReviewSnapshot} from '../src/staff-saved-review.ts';
-import {confirmExactPin,stubMapLibrary,moveSyntheticMap,waitForBrowser} from './gate-picker-browser-fixture.mjs';
+import {confirmExactPin,stubMapLibrary,moveSyntheticMap,waitForBrowser,fillBookingThroughDog,fillBookingCareAndContact} from './gate-picker-browser-fixture.mjs';
 
 const demoSource={
   bookingId:'a2026111-0e00-4c11-8a00-000000000033',
@@ -71,7 +71,8 @@ const server=createServer(async(req,res)=>{
   try{
     const bytes=await readFile(filename);
     const mime=route.endsWith('.css')?'text/css':route.endsWith('.js')?'application/javascript':
-      route.endsWith('.svg')?'image/svg+xml':route.endsWith('.woff2')?'font/woff2':'text/html';
+      route.endsWith('.svg')?'image/svg+xml':route.endsWith('.woff2')?'font/woff2':
+      route.endsWith('.webp')?'image/webp':route.endsWith('.png')?'image/png':'text/html';
     res.writeHead(200,{'content-type':mime});res.end(bytes);
   }catch{res.writeHead(404);res.end();}
 });
@@ -139,16 +140,22 @@ try{
      assert(paint.bodyHeight>=viewport.height-1,name+' '+label+' background too short');
      assert(paint.bodyBackground?.includes('linear-gradient'),name+' '+label+' body gradient missing');
    }
-   const markPath=label==='book'?'/site/dog-mark.svg':'/book/apex-dog-mark.svg';
-   const logo=await page.locator('img[src="'+markPath+'"]').first();
-   assert(await logo.count()===1,name+' '+label+' missing Apex mark');
-   assert(await logo.evaluate(el=>el.complete&&el.naturalWidth>0),name+' '+label+' logo failed to load');
    if(label==='book'){
-     const heights=await page.locator('label.option-card:has(input[name="cameraCageRequested"]) > span')
+     const mark=page.locator('.top .logo .mk');
+     assert(await mark.count()===1,name+' booking nav missing Apex badge');
+     const mask=await mark.evaluate(el=>getComputedStyle(el).maskImage);
+     assert(mask.startsWith('url('),name+' booking badge missing shepherd mask');
+     const markUrl=mask.slice(5,-2);
+     assert((await page.request.get(markUrl)).ok(),name+' booking shepherd asset failed to load');
+     const heights=await page.locator('label.card:has(input[name="cameraCageRequested"])')
        .evaluateAll(nodes=>nodes.map(el=>el.getBoundingClientRect().height));
      assert(heights.length===2,name+' boarding choices missing');
      assert(Math.abs(heights[0]-heights[1])<1,
        name+' standard and camera cards unequal: '+JSON.stringify(heights));
+   }else{
+     const logo=page.locator('img[src="/book/apex-dog-mark.svg"]').first();
+     assert(await logo.count()===1,name+' '+label+' missing Apex mark');
+     assert(await logo.evaluate(el=>el.complete&&el.naturalWidth>0),name+' '+label+' logo failed to load');
    }
    if(label==='approval'){
      await page.locator('#invoiceNumber').focus();
@@ -163,27 +170,23 @@ try{
    results.push({viewport:name,page:label,...size});
   }
   await page.goto('http://127.0.0.1:'+port+'/book',{waitUntil:'domcontentloaded'});
-  // Verify the actual checkbox is horizontally adjacent to its label and
-  // vertically centred. This catches accidental flex/grid regressions.
-  const alignment=await page.evaluate(()=>{
-    const choices=[...document.querySelectorAll('.transport-service-option')].map(label=>{
-      const input=label.querySelector('input'),text=label.querySelector('.transport-service-copy');
-      const a=input.getBoundingClientRect(),b=text.getBoundingClientRect();
-      return {name:input.id,gap:b.left-a.right,dy:Math.abs((a.top+a.bottom)/2-(b.top+b.bottom)/2)};
-    });
-    const consents=[...document.querySelectorAll('.finish > .confirm')].map(label=>{
-      const a=label.querySelector('input').getBoundingClientRect();
-      const span=label.querySelector('span'),b=span.getBoundingClientRect();
-      const lineHeight=parseFloat(getComputedStyle(span).lineHeight)||20;
-      return {name:label.querySelector('input').name,gap:b.left-a.right,
-        dy:Math.abs((a.top+a.bottom)/2-(b.top+lineHeight/2))};
-    });
-    return {choices,consents};
+  await fillBookingThroughDog(page);
+  const checkboxAlignment=selector=>[...document.querySelectorAll(selector)].map(label=>{
+    const mark=label.querySelector('.cb').getBoundingClientRect();
+    const text=label.querySelector('.cb + span');
+    const lineHeight=parseFloat(getComputedStyle(text).lineHeight)||20;
+    const copy=text.getBoundingClientRect();
+    return {name:label.querySelector('input').name,gap:copy.left-mark.right,
+      dy:Math.abs((mark.top+mark.bottom)/2-(copy.top+lineHeight/2))};
   });
-  for(const item of [...alignment.choices,...alignment.consents]){
-    assert(item.gap>=7,name+' '+item.name+' checkbox overlaps label '+JSON.stringify(item));
-    assert(item.dy<7,name+' '+item.name+' checkbox not aligned to text '+JSON.stringify(item));
-  }
+  const verifyAlignment=items=>{
+    for(const item of items){
+      assert(item.gap>=7,name+' '+item.name+' checkbox overlaps label '+JSON.stringify(item));
+      assert(item.dy<7,name+' '+item.name+' checkbox not aligned to text '+JSON.stringify(item));
+    }
+  };
+  const choices=await page.evaluate(checkboxAlignment,'.tchoice .tbox');
+  verifyAlignment(choices);
 
   await page.locator('#transport-pickup').check();
   assert(await page.locator('#pickup-location').isVisible(),name+' pickup must reveal location');
@@ -257,6 +260,10 @@ try{
   assert(!(await page.locator('#transport-pickup').isChecked())&&
     !(await page.locator('#transport-dropoff').isChecked()),
     name+' No transport did not clear other choices');
+  await fillBookingCareAndContact(page);
+  verifyAlignment(await page.evaluate(checkboxAlignment,'[data-f="termsAccepted"] .chk, [data-f="whatsappServiceOptIn"] .chk'));
+  assert(await page.locator('#preview').isVisible(),name+' booking closed state disappeared');
+  assert(await page.locator('#submit').isDisabled(),name+' submit enabled on a closed gate');
   assert(errors.length===0,name+' JS errors: '+errors.join(';'));
   await page.close();
  }

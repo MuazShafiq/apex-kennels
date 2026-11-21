@@ -1,253 +1,1907 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="robots" content="noindex,nofollow">
-  <meta name="theme-color" content="#120709">
-  <title>Request boarding | Apex Kennels</title>
-  <link rel="stylesheet" href="/book/styles.css">
-  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" defer></script>
-  <script src="/book/app.js" defer></script>
-</head>
-<body>
-  <a class="skip-link" href="#booking-content">Skip to booking</a>
-  <header class="topbar">
-    <nav class="navigation" aria-label="Main">
-      <a class="brand" href="/" aria-label="Apex Kennels home">
-        <span class="brand-tile" aria-hidden="true"><img src="/site/dog-mark.svg" alt="" width="30" height="25"></span>
-        <span class="brand-wordmark" aria-hidden="true"><strong>APEX</strong><span>KENNELS</span></span>
-      </a>
-      <span class="brand-slash" aria-hidden="true"></span>
-      <div class="navigation-links">
-        <a href="/#prices">Boarding</a>
-        <a href="/#camera-cage">Camera cage</a>
-        <a href="/#contact">Contact</a>
-      </div>
-    </nav>
-  </header>
-  <main class="shell" id="booking-content" tabindex="-1">
-    <div class="booking-layout">
-      <div class="booking-intro">
-        <h1>Request a stay<span aria-hidden="true">.</span></h1>
-        <p>The front desk replies with a confirmed estimate before anything is booked.</p>
-        <nav aria-label="Booking sections">
-          <ol class="booking-steps">
-            <li><a href="#dog-and-dates">Your dog and dates</a></li>
-            <li><a href="#space">Space</a></li>
-            <li><a href="#transport-step">Transport and your gate</a></li>
-            <li><a href="#check-and-send">Check and send</a></li>
-          </ol>
-        </nav>
-        <details class="booking-care">
-          <summary>What’s included in your stay</summary>
-          <ul>
-            <li>Two meals every day</li>
-            <li>Morning and evening playtime</li>
-            <li>Weekly vet check-ups</li>
-            <li>Optional camera cage with 24/7 CCTV</li>
-            <li>Free grooming</li>
-          </ul>
-        </details>
-      </div>
-      <div class="booking-main">
-        <div class="preview" id="preview" role="status">Online booking submissions are currently closed.</div>
-        <form id="booking" aria-label="Request a stay">
-          <section class="panel" id="dog-and-dates" tabindex="-1" aria-labelledby="dog-and-dates-heading">
-            <div class="step-heading"><span class="step" aria-hidden="true">1</span><h2 id="dog-and-dates-heading">Your dog and dates</h2></div>
-            <div class="fields">
-              <label>Boarding start date <input name="startDate" type="date" placeholder="YYYY-MM-DD" pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}" required></label>
-              <label>Last boarding day <input name="endDate" type="date" placeholder="YYYY-MM-DD" pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}" required></label>
-              <label>Dog's name <input name="petName" maxlength="200" required></label>
-              <label>Breed <input name="breed" maxlength="140" required></label>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#EEF6FA" />
+    <title>Request a stay | Apex Kennels</title>
+    <link rel="icon" href="/site/v106/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site/v106/common.css" />
+    <link rel="stylesheet" href="/book/styles.css" />
+    <script
+      src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+      defer
+    ></script>
+    <script type="module" src="/book/app.js"></script>
+  </head>
+  <body class="bk">
+    <a class="skip-link vh" href="#book-main">Skip to booking</a>
+    <header class="top rv">
+      <a class="logo" href="/" aria-label="Apex Kennels, home"
+        ><span class="tile"><span class="mk"></span></span
+        ><span class="wm"><b>APEX</b><i>KENNELS</i></span></a
+      >
+      <span class="sl" style="height: 26px" aria-hidden="true"></span>
+      <nav class="links" aria-label="Primary">
+        <a href="/#boarding">Boarding</a><a href="/#camera">Camera cage</a
+        ><a href="/#transport">Transport</a><a href="/#contact">Contact</a>
+      </nav>
+      <a class="home-lnk" href="/"
+        ><svg
+          class="chv-l"
+          width="7"
+          height="14"
+          viewBox="0 0 7 14"
+          fill="none"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <g transform="translate(0 1)">
+            <path
+              d="M3.3 1.1 L6.2 5.5"
+              stroke-width="1.35"
+              opacity=".75"
+            ></path>
+            <path d="M6.2 5.5 L1.2 11.95" stroke-width="1.6"></path>
+          </g></svg
+        >Home</a
+      >
+    </header>
+
+    <main id="book-main" tabindex="-1">
+      <section class="lead rv" aria-labelledby="bk-h1">
+        <div class="wrap lead-in">
+          <div>
+            <h1 id="bk-h1">Request a stay<span class="pt">.</span></h1>
+            <p class="sub">
+              Tell us about your dog, their dates and any transport. We’ll
+              review your request and confirm availability before the stay is
+              booked.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <div class="wrap" data-form-view>
+        <div class="main">
+          <form
+            class="steps"
+            id="booking"
+            novalidate
+            aria-label="Booking request"
+          >
+            <div class="prog" aria-hidden="true">
+              <div class="prog-t">
+                <b data-prog-t>Dates &amp; space</b
+                ><span data-prog-n>STEP 1 OF 5</span>
+              </div>
+              <div class="prog-l"><i data-prog-l></i></div>
             </div>
-            <p class="fineprint billed-days">Arrival and collection are both billed days.</p>
-          </section>
-          <section class="panel" id="space" tabindex="-1" aria-labelledby="space-heading">
-            <div class="step-heading"><span class="step" aria-hidden="true">2</span><h2 id="space-heading">Space</h2></div>
-            <div class="choice-cards">
-              <label class="option option-card"><input type="radio" name="cameraCageRequested" value="no" data-daily-rate="2500" required><span><strong>Standard</strong><small>Rs 2,500 a day</small></span></label>
-              <label class="option option-card"><input type="radio" name="cameraCageRequested" value="yes" data-daily-rate="3000"><span><strong>Camera cage</strong><small>Rs 3,000 a day · 24/7 CCTV</small></span></label>
-            </div>
-          </section>
-          <section class="panel" id="transport-step" tabindex="-1" aria-labelledby="transport-heading">
-            <div class="step-heading"><span class="step" aria-hidden="true">3</span><h2 id="transport-heading">Transport</h2></div>
-            <p class="section-help">Pickup and drop-off are available in Islamabad and Rawalpindi only.</p>
-            <fieldset class="field-choice transport-services" aria-describedby="transport-help">
-              <legend>Which services do you need?</legend>
-              <p class="transport-help" id="transport-help">Select pickup, drop-off, or both.</p>
-              <div class="transport-service-list" id="transport">
-                <div class="transport-choices">
-                  <label class="transport-service-option">
-                    <input type="checkbox" id="transport-pickup" name="pickupRequested" aria-controls="pickup-location">
-                    <span class="transport-service-copy"><strong>Pickup</strong></span>
-                  </label>
-                  <label class="transport-service-option">
-                    <input type="checkbox" id="transport-dropoff" name="dropoffRequested" aria-controls="dropoff-location">
-                    <span class="transport-service-copy"><strong>Drop-off</strong></span>
-                  </label>
-                  <label class="transport-service-option">
-                    <input type="checkbox" id="transport-none" name="noTransport">
-                    <span class="transport-service-copy"><strong>No transport</strong></span>
-                  </label>
+
+            <!-- STEP 1 -->
+            <section class="step cur" data-step="1" aria-labelledby="st1">
+              <button
+                type="button"
+                class="st-h"
+                data-step-h="1"
+                aria-controls="booking-step-1"
+                aria-expanded="true"
+                aria-current="step"
+              >
+                <span class="st-n">1</span
+                ><span class="st-t"
+                  ><b id="st1">Dates &amp; space</b
+                  ><span data-step-sum="1"
+                    >Arrival, collection and boarding choice</span
+                  ></span
+                ><span class="st-e">Edit</span>
+              </button>
+              <div class="st-b" id="booking-step-1">
+                <p class="st-lede">
+                  Arrival and collection both count as billed days.
+                </p>
+                <div class="sum-err" data-sum-err role="alert" hidden>
+                  Some answers need attention.
                 </div>
-                <div id="pickup-location" class="transport-location-panel" hidden>
-                  <h3>Pickup location</h3>
-                  <p>Where should we collect your dog?</p>
-                  <div class="gate-methods">
-                    <button type="button" class="gate-primary" id="choose-map" aria-controls="gate-picker" aria-expanded="false"><span>Choose on map</span><small>Move the pin to your exact vehicle gate</small></button>
-                    <details class="google-gate" id="google-gate">
-                      <summary>Find your gate in Google Maps</summary>
-                      <div class="google-gate-steps">
-                        <ol>
-                          <li>Search for your address or area.</li>
-                          <li>Touch and hold your exact vehicle entrance to drop a pin.</li>
-                          <li>Tap <strong>Share → Copy link</strong>.</li>
-                          <li>Return to Apex and paste the link below to review and confirm your gate.</li>
-                        </ol>
-                        <a class="maps-button" id="open-google-maps" href="https://www.google.com/maps/search/?api=1&amp;query=Islamabad%20Rawalpindi" target="_blank" rel="noopener noreferrer">Open Google Maps <span aria-hidden="true">↗</span></a>
-                        <label class="maps-link-label" for="maps-link">Paste your copied gate link</label>
-                        <input id="maps-link" type="text" maxlength="2048" autocomplete="off" spellcheck="false" aria-describedby="maps-help coordinate-status" placeholder="Link or coordinates">
-                        <p class="location-help" id="maps-help">If the link has no exact pin, paste the pin’s latitude, longitude.</p>
+                <div class="grid">
+                  <div class="f" data-f="startDate">
+                    <label for="bk-start"
+                      >Arrival date<span class="req" aria-hidden="true"
+                        >*</span
+                      ></label
+                    ><input
+                      id="bk-start"
+                      class="in"
+                      type="date"
+                      placeholder="YYYY-MM-DD"
+                      pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}"
+                      name="startDate"
+                      required
+                      aria-describedby="bk-start-e"
+                    />
+                    <p class="f-err" id="bk-start-e" hidden></p>
+                  </div>
+                  <div class="f" data-f="endDate">
+                    <label for="bk-end"
+                      >Collection date<span class="req" aria-hidden="true"
+                        >*</span
+                      ></label
+                    ><input
+                      id="bk-end"
+                      class="in"
+                      type="date"
+                      placeholder="YYYY-MM-DD"
+                      pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}"
+                      name="endDate"
+                      required
+                      aria-describedby="bk-end-e"
+                    />
+                    <p class="f-err" id="bk-end-e" hidden></p>
+                  </div>
+                  <div class="full daysbar" data-days hidden>
+                    <b data-days-n></b><span data-days-r></span>
+                  </div>
+                  <fieldset class="f full" data-f="cameraCageRequested">
+                    <legend class="q">
+                      Boarding space<span class="req" aria-hidden="true"
+                        >*</span
+                      >
+                    </legend>
+                    <div class="cards">
+                      <label class="card"
+                        ><input
+                          type="radio"
+                          name="cameraCageRequested"
+                          value="no"
+                          required
+                        /><span class="ck" aria-hidden="true"></span
+                        ><b>Standard boarding</b
+                        ><span class="pr">Rs 2,500 a day</span
+                        ><small
+                          >Two meals daily, morning and evening playtime, weekly
+                          vet check-ups and grooming.</small
+                        ></label
+                      >
+                      <label class="card cam"
+                        ><span class="silk glow" aria-hidden="true"></span
+                        ><span class="silk" aria-hidden="true"></span
+                        ><span class="silk lum" aria-hidden="true"></span
+                        ><input
+                          type="radio"
+                          name="cameraCageRequested"
+                          value="yes"
+                        /><span class="ck" aria-hidden="true"></span
+                        ><b>Camera cage</b><span class="pr">Rs 3,000 a day</span
+                        ><small
+                          >The same everyday care, with 24/7 CCTV.</small
+                        ></label
+                      >
+                    </div>
+                    <p class="f-err" hidden></p>
+                  </fieldset>
+                  <p class="full win" data-pkg hidden>
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="m5 12 5 5 9-10"></path></svg
+                    ><span data-package-copy></span>
+                  </p>
+                  <p class="full hint">Grooming is free with every stay.</p>
+                </div>
+                <div class="nav-row">
+                  <span></span
+                  ><button type="button" class="vd" data-next="1">
+                    Continue<svg
+                      class="chv"
+                      width="7"
+                      height="14"
+                      viewBox="0 0 7 14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <g transform="translate(0 1)">
+                        <path
+                          d="M3.3 1.1 L6.2 5.5"
+                          stroke-width="1.35"
+                          opacity=".75"
+                        ></path>
+                        <path d="M6.2 5.5 L1.2 11.95" stroke-width="1.6"></path>
+                      </g>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <!-- STEP 2 -->
+            <section class="step locked" data-step="2" aria-labelledby="st2">
+              <button
+                type="button"
+                class="st-h"
+                data-step-h="2"
+                aria-controls="booking-step-2"
+                aria-expanded="false"
+                disabled
+              >
+                <span class="st-n">2</span
+                ><span class="st-t"
+                  ><b id="st2">Your dog</b
+                  ><span data-step-sum="2"
+                    >The essentials for their stay</span
+                  ></span
+                ><span class="st-e">Edit</span>
+              </button>
+              <div class="st-b" id="booking-step-2" hidden>
+                <div class="sum-err" data-sum-err role="alert" hidden>
+                  Some answers need attention.
+                </div>
+                <div class="grid">
+                  <div class="f" data-f="petName">
+                    <label for="bk-pet"
+                      >Dog’s name<span class="req" aria-hidden="true"
+                        >*</span
+                      ></label
+                    ><input
+                      id="bk-pet"
+                      class="in"
+                      name="petName"
+                      maxlength="200"
+                      required
+                      autocomplete="off"
+                    />
+                    <p class="f-err" hidden></p>
+                  </div>
+                  <div class="f" data-f="breed">
+                    <label for="bk-breed"
+                      >Breed<span class="req" aria-hidden="true">*</span></label
+                    ><input
+                      id="bk-breed"
+                      class="in"
+                      name="breed"
+                      maxlength="140"
+                      required
+                      placeholder="e.g. German Shepherd"
+                    />
+                    <p class="f-err" hidden></p>
+                  </div>
+                  <fieldset class="f" data-f="gender">
+                    <legend class="q">
+                      Gender<span class="req" aria-hidden="true">*</span>
+                    </legend>
+                    <div class="seg">
+                      <label
+                        ><input
+                          type="radio"
+                          name="gender"
+                          value="Male"
+                          required
+                        />Male</label
+                      ><label
+                        ><input
+                          type="radio"
+                          name="gender"
+                          value="Female"
+                        />Female</label
+                      >
+                    </div>
+                    <p class="f-err" hidden></p>
+                  </fieldset>
+                  <div class="f" data-f="age">
+                    <label for="bk-age"
+                      >Age<span class="req" aria-hidden="true">*</span></label
+                    ><input
+                      id="bk-age"
+                      class="in"
+                      name="age"
+                      maxlength="100"
+                      required
+                      placeholder="e.g. 3 years"
+                    />
+                    <p class="f-err" hidden></p>
+                  </div>
+                  <fieldset class="f full" data-f="vaccinationStatus">
+                    <legend class="q">
+                      Vaccination status<span class="req" aria-hidden="true"
+                        >*</span
+                      >
+                    </legend>
+                    <div class="rows">
+                      <label class="row"
+                        ><input
+                          type="radio"
+                          name="vaccinationStatus"
+                          value="Fully vaccinated and booster is up to date"
+                          required
+                        /><span class="rd" aria-hidden="true"></span>Fully
+                        vaccinated, booster up to date</label
+                      >
+                      <label class="row"
+                        ><input
+                          type="radio"
+                          name="vaccinationStatus"
+                          value="Fully vaccinated without boosters"
+                        /><span class="rd" aria-hidden="true"></span>Fully
+                        vaccinated, no boosters</label
+                      >
+                      <label class="row"
+                        ><input
+                          type="radio"
+                          name="vaccinationStatus"
+                          value="Partially vaccinated"
+                        /><span class="rd" aria-hidden="true"></span>Partially
+                        vaccinated</label
+                      >
+                      <label class="row"
+                        ><input
+                          type="radio"
+                          name="vaccinationStatus"
+                          value="None"
+                        /><span class="rd" aria-hidden="true"></span>Not
+                        vaccinated</label
+                      >
+                    </div>
+                    <p class="f-err" hidden></p>
+                  </fieldset>
+                  <fieldset class="f full" data-f="distemperHistory">
+                    <legend class="q">
+                      Has your dog ever had canine distemper?<span
+                        class="req"
+                        aria-hidden="true"
+                        >*</span
+                      >
+                    </legend>
+                    <div class="seg" style="margin-top: 8px; max-width: 440px">
+                      <label
+                        ><input
+                          type="radio"
+                          name="distemperHistory"
+                          value="Yes"
+                          required
+                        />Yes</label
+                      ><label
+                        ><input
+                          type="radio"
+                          name="distemperHistory"
+                          value="No"
+                        />No</label
+                      ><label
+                        ><input
+                          type="radio"
+                          name="distemperHistory"
+                          value="Not Sure"
+                        />Not sure</label
+                      >
+                    </div>
+                    <p class="f-err" hidden></p>
+                  </fieldset>
+                  <p class="full note calm" data-vacc-note hidden>
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                      aria-hidden="true"
+                    >
+                      <circle cx="12" cy="12" r="9"></circle>
+                      <path d="M12 8v5M12 16h.01"></path></svg
+                    ><span
+                      >We may need to discuss vaccination or health details
+                      before confirming a stay.</span
+                    >
+                  </p>
+                  <div class="f" data-f="veterinarianPhone">
+                    <label for="bk-vet"
+                      >Vet’s phone <span class="opt">(optional)</span></label
+                    ><input
+                      id="bk-vet"
+                      class="in"
+                      type="tel"
+                      name="veterinarianPhone"
+                      maxlength="120"
+                      autocomplete="off"
+                    />
+                    <p class="f-err" hidden></p>
+                  </div>
+                </div>
+                <div class="nav-row">
+                  <button type="button" class="back" data-prev="2">
+                    <svg
+                      class="chv-l"
+                      width="7"
+                      height="14"
+                      viewBox="0 0 7 14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <g transform="translate(0 1)">
+                        <path
+                          d="M3.3 1.1 L6.2 5.5"
+                          stroke-width="1.35"
+                          opacity=".75"
+                        ></path>
+                        <path d="M6.2 5.5 L1.2 11.95" stroke-width="1.6"></path>
+                      </g></svg
+                    >Back</button
+                  ><button type="button" class="vd" data-next="2">
+                    Continue<svg
+                      class="chv"
+                      width="7"
+                      height="14"
+                      viewBox="0 0 7 14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <g transform="translate(0 1)">
+                        <path
+                          d="M3.3 1.1 L6.2 5.5"
+                          stroke-width="1.35"
+                          opacity=".75"
+                        ></path>
+                        <path d="M6.2 5.5 L1.2 11.95" stroke-width="1.6"></path>
+                      </g>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <!-- STEP 3 -->
+            <section class="step locked" data-step="3" aria-labelledby="st3">
+              <button
+                type="button"
+                class="st-h"
+                data-step-h="3"
+                aria-controls="booking-step-3"
+                aria-expanded="false"
+                disabled
+              >
+                <span class="st-n">3</span
+                ><span class="st-t"
+                  ><b id="st3">Transport</b
+                  ><span data-step-sum="3"
+                    >Pickup, drop-off or neither</span
+                  ></span
+                ><span class="st-e">Edit</span>
+              </button>
+              <div class="st-b" id="booking-step-3" hidden>
+                <p class="st-lede">
+                  Pickup and drop-off are available in Islamabad and Rawalpindi
+                  only.
+                </p>
+                <div class="sum-err" data-sum-err role="alert" hidden>
+                  Some answers need attention.
+                </div>
+                <fieldset class="f" data-f="transport">
+                  <legend class="q">
+                    Which trips do you need?<span class="req" aria-hidden="true"
+                      >*</span
+                    >
+                  </legend>
+                  <div class="tchoice">
+                    <label class="tbox"
+                      ><input
+                        type="checkbox"
+                        name="pickupRequested"
+                        id="transport-pickup"
+                        aria-controls="pickup-location"
+                      /><span class="cb" aria-hidden="true"></span
+                      ><span
+                        ><b>Pickup</b
+                        ><small
+                          >We collect your dog before the stay</small
+                        ></span
+                      ></label
+                    >
+                    <label class="tbox"
+                      ><input
+                        type="checkbox"
+                        name="dropoffRequested"
+                        id="transport-dropoff"
+                        aria-controls="dropoff-location"
+                      /><span class="cb" aria-hidden="true"></span
+                      ><span
+                        ><b>Drop-off</b
+                        ><small>We bring your dog home after</small></span
+                      ></label
+                    >
+                    <span class="or" aria-hidden="true">or</span>
+                    <label class="tbox tnone"
+                      ><input
+                        type="checkbox"
+                        name="noTransport"
+                        id="transport-none"
+                      /><span class="cb" aria-hidden="true"></span
+                      ><span
+                        ><b>No transport</b
+                        ><small>You come to the kennel gate</small></span
+                      ></label
+                    >
+                  </div>
+                  <p class="f-err" hidden></p>
+                </fieldset>
+
+                <div class="gate" id="pickup-location" hidden>
+                  <div class="gate-h">
+                    <h3>Pickup gate</h3>
+                    <span class="gs" id="gate-state">Not set</span>
+                  </div>
+                  <p class="gp">
+                    The exact entrance our vehicle should stop at. Not a street,
+                    area or building name.
+                  </p>
+                  <div>
+                    <div class="methods">
+                      <button
+                        type="button"
+                        class="m-map"
+                        id="choose-map"
+                        aria-controls="gate-picker"
+                        aria-expanded="false"
+                      >
+                        <span class="ico"
+                          ><svg
+                            width="22"
+                            height="22"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path
+                              d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"
+                            ></path>
+                            <path d="M9 4v14M15 6v14"></path></svg></span
+                        ><span
+                          ><b>Choose on map</b
+                          ><small>Move the pin onto your gate</small></span
+                        >
+                      </button>
+                      <button type="button" class="m-gps" id="locate">
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.8"
+                          stroke-linecap="round"
+                          aria-hidden="true"
+                        >
+                          <circle cx="12" cy="12" r="3.5"></circle>
+                          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+                          <circle cx="12" cy="12" r="7.5"></circle></svg
+                        >Use my current location
+                      </button>
+                    </div>
+                    <div class="f linkrow" data-f="pickupLink">
+                      <label for="maps-link">Or paste a Google Maps pin</label>
+                      <div class="lk">
+                        <input
+                          id="maps-link"
+                          class="in"
+                          aria-describedby="coordinate-status"
+                          type="text"
+                          maxlength="2048"
+                          autocomplete="off"
+                          spellcheck="false"
+                          placeholder="Google Maps link, or latitude, longitude"
+                        /><a
+                          class="gmaps"
+                          id="open-google-maps"
+                          href="https://www.google.com/maps/search/?api=1&amp;query=Islamabad%20Rawalpindi"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          >Open Google Maps<svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M7 17 17 7M9 7h8v8"></path></svg
+                          ><span class="vh"> (new tab)</span></a
+                        >
                       </div>
+                      <p class="f-err" hidden></p>
+                    </div>
+                    <details class="how" id="google-gate">
+                      <summary>How to copy your gate’s pin</summary>
+                      <ol>
+                        <li>Open Google Maps and find your home.</li>
+                        <li>
+                          Zoom in, then touch and hold your vehicle gate until a
+                          red pin drops.
+                        </li>
+                        <li>Tap Share, then Copy link.</li>
+                        <li>Come back here and paste it above.</li>
+                      </ol>
                     </details>
-                    <button type="button" class="secondary gate-gps" id="locate">Use my current location</button>
                   </div>
-                  <p id="coordinate-status" class="location-status" role="status">No pickup gate selected</p>
-                  <div id="map-slot" class="map-slot"></div>
-                  <a id="selected-location-link" class="pin-link" target="_blank" rel="noopener noreferrer" hidden>View pickup gate in Google Maps</a>
-                  <div id="gate-review" class="gate-review" hidden>
-                    <p>Open the exact pin above and check that it marks your vehicle entrance before confirming.</p>
-                    <button id="confirm-gate" class="secondary" type="button">Confirm this vehicle gate</button>
+                  <p class="gate-status" id="coordinate-status" role="status">
+                    No pickup gate selected
+                  </p>
+                  <div class="map-slot" id="map-slot"></div>
+                  <div class="cand" id="gate-card" hidden>
+                    <p class="src" id="gate-source"></p>
+                    <p class="co" id="gate-coordinates"></p>
+                    <div class="gate-review" id="gate-review" hidden>
+                      <p class="chk-t">
+                        Check that this pin sits on the entrance our vehicle can
+                        use. You can adjust it on the map.
+                      </p>
+                      <button
+                        class="vd gate-confirm"
+                        id="confirm-gate"
+                        type="button"
+                      >
+                        Confirm this vehicle gate
+                      </button>
+                    </div>
+                    <div class="acts">
+                      <span class="okb" id="gate-confirmed" hidden
+                        >Vehicle gate confirmed</span
+                      >
+                      <a
+                        class="tl"
+                        id="selected-location-link"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        hidden
+                        >View in Google Maps<span class="vh">
+                          (new tab)</span
+                        ></a
+                      >
+                      <button type="button" class="tl" id="adjust-gate">
+                        Adjust on map
+                      </button>
+                      <button type="button" class="tl" id="change-gate">
+                        Change
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <div id="dropoff-reuse" class="transport-location-reuse" hidden>
-                  <label class="reuse-checkbox">
-                    <input type="checkbox" id="same-dropoff" checked>
-                    <span>Use pickup location for drop-off</span>
-                  </label>
+
+                <div class="reuse" id="dropoff-reuse" hidden>
+                  <label class="chk"
+                    ><input type="checkbox" id="same-dropoff" checked /><span
+                      class="cb"
+                      aria-hidden="true"
+                    ></span
+                    ><span
+                      ><b>Drop-off at the same gate</b><br />We bring your dog
+                      back to the pickup gate.</span
+                    ></label
+                  >
                 </div>
-                <div id="dropoff-location" class="transport-location-panel" hidden>
-                  <h3>Drop-off location</h3>
-                  <p>Where should we bring your dog after boarding?</p>
-                  <div class="gate-methods">
-                    <button type="button" class="gate-primary" id="dropoff-choose-map" aria-controls="gate-picker" aria-expanded="false"><span>Choose on map</span><small>Move the pin to your exact vehicle gate</small></button>
-                    <details class="google-gate" id="dropoff-google-gate">
-                      <summary>Find your gate in Google Maps</summary>
-                      <div class="google-gate-steps">
-                        <ol>
-                          <li>Search for your address or area.</li>
-                          <li>Touch and hold your exact vehicle entrance to drop a pin.</li>
-                          <li>Tap <strong>Share → Copy link</strong>.</li>
-                          <li>Return to Apex and paste the link below to review and confirm your gate.</li>
-                        </ol>
-                        <a class="maps-button" id="dropoff-open-google-maps" href="https://www.google.com/maps/search/?api=1&amp;query=Islamabad%20Rawalpindi" target="_blank" rel="noopener noreferrer">Open Google Maps <span aria-hidden="true">↗</span></a>
-                        <label class="maps-link-label" for="dropoff-maps-link">Paste your copied gate link</label>
-                        <input id="dropoff-maps-link" type="text" maxlength="2048" autocomplete="off" spellcheck="false" aria-describedby="dropoff-maps-help dropoff-coordinate-status" placeholder="Link or coordinates">
-                        <p class="location-help" id="dropoff-maps-help">If the link has no exact pin, paste the pin’s latitude, longitude.</p>
+
+                <div class="gate" id="dropoff-location" hidden>
+                  <div class="gate-h">
+                    <h3>Drop-off gate</h3>
+                    <span class="gs" id="dropoff-gate-state">Not set</span>
+                  </div>
+                  <p class="gp">
+                    Where we bring your dog after the stay. The exact entrance,
+                    not a street or area.
+                  </p>
+                  <div>
+                    <div class="methods">
+                      <button
+                        type="button"
+                        class="m-map"
+                        id="dropoff-choose-map"
+                        aria-controls="gate-picker"
+                        aria-expanded="false"
+                      >
+                        <span class="ico"
+                          ><svg
+                            width="22"
+                            height="22"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path
+                              d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"
+                            ></path>
+                            <path d="M9 4v14M15 6v14"></path></svg></span
+                        ><span
+                          ><b>Choose on map</b
+                          ><small>Move the pin onto your gate</small></span
+                        >
+                      </button>
+                      <button type="button" class="m-gps" id="dropoff-locate">
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.8"
+                          stroke-linecap="round"
+                          aria-hidden="true"
+                        >
+                          <circle cx="12" cy="12" r="3.5"></circle>
+                          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+                          <circle cx="12" cy="12" r="7.5"></circle></svg
+                        >Use my current location
+                      </button>
+                    </div>
+                    <details class="how" id="dropoff-google-gate">
+                      <summary>How to copy your gate’s pin</summary>
+                      <ol>
+                        <li>Open Google Maps and find your home.</li>
+                        <li>
+                          Zoom in, then touch and hold your vehicle gate until a
+                          red pin drops.
+                        </li>
+                        <li>Tap Share, then Copy link.</li>
+                        <li>Come back here and paste it above.</li>
+                      </ol>
+                    </details>
+                    <div class="f linkrow" data-f="dropoffLink">
+                      <label for="dropoff-maps-link"
+                        >Or paste a Google Maps pin</label
+                      >
+                      <div class="lk">
+                        <input
+                          id="dropoff-maps-link"
+                          class="in"
+                          aria-describedby="dropoff-coordinate-status"
+                          type="text"
+                          maxlength="2048"
+                          autocomplete="off"
+                          spellcheck="false"
+                          placeholder="Google Maps link, or latitude, longitude"
+                        /><a
+                          class="gmaps"
+                          id="dropoff-open-google-maps"
+                          href="https://www.google.com/maps/search/?api=1&amp;query=Islamabad%20Rawalpindi"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          >Open Google Maps<svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M7 17 17 7M9 7h8v8"></path></svg
+                          ><span class="vh"> (new tab)</span></a
+                        >
                       </div>
-                    </details>
-                    <button type="button" class="secondary gate-gps" id="dropoff-locate">Use my current location</button>
+                      <p class="f-err" hidden></p>
+                    </div>
                   </div>
-                  <p id="dropoff-coordinate-status" class="location-status" role="status">No drop-off gate selected</p>
-                  <div id="dropoff-map-slot" class="map-slot"></div>
-                  <a id="dropoff-selected-location-link" class="pin-link" target="_blank" rel="noopener noreferrer" hidden>View drop-off gate in Google Maps</a>
-                  <div id="dropoff-gate-review" class="gate-review" hidden>
-                    <p>Open the exact pin above and check that it marks your vehicle entrance before confirming.</p>
-                    <button id="dropoff-confirm-gate" class="secondary" type="button">Confirm this vehicle gate</button>
+                  <p
+                    class="gate-status"
+                    id="dropoff-coordinate-status"
+                    role="status"
+                  >
+                    No drop-off gate selected
+                  </p>
+                  <div class="map-slot" id="dropoff-map-slot"></div>
+                  <div class="cand" id="dropoff-gate-card" hidden>
+                    <p class="src" id="dropoff-gate-source"></p>
+                    <p class="co" id="dropoff-gate-coordinates"></p>
+                    <div class="gate-review" id="dropoff-gate-review" hidden>
+                      <p class="chk-t">
+                        Check that this pin sits on the entrance our vehicle can
+                        use. You can adjust it on the map.
+                      </p>
+                      <button
+                        class="vd gate-confirm"
+                        id="dropoff-confirm-gate"
+                        type="button"
+                      >
+                        Confirm this vehicle gate
+                      </button>
+                    </div>
+                    <div class="acts">
+                      <span class="okb" id="dropoff-gate-confirmed" hidden
+                        >Vehicle gate confirmed</span
+                      >
+                      <a
+                        class="tl"
+                        id="dropoff-selected-location-link"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        hidden
+                        >View in Google Maps<span class="vh">
+                          (new tab)</span
+                        ></a
+                      >
+                      <button type="button" class="tl" id="dropoff-adjust-gate">
+                        Adjust on map
+                      </button>
+                      <button type="button" class="tl" id="dropoff-change-gate">
+                        Change
+                      </button>
+                    </div>
                   </div>
                 </div>
+
+                <p class="hint transport-note">
+                  Transport is quoted separately after we review the route to
+                  your selected gate.
+                </p>
+                <div class="nav-row">
+                  <button type="button" class="back" data-prev="3">
+                    <svg
+                      class="chv-l"
+                      width="7"
+                      height="14"
+                      viewBox="0 0 7 14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <g transform="translate(0 1)">
+                        <path
+                          d="M3.3 1.1 L6.2 5.5"
+                          stroke-width="1.35"
+                          opacity=".75"
+                        ></path>
+                        <path d="M6.2 5.5 L1.2 11.95" stroke-width="1.6"></path>
+                      </g></svg
+                    >Back</button
+                  ><button type="button" class="vd" data-next="3">
+                    Continue<svg
+                      class="chv"
+                      width="7"
+                      height="14"
+                      viewBox="0 0 7 14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <g transform="translate(0 1)">
+                        <path
+                          d="M3.3 1.1 L6.2 5.5"
+                          stroke-width="1.35"
+                          opacity=".75"
+                        ></path>
+                        <path d="M6.2 5.5 L1.2 11.95" stroke-width="1.6"></path>
+                      </g>
+                    </svg>
+                  </button>
+                </div>
               </div>
-            </fieldset>
-            <p class="fineprint">We'll confirm transport charges separately before your booking is finalized.</p>
-          </section>
-          <section class="panel" id="check-and-send" tabindex="-1" aria-labelledby="check-and-send-heading">
-            <div class="step-heading"><span class="step" aria-hidden="true">4</span><h2 id="check-and-send-heading">Check and send</h2></div>
-            <div class="subsection">
-              <h3>Your details</h3>
-              <div class="fields">
-                <label>Full name <input name="customerName" autocomplete="name" maxlength="200" required></label>
-                <label>Phone or WhatsApp number <input name="phone" type="tel" autocomplete="tel" maxlength="40" required></label>
-                <label>Email (optional) <input name="email" type="email" autocomplete="email" maxlength="254"></label>
-                <label>Home address <input name="ownerAddress" autocomplete="street-address" maxlength="600" required></label>
-                <label>Emergency contact number <input name="emergencyContactPhone" type="tel" maxlength="120" required></label>
+            </section>
+
+            <!-- STEP 4 -->
+            <section class="step locked" data-step="4" aria-labelledby="st4">
+              <button
+                type="button"
+                class="st-h"
+                data-step-h="4"
+                aria-controls="booking-step-4"
+                aria-expanded="false"
+                disabled
+              >
+                <span class="st-n">4</span
+                ><span class="st-t"
+                  ><b id="st4">Care</b
+                  ><span data-step-sum="4"
+                    >Routine, health and anything we should know</span
+                  ></span
+                ><span class="st-e">Edit</span>
+              </button>
+              <div class="st-b" id="booking-step-4" hidden>
+                <p class="st-lede">
+                  Tell us about their routine, health and any sensitivities.
+                </p>
+                <div class="sum-err" data-sum-err role="alert" hidden>
+                  Some answers need attention.
+                </div>
+                <div class="traits">
+                  <fieldset class="trait" data-f="trait_friendly">
+                    <legend>Friendly with other dogs</legend>
+                    <div class="seg">
+                      <label
+                        ><input
+                          type="radio"
+                          name="trait_friendly"
+                          value="Yes"
+                          required
+                        />Yes</label
+                      ><label
+                        ><input
+                          type="radio"
+                          name="trait_friendly"
+                          value="No"
+                        />No</label
+                      >
+                    </div>
+                  </fieldset>
+                  <fieldset
+                    class="trait"
+                    data-f="trait_fears"
+                    data-detail="Fears or anxiety"
+                  >
+                    <legend>Fears or anxiety</legend>
+                    <div class="seg">
+                      <label
+                        ><input
+                          type="radio"
+                          name="trait_fears"
+                          value="Yes"
+                          required
+                        />Yes</label
+                      ><label
+                        ><input
+                          type="radio"
+                          name="trait_fears"
+                          value="No"
+                        />No</label
+                      >
+                    </div>
+                  </fieldset>
+                  <fieldset
+                    class="trait"
+                    data-f="trait_climber"
+                    data-detail="Climbs or escapes"
+                  >
+                    <legend>Climbs or escapes enclosures</legend>
+                    <div class="seg">
+                      <label
+                        ><input
+                          type="radio"
+                          name="trait_climber"
+                          value="Yes"
+                          required
+                        />Yes</label
+                      ><label
+                        ><input
+                          type="radio"
+                          name="trait_climber"
+                          value="No"
+                        />No</label
+                      >
+                    </div>
+                  </fieldset>
+                  <fieldset
+                    class="trait"
+                    data-f="trait_foodSensitivities"
+                    data-detail="Food sensitivities"
+                  >
+                    <legend>Food sensitivities</legend>
+                    <div class="seg">
+                      <label
+                        ><input
+                          type="radio"
+                          name="trait_foodSensitivities"
+                          value="Yes"
+                          required
+                        />Yes</label
+                      ><label
+                        ><input
+                          type="radio"
+                          name="trait_foodSensitivities"
+                          value="No"
+                        />No</label
+                      >
+                    </div>
+                  </fieldset>
+                  <fieldset class="trait" data-f="trait_barksExcessively">
+                    <legend>Excessive barking</legend>
+                    <div class="seg">
+                      <label
+                        ><input
+                          type="radio"
+                          name="trait_barksExcessively"
+                          value="Yes"
+                          required
+                        />Yes</label
+                      ><label
+                        ><input
+                          type="radio"
+                          name="trait_barksExcessively"
+                          value="No"
+                        />No</label
+                      >
+                    </div>
+                  </fieldset>
+                  <fieldset
+                    class="trait"
+                    data-f="trait_allergies"
+                    data-detail="Allergies"
+                  >
+                    <legend>Allergies</legend>
+                    <div class="seg">
+                      <label
+                        ><input
+                          type="radio"
+                          name="trait_allergies"
+                          value="Yes"
+                          required
+                        />Yes</label
+                      ><label
+                        ><input
+                          type="radio"
+                          name="trait_allergies"
+                          value="No"
+                        />No</label
+                      >
+                    </div>
+                  </fieldset>
+                  <fieldset
+                    class="trait"
+                    data-f="trait_biteHistory"
+                    data-detail="Bite history"
+                  >
+                    <legend>Bite history</legend>
+                    <div class="seg">
+                      <label
+                        ><input
+                          type="radio"
+                          name="trait_biteHistory"
+                          value="Yes"
+                          required
+                        />Yes</label
+                      ><label
+                        ><input
+                          type="radio"
+                          name="trait_biteHistory"
+                          value="No"
+                        />No</label
+                      >
+                    </div>
+                  </fieldset>
+                  <fieldset
+                    class="trait"
+                    data-f="trait_medicalConditions"
+                    data-detail="Medical conditions"
+                  >
+                    <legend>Medical conditions</legend>
+                    <div class="seg">
+                      <label
+                        ><input
+                          type="radio"
+                          name="trait_medicalConditions"
+                          value="Yes"
+                          required
+                        />Yes</label
+                      ><label
+                        ><input
+                          type="radio"
+                          name="trait_medicalConditions"
+                          value="No"
+                        />No</label
+                      >
+                    </div>
+                  </fieldset>
+                </div>
+                <p class="note" data-yes-note hidden>
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"
+                    ></path></svg
+                  ><span
+                    >You answered yes to <b data-yes-list></b>. A few words
+                    below help staff prepare.</span
+                  >
+                </p>
+                <div class="grid">
+                  <div class="f full" data-f="medicationFeedingInstructions">
+                    <label for="bk-med"
+                      >Medication and feeding instructions
+                      <span class="opt">(optional)</span></label
+                    ><textarea
+                      id="bk-med"
+                      class="in"
+                      name="medicationFeedingInstructions"
+                      maxlength="3000"
+                      placeholder="Food, portions, times, medicines and doses"
+                    ></textarea>
+                  </div>
+                  <div class="f full" data-f="specialInstructions">
+                    <label for="bk-spec"
+                      >Anything else we should know?
+                      <span class="opt">(optional)</span></label
+                    ><textarea
+                      id="bk-spec"
+                      class="in"
+                      name="specialInstructions"
+                      maxlength="3000"
+                    ></textarea>
+                  </div>
+                </div>
+                <div class="nav-row">
+                  <button type="button" class="back" data-prev="4">
+                    <svg
+                      class="chv-l"
+                      width="7"
+                      height="14"
+                      viewBox="0 0 7 14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <g transform="translate(0 1)">
+                        <path
+                          d="M3.3 1.1 L6.2 5.5"
+                          stroke-width="1.35"
+                          opacity=".75"
+                        ></path>
+                        <path d="M6.2 5.5 L1.2 11.95" stroke-width="1.6"></path>
+                      </g></svg
+                    >Back</button
+                  ><button type="button" class="vd" data-next="4">
+                    Continue<svg
+                      class="chv"
+                      width="7"
+                      height="14"
+                      viewBox="0 0 7 14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <g transform="translate(0 1)">
+                        <path
+                          d="M3.3 1.1 L6.2 5.5"
+                          stroke-width="1.35"
+                          opacity=".75"
+                        ></path>
+                        <path d="M6.2 5.5 L1.2 11.95" stroke-width="1.6"></path>
+                      </g>
+                    </svg>
+                  </button>
+                </div>
               </div>
-            </div>
-            <div class="subsection">
-              <h3>Health and care</h3>
-              <div class="fields">
-                <label>Gender <input name="gender" maxlength="80" required></label>
-                <label>Age <input name="age" maxlength="100" required></label>
-                <label>Vaccination status
-                  <select name="vaccinationStatus" required><option value="">Choose one</option>
-                    <option>Fully vaccinated and booster is up to date</option>
-                    <option>Fully vaccinated without boosters</option>
-                    <option>Partially vaccinated</option><option>None</option>
-                  </select>
-                </label>
-                <fieldset class="field-choice"><legend>Has your dog ever had canine distemper?</legend><div class="choice-row">
-                  <label class="option"><input type="radio" name="distemperHistory" value="Yes" required><span>Yes</span></label>
-                  <label class="option"><input type="radio" name="distemperHistory" value="No"><span>No</span></label>
-                  <label class="option"><input type="radio" name="distemperHistory" value="Not Sure"><span>Not sure</span></label>
-                </div></fieldset>
-                <label>Vet phone (optional) <input name="veterinarianPhone" type="tel" maxlength="120"></label>
+            </section>
+
+            <!-- STEP 5 -->
+            <section class="step locked" data-step="5" aria-labelledby="st5">
+              <button
+                type="button"
+                class="st-h"
+                data-step-h="5"
+                aria-controls="booking-step-5"
+                aria-expanded="false"
+                disabled
+              >
+                <span class="st-n">5</span
+                ><span class="st-t"
+                  ><b id="st5">Your details</b
+                  ><span data-step-sum="5"
+                    >Contact information and boarding terms</span
+                  ></span
+                ><span class="st-e">Edit</span>
+              </button>
+              <div class="st-b" id="booking-step-5" hidden>
+                <div class="sum-err" data-sum-err role="alert" hidden>
+                  Some answers need attention.
+                </div>
+                <div class="grid">
+                  <div class="f" data-f="customerName">
+                    <label for="bk-name"
+                      >Full name<span class="req" aria-hidden="true"
+                        >*</span
+                      ></label
+                    ><input
+                      id="bk-name"
+                      class="in"
+                      name="customerName"
+                      autocomplete="name"
+                      maxlength="200"
+                      required
+                    />
+                    <p class="f-err" hidden></p>
+                  </div>
+                  <div class="f" data-f="phone">
+                    <label for="bk-phone"
+                      >WhatsApp number<span class="req" aria-hidden="true"
+                        >*</span
+                      ></label
+                    ><input
+                      id="bk-phone"
+                      class="in"
+                      type="tel"
+                      name="phone"
+                      autocomplete="tel"
+                      maxlength="40"
+                      required
+                      placeholder="03XX XXXXXXX"
+                      aria-describedby="bk-phone-h"
+                    />
+                    <p class="hint" id="bk-phone-h">
+                      We use WhatsApp to send your booking updates and approved
+                      invoice.
+                    </p>
+                    <p class="f-err" hidden></p>
+                  </div>
+                  <div class="f" data-f="email">
+                    <label for="bk-email"
+                      >Email <span class="opt">(optional)</span></label
+                    ><input
+                      id="bk-email"
+                      class="in"
+                      type="email"
+                      name="email"
+                      autocomplete="email"
+                      maxlength="254"
+                    />
+                    <p class="f-err" hidden></p>
+                  </div>
+                  <div class="f" data-f="emergencyContactPhone">
+                    <label for="bk-emer"
+                      >Emergency contact number<span
+                        class="req"
+                        aria-hidden="true"
+                        >*</span
+                      ></label
+                    ><input
+                      id="bk-emer"
+                      class="in"
+                      type="tel"
+                      name="emergencyContactPhone"
+                      maxlength="120"
+                      required
+                    />
+                    <p class="hint">
+                      Someone other than you, in case we can’t reach you.
+                    </p>
+                    <p class="f-err" hidden></p>
+                  </div>
+                  <div class="f full" data-f="ownerAddress">
+                    <label for="bk-addr"
+                      >Home address<span class="req" aria-hidden="true"
+                        >*</span
+                      ></label
+                    ><input
+                      id="bk-addr"
+                      class="in"
+                      name="ownerAddress"
+                      autocomplete="street-address"
+                      maxlength="600"
+                      required
+                    />
+                    <p class="f-err" hidden></p>
+                  </div>
+                  <div class="f full">
+                    <p class="q" id="bk-terms-h">Boarding terms</p>
+                    <div
+                      class="terms"
+                      tabindex="0"
+                      role="region"
+                      aria-labelledby="bk-terms-h"
+                    >
+                      <ol>
+                        <li>
+                          I will allow Apex Kennel staff to choose an
+                          appropriate supervised playgroup or playmate for my
+                          dog while in the exercise yard. If I give my
+                          permission for my dog to have a playmate, I understand
+                          that there is a minimal risk of injury to my dog. I
+                          hold Apex Kennels harmless in case of such injury.
+                        </li>
+                        <li>
+                          I authorize Apex Kennels to do whatever is deemed
+                          necessary for the health and well-being of my pet and
+                          I will pay for any and all expenses relating to my
+                          pet. I understand that if my pet needs medical
+                          attention, my emergency contacts will be called. I
+                          also understand that my emergency contacts will not be
+                          called for minor incidents that do not require
+                          immediate medical attention.
+                        </li>
+                        <li>
+                          Boarding may be stressful for some dogs. A change in
+                          environment, water, and possibly different food, as
+                          well as a noisy dog next door can sometimes cause a
+                          stress-related colitis resulting in soft stools. There
+                          is no known prevention for this condition. Apex
+                          Kennels will monitor your pet and if soft stools
+                          occur, your pet will be given medication according to
+                          the vet’s prescription.
+                        </li>
+                        <li>
+                          I understand that Apex Kennels is going to act in the
+                          best interest of my pet. A daily inspection of my
+                          pet’s physical condition will be done. If my pet needs
+                          any care which will enable it to be more comfortable
+                          during its stay, that service will be performed. Some
+                          examples: bath, pedicure, ear cleaning, daily eye
+                          cleaning, etc.
+                        </li>
+                        <li>
+                          I hold Apex Kennels and staff completely harmless in
+                          the event of sickness, loss or injury of my dog.
+                        </li>
+                        <li>
+                          I will be completely financially responsible if my dog
+                          causes any property damage while boarding at Apex
+                          Kennels.
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                  <div class="f full" data-f="termsAccepted">
+                    <label class="chk"
+                      ><input
+                        type="checkbox"
+                        name="termsAccepted"
+                        required
+                      /><span class="cb" aria-hidden="true"></span
+                      ><span
+                        >I have read and agree to the boarding terms above.<span
+                          class="req"
+                          aria-hidden="true"
+                          >*</span
+                        ></span
+                      ></label
+                    >
+                    <p class="f-err" hidden></p>
+                  </div>
+                  <div class="f full" data-f="whatsappServiceOptIn">
+                    <label class="chk"
+                      ><input
+                        type="checkbox"
+                        name="whatsappServiceOptIn"
+                        required
+                      /><span class="cb" aria-hidden="true"></span
+                      ><span
+                        >I agree to receive booking updates and my approved
+                        invoice from Apex Kennels on WhatsApp at the number
+                        provided.<span class="req" aria-hidden="true"
+                          >*</span
+                        ></span
+                      ></label
+                    >
+                    <p class="f-err" hidden></p>
+                  </div>
+                  <div class="full" id="turnstile" hidden></div>
+                </div>
+                <p class="hint">
+                  This is a booking request, not a confirmed reservation. We’ll
+                  contact you about availability, care needs and any additional
+                  charges.
+                </p>
+                <div class="nav-row">
+                  <button type="button" class="back" data-prev="5">
+                    <svg
+                      class="chv-l"
+                      width="7"
+                      height="14"
+                      viewBox="0 0 7 14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <g transform="translate(0 1)">
+                        <path
+                          d="M3.3 1.1 L6.2 5.5"
+                          stroke-width="1.35"
+                          opacity=".75"
+                        ></path>
+                        <path d="M6.2 5.5 L1.2 11.95" stroke-width="1.6"></path>
+                      </g></svg
+                    >Back</button
+                  ><button
+                    type="submit"
+                    class="send"
+                    id="submit"
+                    disabled
+                    aria-describedby="preview"
+                  >
+                    <span class="cta-fx" aria-hidden="true"></span
+                    ><span class="send-l" data-send-l>Send booking request</span
+                    ><svg
+                      class="ar-b"
+                      width="34"
+                      height="18"
+                      viewBox="0 0 34 18"
+                      aria-hidden="true"
+                    >
+                      <g
+                        class="sh"
+                        transform="translate(.5 .65)"
+                        fill="none"
+                        stroke="#7A1424"
+                        stroke-width="2.6"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path
+                          d="M6.8 12.35 C11 12.35 12.4 6.4 17 6.4 C21 6.4 22.4 9 31.4 9"
+                        ></path>
+                        <path d="M27.9 5.2 L32 9 L27.9 12.8"></path>
+                        <circle
+                          cx="2.3"
+                          cy="12.35"
+                          r="2"
+                          fill="#7A1424"
+                          stroke="none"
+                        ></circle>
+                      </g>
+                      <g
+                        class="fg"
+                        fill="none"
+                        stroke="#FD6E6E"
+                        stroke-width="2.6"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path
+                          d="M6.8 12.35 C11 12.35 12.4 6.4 17 6.4 C21 6.4 22.4 9 31.4 9"
+                        ></path>
+                        <path d="M27.9 5.2 L32 9 L27.9 12.8"></path>
+                        <circle
+                          cx="2.3"
+                          cy="12.35"
+                          r="2"
+                          fill="#FD6E6E"
+                          stroke="none"
+                        ></circle>
+                      </g>
+                    </svg>
+                  </button>
+                </div>
+                <p class="closed-msg" id="preview" role="status">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    aria-hidden="true"
+                    style="flex: none; margin-top: 1px"
+                  >
+                    <rect x="5" y="11" width="14" height="10" rx="2"></rect>
+                    <path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg
+                  ><span data-booking-availability
+                    ><b>Online requests are currently unavailable.</b></span
+                  >
+                </p>
+                <p id="message" class="sum-err" role="alert" hidden></p>
               </div>
-            </div>
-            <div class="traits">
-              <fieldset class="trait"><legend>Friendly</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_friendly" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_friendly" value="No"><span>No</span></label></div></fieldset>
-              <fieldset class="trait"><legend>Fears / anxiety</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_fears" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_fears" value="No"><span>No</span></label></div></fieldset>
-              <fieldset class="trait"><legend>Climbs or escapes enclosures</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_climber" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_climber" value="No"><span>No</span></label></div></fieldset>
-              <fieldset class="trait"><legend>Food sensitivities</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_foodSensitivities" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_foodSensitivities" value="No"><span>No</span></label></div></fieldset>
-              <fieldset class="trait"><legend>Excessive barking</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_barksExcessively" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_barksExcessively" value="No"><span>No</span></label></div></fieldset>
-              <fieldset class="trait"><legend>Allergies</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_allergies" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_allergies" value="No"><span>No</span></label></div></fieldset>
-              <fieldset class="trait"><legend>Bite history</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_biteHistory" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_biteHistory" value="No"><span>No</span></label></div></fieldset>
-              <fieldset class="trait"><legend>Medical conditions</legend><div class="choice-row"><label class="option"><input type="radio" name="trait_medicalConditions" value="Yes" required><span>Yes</span></label><label class="option"><input type="radio" name="trait_medicalConditions" value="No"><span>No</span></label></div></fieldset>
-            </div>
-            <div class="notes">
-              <label>Medication and feeding instructions (optional) <textarea name="medicationFeedingInstructions" maxlength="3000"></textarea></label>
-              <label>Anything else we should know? (optional) <textarea name="specialInstructions" maxlength="3000"></textarea></label>
-            </div>
-            <div class="finish">
-              <details class="terms" id="boarding-terms"><summary>Read boarding terms</summary>
-                <ol>
-                  <li>I will allow Apex Kennel staff to choose an appropriate supervised playgroup or playmate for my dog while in the exercise yard. If I give my permission for my dog to have a playmate, I understand that there is a minimal risk of injury to my dog. I hold Apex Kennels harmless in case of such injury.</li>
-                  <li>I authorize Apex Kennels to do whatever is deemed necessary for the health and well-being of my pet and I will pay for any and all expenses relating to my pet. I understand that if my pet needs medical attention, my emergency contacts will be called. I also understand that my emergency contacts will not be called for minor incidents that do not require immediate medical attention.</li>
-                  <li>Boarding may be stressful for some dogs. A change in environment, water, and possibly different food, as well as a noisy dog next door can sometimes cause a stress-related colitis resulting in soft stools. There is no known prevention for this condition. Apex Kennels will monitor your pet and if soft stools occur, your pet will be given medication according to the vet's prescription.</li>
-                  <li>I understand that Apex Kennels is going to act in the best interest of my pet. A daily inspection of my pet's physical condition will be done. If my pet needs any care which will enable it to be more comfortable during its stay, that service will be performed. Some examples: bath, pedicure, ear cleaning, daily eye cleaning, etc.</li>
-                  <li>I hold Apex Kennels and staff completely harmless in the event of sickness, loss or injury of my dog.</li>
-                  <li>I will be completely financially responsible if my dog causes any property damage while boarding at Apex Kennels.</li>
-                </ol>
-              </details>
-              <label class="confirm"><input name="termsAccepted" type="checkbox" required><span>I have read and agree to the boarding terms.</span></label>
-              <label class="confirm"><input name="whatsappInvoiceOptIn" type="checkbox"><span>Send me booking updates and my approved invoice on WhatsApp at the number I provided (optional).</span></label>
-              <dl class="estimate">
-                <dt>Boarding estimate</dt>
-                <dd><output id="boarding-estimate">Choose dates and a space</output></dd>
-                <dt>Transport</dt>
-                <dd id="transport-estimate">Choose a transport option</dd>
+            </section>
+          </form>
+
+          <aside class="side" data-side aria-label="Stay summary">
+            <div class="ticket" id="stay-ticket">
+              <p class="lbl">Stay summary</p>
+              <p class="tk-name empty" data-tk-name>
+                Your dog<span class="pt">.</span>
+              </p>
+              <p class="tk-dates" data-tk-dates>Dates not set</p>
+              <span class="sep" aria-hidden="true"></span>
+              <dl class="tk-rows">
+                <div>
+                  <dt>Billed days</dt>
+                  <dd data-tk-days class="muted">—</dd>
+                </div>
+                <div>
+                  <dt>Space</dt>
+                  <dd data-tk-space class="muted">Not chosen</dd>
+                </div>
+                <div>
+                  <dt>Rate</dt>
+                  <dd data-tk-board class="muted">—</dd>
+                </div>
+                <div>
+                  <dt>Grooming</dt>
+                  <dd>Free</dd>
+                </div>
+                <div>
+                  <dt>Transport</dt>
+                  <dd data-tk-trans class="muted">Not chosen</dd>
+                </div>
               </dl>
-              <p class="fineprint">The front desk confirms availability and the final price before anything is booked.</p>
-              <div id="turnstile"></div>
-              <div class="sendrow">
-                <button id="submit" type="submit" disabled aria-describedby="preview">Send booking request</button>
+              <div class="tk-tot">
+                <span>Boarding<br />subtotal</span
+                ><span class="tk-v"
+                  ><s class="tk-was" data-tk-was hidden></s
+                  ><b data-tk-tot>Rs 0</b></span
+                >
               </div>
-              <div id="message" class="message" role="status" aria-live="polite" hidden></div>
+              <p class="tk-pkg" data-tk-pkg hidden>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m5 12 5 5 9-10"></path></svg
+                ><span data-package-copy></span>
+              </p>
+              <p class="tk-note">
+                Your request is subject to availability. Transport, if
+                requested, is quoted separately.
+              </p>
             </div>
-          </section>
-        </form>
-        <section class="complete panel" id="complete" tabindex="-1" hidden>
-          <span class="eyebrow">REQUEST RECEIVED</span><h2>Thanks. We'll be in touch.</h2>
-          <p>Your request is with Apex Kennels. We'll review the details and contact you to confirm the next steps.</p>
-          <p class="fineprint">Reference: <span id="reference"></span></p>
-        </section>
+            <nav class="plist" aria-label="Booking steps">
+              <button type="button" data-pl="1" class="cur">
+                <i aria-hidden="true"></i>Dates &amp; space
+              </button>
+              <button type="button" data-pl="2" disabled>
+                <i aria-hidden="true"></i>Your dog
+              </button>
+              <button type="button" data-pl="3" disabled>
+                <i aria-hidden="true"></i>Transport
+              </button>
+              <button type="button" data-pl="4" disabled>
+                <i aria-hidden="true"></i>Care
+              </button>
+              <button type="button" data-pl="5" disabled>
+                <i aria-hidden="true"></i>Your details
+              </button>
+            </nav>
+          </aside>
+        </div>
+        <div class="mbar">
+          <span
+            ><small data-mb-t>Boarding subtotal</small
+            ><b data-mb-v>Rs 0</b></span
+          ><button
+            type="button"
+            data-sum-open
+            aria-haspopup="dialog"
+            aria-controls="mobile-summary"
+          >
+            Summary
+          </button>
+        </div>
       </div>
-    </div>
-    <dialog id="gate-picker" class="gate-picker" aria-labelledby="gate-picker-title" aria-describedby="map-instructions">
-      <div class="map-heading"><div><h4 id="gate-picker-title">Choose your pickup gate</h4><p id="map-instructions">Move the map beneath the pin, or tap your gate. Zoom in to the vehicle entrance. Arrow keys also move the map.</p></div><button id="map-close" class="secondary" type="button" aria-label="Close gate map">Close</button></div>
-      <div class="map-surface"><div id="map-canvas" aria-label="Gate map"></div><svg class="gate-pin" aria-hidden="true" viewBox="0 0 32 40"><path fill="#fff" d="M16 0C7.2 0 0 7.2 0 16c0 10 16 24 16 24s16-14 16-24C32 7.2 24.8 0 16 0Z"/><path fill="#120709" d="M16 3C8.8 3 3 8.8 3 16c0 7.2 10.1 18.1 13 21 2.9-2.9 13-13.8 13-21 0-7.2-5.8-13-13-13Z"/><circle cx="16" cy="15" r="5" fill="#fff"/></svg><span id="map-loading" class="map-loading">Loading map…</span></div>
-      <div class="map-footer"><p id="map-status" class="location-status" role="status">Move the map to your vehicle gate.</p><button id="map-confirm" class="gate-primary" type="button" disabled>Confirm this vehicle gate</button><button id="map-fallback" type="button" class="map-fallback">Use Google Maps instead</button><p class="map-attribution"><a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> · <a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">© OpenMapTiles</a> · Data from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a></p></div>
+
+      <!-- confirmation -->
+      <dialog
+        id="mobile-summary"
+        class="summary-dialog"
+        aria-label="Stay summary"
+      >
+        <button type="button" class="sum-close" data-sum-close>
+          Close summary
+        </button>
+        <div data-mobile-ticket></div>
+      </dialog>
+      <section
+        class="wrap done-v"
+        id="complete"
+        hidden
+        aria-labelledby="bk-done-h"
+        tabindex="-1"
+      >
+        <div class="done-grid">
+          <div>
+            <h2 id="bk-done-h">Request received<span class="pt">.</span></h2>
+            <p class="sub">
+              We’ve received your dog’s details. We’ll contact you to review
+              availability and confirm the next steps.
+            </p>
+            <div class="done-acts">
+              <a class="vd" href="/"
+                >Back to Apex Kennels<svg
+                  class="chv"
+                  width="7"
+                  height="14"
+                  viewBox="0 0 7 14"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <g transform="translate(0 1)">
+                    <path
+                      d="M3.3 1.1 L6.2 5.5"
+                      stroke-width="1.35"
+                      opacity=".75"
+                    ></path>
+                    <path d="M6.2 5.5 L1.2 11.95" stroke-width="1.6"></path>
+                  </g></svg></a
+              ><button type="button" class="tl" data-restart>
+                Start another request
+              </button>
+            </div>
+            <dl class="sent-list">
+              <div>
+                <dt>Reference</dt>
+                <dd id="reference"></dd>
+              </div>
+              <div>
+                <dt>Dates</dt>
+                <dd data-d-r1>—</dd>
+              </div>
+              <div>
+                <dt>Space</dt>
+                <dd data-d-r2>—</dd>
+              </div>
+              <div>
+                <dt>Transport</dt>
+                <dd data-d-r3>—</dd>
+              </div>
+              <div>
+                <dt>Boarding subtotal</dt>
+                <dd data-d-r4>—</dd>
+              </div>
+            </dl>
+          </div>
+          <div>
+            <div class="plq-stage rv">
+              <figure class="plq-fig" aria-label="Your dog’s suite plaque">
+                <div class="pq-tilt">
+                  <div class="pq" data-plaque>
+                    <span class="lum" aria-hidden="true"></span
+                    ><span class="spec" aria-hidden="true"></span>
+                    <span class="screw s1" aria-hidden="true"><i></i></span
+                    ><span class="screw s2" aria-hidden="true"><i></i></span>
+                    <div class="pq-h">
+                      <span class="mk" aria-hidden="true"></span
+                      ><span class="sl c" aria-hidden="true"></span>
+                      <div class="pq-t">
+                        <b data-d-space></b><span data-d-sub></span>
+                      </div>
+                    </div>
+                    <div class="npw">
+                      <span class="np-glow" aria-hidden="true"></span>
+                      <div class="np">
+                        <span class="np-tex" aria-hidden="true"></span
+                        ><span class="np-n" data-np-name></span
+                        ><span class="np-sw"
+                          ><span class="np-mid" aria-hidden="true"></span
+                          ><span class="sl" aria-hidden="true"></span></span
+                        ><span class="np-d" data-np-date></span>
+                      </div>
+                      <span class="np-ring" aria-hidden="true"></span>
+                    </div>
+                    <div class="pq-f">
+                      <span class="wd" data-d-days></span
+                      ><span class="code"
+                        ><svg
+                          width="168"
+                          height="32"
+                          viewBox="0 0 176 34"
+                          fill="#120709"
+                          aria-hidden="true"
+                        >
+                          <rect x="0" y="0" width="2.8" height="34"></rect>
+                          <rect x="5.1" y="0" width="1" height="34"></rect>
+                          <rect x="7.3" y="0" width="1.9" height="34"></rect>
+                          <rect x="11.5" y="0" width="2.8" height="34"></rect>
+                          <rect x="23" y="0" width="2.8" height="34"></rect>
+                          <rect x="27" y="0" width="1" height="34"></rect>
+                          <rect x="36.3" y="0" width="1" height="34"></rect>
+                          <rect x="39.6" y="0" width="1.9" height="34"></rect>
+                          <rect x="43.8" y="0" width="2.8" height="34"></rect>
+                          <rect x="47.8" y="0" width="1" height="34"></rect>
+                          <rect x="50" y="0" width="1.9" height="34"></rect>
+                          <rect x="53.1" y="0" width="2.8" height="34"></rect>
+                          <rect x="58.2" y="0" width="1" height="34"></rect>
+                          <rect x="60.4" y="0" width="1.9" height="34"></rect>
+                          <rect x="71.9" y="0" width="1.9" height="34"></rect>
+                          <rect x="75" y="0" width="2.8" height="34"></rect>
+                          <rect x="85.4" y="0" width="2.8" height="34"></rect>
+                          <rect x="89.4" y="0" width="1" height="34"></rect>
+                          <rect x="91.6" y="0" width="1.9" height="34"></rect>
+                          <rect x="95.8" y="0" width="2.8" height="34"></rect>
+                          <rect x="106.2" y="0" width="2.8" height="34"></rect>
+                          <rect x="111.3" y="0" width="1" height="34"></rect>
+                          <rect x="122.8" y="0" width="1" height="34"></rect>
+                          <rect x="125" y="0" width="1.9" height="34"></rect>
+                          <rect x="129.2" y="0" width="2.8" height="34"></rect>
+                          <rect x="133.2" y="0" width="1" height="34"></rect>
+                          <rect x="135.4" y="0" width="1.9" height="34"></rect>
+                          <rect x="139.6" y="0" width="2.8" height="34"></rect>
+                          <rect x="144.7" y="0" width="1" height="34"></rect>
+                          <rect x="148" y="0" width="1.9" height="34"></rect>
+                          <rect x="158.4" y="0" width="1.9" height="34"></rect>
+                          <rect
+                            x="162.6"
+                            y="0"
+                            width="2.8"
+                            height="34"
+                          ></rect></svg
+                      ></span>
+                    </div>
+                  </div>
+                </div>
+              </figure>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot rv">
+      <div class="wrap">
+        <div class="foot-top">
+          <a class="logo" href="/" aria-label="Apex Kennels, home"
+            ><span class="tile"><span class="mk"></span></span
+            ><span class="wm"><b>APEX</b><i>KENNELS</i></span></a
+          >
+          <nav aria-label="Footer">
+            <a href="/#boarding">Boarding</a><a href="/#camera">Camera cage</a
+            ><a href="/#transport">Transport</a><a href="/#contact">Contact</a>
+          </nav>
+          <div class="soc">
+            <a
+              href="https://wa.me/923360166683"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Message Apex Kennels on WhatsApp"
+              ><img
+                class="glyph g-wa"
+                src="/site/v106/whatsapp-powder.svg"
+                alt
+                width="20"
+                height="20" /></a
+            ><a
+              href="https://www.instagram.com/apex.kennel/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Apex Kennels on Instagram"
+              ><img
+                class="glyph g-ig"
+                src="/site/v106/instagram-powder.svg"
+                alt
+                width="20"
+                height="20" /></a
+            ><a
+              href="https://www.threads.com/@apex.kennel"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Apex Kennels on Threads"
+              ><img
+                class="glyph g-th"
+                src="/site/v106/threads-powder.svg"
+                alt
+                width="18"
+                height="20"
+            /></a>
+          </div>
+        </div>
+        <div class="foot-b">
+          <span>© 2026 Apex Kennels · Dog boarding near Bawli, Islamabad</span>
+        </div>
+      </div>
+    </footer>
+
+    <dialog
+      id="gate-picker"
+      class="gate-picker"
+      aria-labelledby="gate-picker-title"
+      aria-describedby="map-instructions"
+    >
+      <div class="map-heading">
+        <div>
+          <h4 id="gate-picker-title">Choose your pickup gate</h4>
+          <p id="map-instructions">
+            Move the map beneath the pin, or tap your gate. Zoom in to the
+            vehicle entrance. Arrow keys also move the map.
+          </p>
+        </div>
+        <button
+          id="map-close"
+          class="x"
+          type="button"
+          aria-label="Close gate map"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M6 6l12 12M18 6 6 18"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="map-surface">
+        <div id="map-canvas" aria-label="Gate map"></div>
+        <svg class="gate-pin" viewBox="0 0 40 50" aria-hidden="true">
+          <path
+            d="M20 49S38 31 38 19A18 18 0 0 0 2 19c0 12 18 30 18 30Z"
+            fill="#120709"
+          ></path>
+          <path
+            d="M20 45S35 29.5 35 19A15 15 0 0 0 5 19c0 10.5 15 26 15 26Z"
+            fill="#24121A"
+          ></path>
+          <circle cx="20" cy="19" r="6.5" fill="#FD6E6E"></circle>
+          <circle cx="20" cy="19" r="2.6" fill="#fff"></circle></svg
+        ><span id="map-loading" class="map-loading">Loading map…</span>
+      </div>
+      <div class="map-footer">
+        <p id="map-status" class="location-status" role="status">
+          Move the map to your vehicle gate.
+        </p>
+        <button id="map-confirm" class="vd map-confirm" type="button" disabled>
+          Confirm this vehicle gate</button
+        ><button id="map-fallback" type="button" class="map-fallback">
+          Use a Google Maps link or GPS instead
+        </button>
+        <p class="map-attribution">
+          <a
+            href="https://openfreemap.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >OpenFreeMap</a
+          >
+          ·
+          <a
+            href="https://openmaptiles.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >© OpenMapTiles</a
+          >
+          · Data from
+          <a
+            href="https://www.openstreetmap.org/copyright"
+            target="_blank"
+            rel="noopener noreferrer"
+            >OpenStreetMap contributors</a
+          >
+        </p>
+      </div>
     </dialog>
-    <footer class="booking-footer">Apex Kennels · dog boarding near Bawli, Islamabad</footer>
-  </main>
-</body>
+  </body>
 </html>

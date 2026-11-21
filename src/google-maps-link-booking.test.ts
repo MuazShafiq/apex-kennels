@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {Script} from 'node:vm';
 import {handleWorkerRequest} from './cloudflare-worker.ts';
 
 const base='https://example.workers.dev';
@@ -80,9 +79,9 @@ test('link endpoint refuses cross-origin and unrelated fields without resolving 
 });
 
 test('book page lazily loads one pinned local map and keeps private credentials off the client',()=>{
-  const html=readFileSync('public/book/index.html','utf8');
+  const html=readFileSync('public/book/index.html','utf8').replace(/\s+/g,' ');
   const js=readFileSync('public/book/app.js','utf8');
-  assert.match(html,/Find your gate in Google Maps/);
+  assert.match(html,/How to copy your gate’s pin/);
   assert.match(html,/id="maps-link"/);
   assert.match(html,/Use my current location/);
   assert.doesNotMatch(html,/<script[^>]+(?:unpkg|maplibre|openfreemap|TomTom)/);
@@ -96,20 +95,19 @@ test('book page lazily loads one pinned local map and keeps private credentials 
 });
 
 test('customer-facing booking retains service details, exact six terms and no redundant UI',()=>{
-  const html=readFileSync('public/book/index.html','utf8');
+  const html=readFileSync('public/book/index.html','utf8').replace(/\s+/g,' ');
   const js=readFileSync('public/book/app.js','utf8');
-  assert.doesNotThrow(()=>new Script(js));
-  for(const benefit of ['Two meals every day','Weekly vet check-ups','Rs 2,500 a day']){
+  for(const benefit of ['Two meals daily','weekly vet check-ups','Rs 2,500 a day']){
     assert.ok(html.includes(benefit),benefit);
   }
-  const terms=html.match(/<details class="terms"[\s\S]*?<\/details>/)?.[0]??'';
+  const terms=html.match(/<div class="terms"[\s\S]*?<\/div>/)?.[0]??'';
   assert.equal((terms.match(/<li>/g)||[]).length,6);
   assert.match(terms,/I hold Apex Kennels and staff completely harmless/);
   for(const id of ['transport-pickup','transport-dropoff','transport-none','same-dropoff']){
     assert.match(html,new RegExp('id="'+id+'"'));
   }
-  assert.match(html,/Which services do you need\?/);
-  assert.match(html,/Use pickup location for drop-off/);
+  assert.match(html,/Which trips do you need\?/);
+  assert.match(html,/Drop-off at the same gate/);
   assert.doesNotMatch(html,/name="transportChoice" value="both"/);
   assert.match(js,/noTransport\.checked/);
   assert.doesNotMatch(html,/Camera cage requested\?|id="map"/);

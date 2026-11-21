@@ -21,8 +21,10 @@ export type BoardingDetails = {
   specialInstructions?: string;
   medicationFeedingInstructions?: string;
   termsAccepted?: boolean;
-  /** Optional explicit consent for booking updates and approved invoices via WhatsApp. */
+  /** Historical optional website opt-in. */
   whatsappInvoiceOptIn?: boolean;
+  /** Explicit V10.6 service consent for booking updates and approved invoices. */
+  whatsappServiceOptIn?: boolean;
 };
 export const PERSONALITY_TRAITS: readonly PersonalityTrait[] = [
   'friendly','fears','climber','foodSensitivities','barksExcessively',
@@ -53,7 +55,7 @@ function optionalBool(value:unknown, name:string):boolean|undefined {
 }
 
 /** An absent details object is valid for legacy synthetic intake tests. */
-export function parseBoardingDetails(value:unknown): BoardingDetails|undefined {
+export function parseBoardingDetails(value:unknown, website=false): BoardingDetails|undefined {
   if (value===undefined || value===null) return undefined;
   if (typeof value!=='object' || Array.isArray(value)) throw new IntakeError('Invalid details object');
   const row=value as Record<string,unknown>;
@@ -61,7 +63,7 @@ export function parseBoardingDetails(value:unknown): BoardingDetails|undefined {
     'ownerAddress','pickupDropoffRequested','cameraCageRequested','emergencyContactPhone',
     'breed','gender','age','vaccinationStatus','distemperHistory','veterinarianPhone',
     'personalityTraits','specialInstructions','medicationFeedingInstructions','termsAccepted',
-    'whatsappInvoiceOptIn'
+    'whatsappInvoiceOptIn',...(website?['whatsappServiceOptIn']:[])
   ];
   if (Object.keys(row).some(key=>!allowed.includes(key))) throw new IntakeError('Unexpected details field');
 
@@ -100,7 +102,8 @@ export function parseBoardingDetails(value:unknown): BoardingDetails|undefined {
     specialInstructions:optionalText(row.specialInstructions,'specialInstructions',3000,true),
     medicationFeedingInstructions:optionalText(row.medicationFeedingInstructions,'medicationFeedingInstructions',3000,true),
     termsAccepted:optionalBool(row.termsAccepted,'termsAccepted'),
-    whatsappInvoiceOptIn:optionalBool(row.whatsappInvoiceOptIn,'whatsappInvoiceOptIn')
+    whatsappInvoiceOptIn:optionalBool(row.whatsappInvoiceOptIn,'whatsappInvoiceOptIn'),
+    whatsappServiceOptIn:optionalBool(row.whatsappServiceOptIn,'whatsappServiceOptIn')
   };
   // Presence of a details object means a full real Form response, not an
   // incomplete partial record. Optional care notes and the trait grid may be empty.

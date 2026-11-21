@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {Script} from 'node:vm';
+import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {handleWorkerRequest,type WorkerEnv} from './cloudflare-worker.ts';
 import {parsePublicBookingEnvelope,verifyBookingChallenge} from './public-booking.ts';
@@ -24,7 +24,7 @@ const booking={
     ownerAddress:'Demo Street',pickupDropoffRequested:true,cameraCageRequested:false,
     emergencyContactPhone:'03000000001',breed:'Mixed breed',gender:'Female',age:'2 years',
     vaccinationStatus:'Fully vaccinated and booster is up to date',
-    distemperHistory:'No',termsAccepted:true,personalityTraits:{friendly:true,fears:false,climber:false,foodSensitivities:false,
+    distemperHistory:'No',termsAccepted:true,whatsappServiceOptIn:true,personalityTraits:{friendly:true,fears:false,climber:false,foodSensitivities:false,
       barksExcessively:false,allergies:false,biteHistory:false,medicalConditions:false}
   },
   transportLocation:{latitude:33.7,longitude:73.1,service:'both',customerConfirmed:true}
@@ -101,6 +101,7 @@ test('website booking needs correct origin and real challenge before any databas
   const persist=async(_db:string,input:any)=>{
     saves++;assert.equal(input.source,'website');
     assert.equal(input.transportLocation.customerConfirmed,true);
+    assert.equal(input.details.whatsappServiceOptIn,true);
     return {bookingId:id,created:true,status:'requested'};
   };
   const verified=async(_token:string,_secret:string,hostname:string)=>{
@@ -148,6 +149,28 @@ test('invalid website payload and unconfirmed gate blocked before verification',
   assert.equal(checks,0);
 });
 
+test('new website request requires explicit V10.6 service consent before challenge or persistence',async()=>{
+  const {whatsappServiceOptIn:_checked,...withoutConsent}=booking.details;
+  const persist=async()=>{throw new Error('Unexpected persistence');};
+  let checks=0;
+  const opts={verifyChallenge:async()=>{checks++;return true;}};
+  for(const details of [
+    withoutConsent,
+    {...withoutConsent,whatsappInvoiceOptIn:true},
+    {...withoutConsent,whatsappServiceOptIn:false},
+    {...withoutConsent,whatsappServiceOptIn:null},
+    {...withoutConsent,whatsappServiceOptIn:'true'},
+  ]){
+    const response=await handleWorkerRequest(request({...good,booking:{...booking,details}}),env,persist,opts);
+    assert.equal(response.status,400);
+  }
+  const invalidPhone=await handleWorkerRequest(
+    request({...good,booking:{...booking,phone:'not a number'}}),env,persist,opts);
+  assert.equal(invalidPhone.status,400);
+  assert.deepEqual(await invalidPhone.json(),{error:'Enter a valid WhatsApp number.'});
+  assert.equal(checks,0);
+});
+
 test('siteverify requires matching hostname and action; fake or reused challenge rejected',async()=>{
   const mock=(body:unknown,status=200):typeof fetch=>async(_url,options)=>{
     assert.equal(options?.redirect,'manual');
@@ -167,7 +190,8 @@ test('siteverify requires matching hostname and action; fake or reused challenge
 
 test('browser script parses, uses Google Maps links and has no embedded secrets',()=>{
   const script=readFileSync('public/book/app.js','utf8');
-  assert.doesNotThrow(()=>new Script(script));
+  const syntax=spawnSync(process.execPath,['--check','public/book/app.js'],{encoding:'utf8'});
+  assert.equal(syntax.status,0,syntax.stderr);
   assert.match(script,/api\/book\/location/);
   assert.doesNotMatch(script,/api\/book\/(?:places|search)/);
   assert.match(script,/customerConfirmed:true/);
@@ -229,7 +253,7 @@ test('booking and selected location are written in the same database transaction
     {rows:[{id:'owner'}],rowCount:1},{rows:[{id:'pet'}],rowCount:1},
     {rows:[{id:'booking'}],rowCount:1},
     {rows:[],rowCount:0},{rows:[],rowCount:0},{rows:[],rowCount:0},
-    {rows:[],rowCount:0},{rows:[],rowCount:0}
+    {rows:[],rowCount:0},{rows:[],rowCount:0},{rows:[],rowCount:0}
   ];
   const client:DbClient={
     async query<T>(sql:string,params?:unknown[]):Promise<QueryResult<T>>{

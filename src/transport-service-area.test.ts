@@ -24,7 +24,7 @@ test('Lahore, Kashmir, missing and nonfinite pins cannot be saved for transport'
   }
 });
 test('gate picker and exact-pin fallbacks retain the same service boundary as server',()=>{
-  const html=readFileSync('public/book/index.html','utf8');
+  const html=readFileSync('public/book/index.html','utf8').replace(/\s+/g,' ');
   const js=readFileSync('public/book/app.js','utf8');
   assert.match(html,/Islamabad and Rawalpindi only/);
   assert.doesNotMatch(html,/id="place-area"|Lahore<\/option>/);

@@ -1,0 +1,330 @@
+@font-face {
+  font-family: "Inter Tight";
+  src: url("../inter-tight.woff2") format("woff2");
+  font-weight: 400 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../jetbrains-mono.woff2") format("woff2");
+  font-weight: 400 700;
+  font-display: swap;
+}
+/* Apex scrollbar: thin raven track, quiet thumb that brightens to powder on use. Touch devices keep native overlay scrolling. */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: #6a5d62 #0e0809;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #0e0809;
+}
+::-webkit-scrollbar-thumb {
+  background: #6a5d62;
+  border-radius: 10px;
+  border: 2px solid #0e0809;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8fa6b2;
+}
+::-webkit-scrollbar-thumb:active {
+  background: #bfe3f4;
+}
+::-webkit-scrollbar-corner {
+  background: #0e0809;
+}
+
+/* Suite plaque: frosted powder acrylic, glassy edge, screws, coral silk (Image 1, exact) */
+:is(.site, .bk) .pq-tilt {
+  perspective: 1100px;
+}
+:is(.site, .bk) .pq {
+  position: relative;
+  width: 560px;
+  padding: 30px 38px 26px;
+  border-radius: 22px;
+  overflow: hidden;
+  color: #120709;
+  transform: rotateX(var(--tx, 0deg)) rotateY(var(--ty, 0deg));
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  background:
+    url(silk-plaque.webp) 0 0/100% 100% no-repeat,
+    radial-gradient(120% 90% at 30% 0%, #e6f2f9, #cfe3ee 78%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.62),
+    inset 0 0 0 3px rgba(150, 180, 198, 0.28),
+    inset 0 2px 0 #fff,
+    inset 0 -3px 2px rgba(110, 142, 162, 0.32),
+    inset -2px 0 2px rgba(130, 160, 180, 0.22),
+    0 0 0 1px rgba(92, 122, 140, 0.32),
+    0 5px 0 -1px #a9c4d3,
+    0 6px 1px -1px rgba(60, 80, 95, 0.35),
+    0 40px 70px -26px rgba(0, 0, 0, 0.85),
+    0 0 90px -20px rgba(227, 16, 30, 0.35);
+}
+:is(.site, .bk) .pq.live {
+  transition: transform 0.12s linear;
+}
+:is(.site, .bk) .pq .lum {
+  position: absolute;
+  inset: 0;
+  background: url(silk-plaque.webp) 0 0/100% 100% no-repeat;
+  mix-blend-mode: screen;
+  filter: brightness(1.35) blur(0.4px);
+  opacity: var(--sg, 0);
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+:is(.site, .bk) .pq .spec {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    240px 160px at var(--px, 50%) var(--py, 0%),
+    rgba(255, 255, 255, 0.55),
+    rgba(255, 255, 255, 0) 70%
+  );
+  mix-blend-mode: soft-light;
+  opacity: var(--sp, 0);
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+:is(.site, .bk) .screw {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 30%,
+    #ffffff,
+    #c5ccd2 45%,
+    #7e868d 100%
+  );
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.25);
+}
+:is(.site, .bk) .screw i {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  background: #6a7177;
+  transform: rotate(35deg);
+}
+:is(.site, .bk) .screw i::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: inherit;
+  transform: rotate(90deg);
+}
+:is(.site, .bk) .pq .s1 {
+  left: 16px;
+  top: 16px;
+}
+:is(.site, .bk) .pq .s2 {
+  right: 16px;
+  top: 16px;
+}
+:is(.site, .bk) .pq-h {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+:is(.site, .bk) .pq-h .mk {
+  width: 80px;
+  height: 67px;
+  color: #120709;
+}
+:is(.site, .bk) .pq-h .sl {
+  height: 50px;
+}
+:is(.site, .bk) .pq-t {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: "JetBrains Mono", monospace;
+  text-transform: uppercase;
+}
+:is(.site, .bk) .pq-t b {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+:is(.site, .bk) .pq-t span {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  color: #3e3438;
+}
+:is(.site, .bk) .npw {
+  position: relative;
+  margin-top: 19px;
+  font-size: 9px;
+}
+:is(.site, .bk) .np-ring {
+  position: absolute;
+  inset: -1em;
+  border-style: solid;
+  border-width: 0 6.714em;
+  border-image: url(nameplate-rim.webp) 0 376 fill / 0 6.714em stretch;
+  pointer-events: none;
+}
+:is(.site, .bk) .np-glow {
+  position: absolute;
+  right: -1.614em;
+  top: 8.857em;
+  width: 35.714em;
+  height: 3.857em;
+  background: url(nameplate-glow.webp) 0 0/100% 100% no-repeat;
+  pointer-events: none;
+}
+:is(.site, .bk) .np {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1.4em;
+  height: 9em;
+  padding: 0 2.96em 0 3.36em;
+  border-radius: 1.57em;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0) 50%, rgba(84, 8, 13, 0.3) 100%),
+    linear-gradient(180deg, #24121a, #160a0d 55%, #0e0608);
+  color: #fff;
+  overflow: hidden;
+  box-shadow:
+    inset 0 -0.3em 0.7em rgba(0, 0, 0, 0.4),
+    0 0.6em 1em -0.75em rgba(18, 7, 9, 0.38);
+}
+:is(.site, .bk) .np-tex {
+  position: absolute;
+  inset: 0;
+  background: url(nameplate-texture.webp) right 0 bottom 0/54% auto no-repeat;
+  mix-blend-mode: screen;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 50%,
+    rgba(0, 0, 0, 0.45) 72%,
+    #000 97%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 50%,
+    rgba(0, 0, 0, 0.45) 72%,
+    #000 97%
+  );
+}
+:is(.site, .bk) .np-n {
+  position: relative;
+  font-weight: 900;
+  font-size: var(--nf, 6.1em);
+  letter-spacing: -0.012em;
+  line-height: 1;
+  white-space: nowrap;
+  background: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    #f2f5f8 38%,
+    #ced7df 56%,
+    #e9eef2 76%,
+    #ffffff 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0.05em 0.035em rgba(0, 0, 0, 0.8));
+}
+:is(.site, .bk) .np-sw {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: 0 auto;
+}
+:is(.site, .bk) .np-mid {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 15.429em;
+  height: 8.143em;
+  margin: -4.043em 0 0 -8.314em;
+  background: url(nameplate-midlight.webp) 0 0/100% 100% no-repeat;
+  mix-blend-mode: screen;
+  -webkit-mask-image: radial-gradient(
+    closest-side,
+    #000 30%,
+    rgba(0, 0, 0, 0.6) 62%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    closest-side,
+    #000 30%,
+    rgba(0, 0, 0, 0.6) 62%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+:is(.site, .bk) .np .sl {
+  position: relative;
+  height: 3.29em;
+  width: 0.33em;
+  transform: skewX(-23.5deg);
+  background: var(--poppyR);
+}
+:is(.site, .bk) .np-d {
+  position: relative;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700;
+  font-size: 1.55em;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+:is(.site, .bk) .np-d.neutral {
+  font-size: 1.25em;
+  letter-spacing: 0.16em;
+  color: rgba(255, 255, 255, 0.5);
+}
+:is(.site, .bk) .pq-f {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: 17px;
+}
+:is(.site, .bk) .pq-f .wd {
+  font-size: 17px;
+  color: #2a2226;
+}
+:is(.site, .bk) .pq-f .code {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  html {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+  ::-webkit-scrollbar {
+    width: auto;
+    height: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.site, .bk) :is(.pq, .pq .lum, .pq .spec) {
+    transition: none;
+  }
+}

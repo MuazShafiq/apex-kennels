@@ -1,6 +1,8 @@
 # Customer boarding site: preview-first release
 
 ## State
+
+Follow the [current V10.6 booking activation sequence](release-acceptance.md#current-booking-release-decision--2026-11-22-pkt) for migration 008, required service consent, production host selection, acceptance and rollback. The 2026-11-13 canary and the setup below are historical.
 The customer booking site lives at `/book` on the **existing** Apex Cloudflare Worker. It replaces the repeated request for a Google Maps pin by collecting the exact pickup/drop-off point during booking. The legacy Google Form and its hourly recovery remain operational and separate.
 
 **As of 2026-11-14: deployed preview; public submissions remain disabled.** A real Turnstile and production website submission were exercised using explicitly synthetic data during a controlled temporary gate opening on 2026-11-13; the gate was subsequently closed and HTTP 503 was verified (operator-reported live results). This is **not customer launch approval**. Visual/mobile browser CI passed, but real-phone Google Maps flow and network connectivity still need acceptance under [issue #37](https://github.com/MuazShafiq/apex-kennels/issues/37). No payment, automatic approval, customer messages, or invoice issuance is enabled.

@@ -11,5 +11,18 @@
       "binding": "APEX_BACKEND",
       "service": "apex-kennels-api"
     }
-  ]
+  ],
+  "env": {
+    "production": {
+      "vars": {
+        "APEX_STAFF_PAGES_ENABLED": "false"
+      },
+      "services": [
+        {
+          "binding": "APEX_BACKEND",
+          "service": "apex-kennels-api"
+        }
+      ]
+    }
+  }
 }

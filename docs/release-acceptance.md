@@ -1,5 +1,15 @@
 # Remaining release acceptance
 
+## Stage 1 controlled production test — 2026-11-22 PKT
+
+**Closed. Human Turnstile completion is pending.** This checkpoint supersedes the earlier migration and widget status below. Production migration 008 was already applied. A read-only catalog check in Neon project `holy-bar-96685960`, branch `br-dry-lab-azyb3ewl`, compute `ep-bold-mud-azjqt3cx`, database `neondb`, independently confirmed the validated constraint allows exactly v1 and v2. The managed **Apex Kennels Booking** widget was updated and read back with both `apex-kennels-api.muaz-shafiq18.workers.dev` and `apexkennels.pages.dev`.
+
+The closed Pages rehearsal reached the final step with two independently confirmed synthetic pins and explicit service consent. The timed attempt armed a separate 90-second watchdog before sending traffic to the temporary version. The live Pages form reached the real widget, which presented an unchecked **Verify you are human** checkbox and kept submit disabled. No booking POST occurred. The protected database count for the unique synthetic marker remained zero, so production persistence, gate readback and v2 consent readback remain pending.
+
+The immediate rollback restored exact Worker version `d30cb893-b3c5-4458-8d6a-84a6783d3e66` at 100% via deployment `04304f45-9b43-4d66-a487-c3f26ac5137d`. Independent probes of both hosts returned config HTTP 200 with `enabled:false` and empty booking POST HTTP 503. The full closed smoke passed. All five booking, invoice and WhatsApp activation flags were absent in the restored version. The temporary test version `bdac6ea4-ec4c-4a3d-ab14-bd4406ce7201` is inactive and carries the enabled booking flag. Use the serving closed version as the baseline for later configuration work. Google Form, staff, links, monitor mode, invoice settings and payments were left untouched.
+
+For the next timed attempt, coordinate a human at the real browser before opening the gate. After the person completes the widget, submit one clearly synthetic request, then restore the exact closed version immediately. Read back the one synthetic record, both exact pins and v2 consent privately, and repeat both host probes and all five gate checks. Persistent activation and customer-link cutover are outside Stage 1.
+
 ## Current booking release decision — 2026-11-22 PKT
 
 **HOLD. cdx-18 owns booking release engineering.** Approved V10.6 + CTA Motion is merged at `fa3dc4d` and served by Worker deployment `0bbf3142-6133-41fa-b597-11a2f918645b`, version `d30cb893-b3c5-4458-8d6a-84a6783d3e66` at 100%. The [main Node 22/24 run](https://github.com/MuazShafiq/apex-kennels/actions/runs/44940356936), [browser suite](https://github.com/MuazShafiq/apex-kennels/actions/runs/44940131451) and [production monitor](https://github.com/MuazShafiq/apex-kennels/actions/runs/44940356930) passed. Booking browser persistence and provider responses were synthetic.

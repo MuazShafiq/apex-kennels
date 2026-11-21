@@ -3,10 +3,26 @@
   "name": "apexkennels",
   "compatibility_date": "2026-11-17",
   "pages_build_output_dir": "./site",
+  "vars": {
+    "APEX_STAFF_PAGES_ENABLED": "false"
+  },
   "services": [
     {
       "binding": "APEX_BACKEND",
       "service": "apex-kennels-api"
     }
-  ]
+  ],
+  "env": {
+    "production": {
+      "vars": {
+        "APEX_STAFF_PAGES_ENABLED": "false"
+      },
+      "services": [
+        {
+          "binding": "APEX_BACKEND",
+          "service": "apex-kennels-api"
+        }
+      ]
+    }
+  }
 }

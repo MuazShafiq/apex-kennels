@@ -780,6 +780,25 @@ html {
     transform: translateX(3px);
   }
 }
+/* Reuse the booking Send button's traveling route-stroke treatment on
+   primary homepage CTAs. Coral dashes reveal the Raven under-stroke. */
+@keyframes apx-cta-arrow-pulse {
+  to {
+    stroke-dashoffset: -22;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .site .cta:focus-visible .ar-b g:nth-of-type(2) > path:first-child {
+    stroke-dasharray: 6 5;
+    animation: apx-cta-arrow-pulse 0.7s linear infinite;
+  }
+  @media (hover: hover) {
+    .site .cta:hover .ar-b g:nth-of-type(2) > path:first-child {
+      stroke-dasharray: 6 5;
+      animation: apx-cta-arrow-pulse 0.7s linear infinite;
+    }
+  }
+}
 @media (hover: none) {
   .site .cta:hover:not(:focus-visible) .cta-fx::before {
     opacity: 0;

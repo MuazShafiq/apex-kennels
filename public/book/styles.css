@@ -1561,6 +1561,8 @@ body {
 }
 .bk .trait legend {
   float: left;
+  flex: 1 1 0;
+  min-width: 0;
   font-size: 15px;
   font-weight: 650;
   padding: 0;
@@ -2318,7 +2320,7 @@ body {
   margin-top: 8px;
 }
 .bk .note[data-yes-note] {
-  margin-top: 18px;
+  margin: 18px 0 20px;
 }
 .bk .care-notes {
   margin-top: 20px;

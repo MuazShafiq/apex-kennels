@@ -708,7 +708,10 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
       if(!response.ok)throw new Error(body?.error||'The request could not be sent.');
       showConfirmation(booking,body.reference||'');
     }catch(error){
-      showMessage(error.message||'Network error. Check your connection and try again.');
+      const outcomeUnknown=error instanceof TypeError||error instanceof SyntaxError;
+      showMessage(outcomeUnknown
+        ? 'We could not confirm whether your booking request was received. It may already be saved. Please contact Apex Kennels before submitting again.'
+        : (error.message||'The request could not be completed. Please contact Apex Kennels before trying again.'));
       challenge=null;
       if(window.turnstile&&turnstileId!==null)window.turnstile.reset(turnstileId);
     }finally{

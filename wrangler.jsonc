@@ -19,7 +19,8 @@
     ]
   },
   "vars": {
-    "APEX_STAFF_DRAFTS_ENABLED": "true"
+    "APEX_STAFF_DRAFTS_ENABLED": "true",
+    "APEX_PUBLIC_BOOKING_ENABLED": "false"
   },
   "previews": {
     "vars": {

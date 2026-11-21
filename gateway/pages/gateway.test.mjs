@@ -99,6 +99,82 @@ for (const [path, method] of [['/', 'POST'], ['/book/app.js', 'POST'],
   });
 }
 
+test('staff Pages gateway is disabled by default even with an asserted identity', async () => {
+  const {env, forwarded} = mock();
+  const response = await gateway.fetch(new Request(base + '/staff', {
+    headers: {'Cf-Access-Jwt-Assertion': 'aaa.bbb.ccc'},
+  }), env);
+  assert.equal(response.status, 404);
+  assert.equal(forwarded.length, 0);
+});
+
+test('enabled staff Pages gateway denies missing or malformed Access assertion', async () => {
+  const {env, forwarded} = mock();
+  env.APEX_STAFF_PAGES_ENABLED = 'true';
+  for (const token of [null, 'forged', 'a.b']) {
+    const headers = token ? {'Cf-Access-Jwt-Assertion': token} : {};
+    const response = await gateway.fetch(new Request(base + '/staff', {headers}), env);
+    assert.equal(response.status, 403);
+  }
+  assert.equal(forwarded.length, 0);
+});
+
+test('enabled staff gateway forwards only the signed Access assertion to the validating Worker', async () => {
+  const {env, forwarded} = mock();
+  env.APEX_STAFF_PAGES_ENABLED = 'true';
+  const response = await gateway.fetch(new Request(base + '/staff/booking?id=synthetic', {
+    headers: {
+      'Cf-Access-Jwt-Assertion': 'aaa.bbb.ccc',
+      'Authorization': 'Bearer forged',
+      'Cookie': 'CF_Authorization=never-forward',
+      'X-Forwarded-Host': 'other.example',
+    },
+  }), env);
+  assert.equal(response.status, 200); // Mock backend; not an auth test.
+  assert.equal(response.headers.get('Cache-Control'), 'private, no-store');
+  assert.equal(response.headers.get('X-Robots-Tag'), 'noindex, nofollow');
+  assert.equal(forwarded.length, 1);
+  assert.equal(forwarded[0].url, base + '/staff/booking?id=synthetic');
+  assert.equal(forwarded[0].headers.get('Cf-Access-Jwt-Assertion'), 'aaa.bbb.ccc');
+  for (const h of ['authorization', 'cookie', 'x-forwarded-host'])
+    assert.equal(forwarded[0].headers.get(h), null);
+});
+
+test('enabled staff POST uses same-origin Pages URL and preserves the form body only for staff', async () => {
+  const {env, forwarded} = mock();
+  env.APEX_STAFF_PAGES_ENABLED = 'true';
+  const response = await gateway.fetch(new Request(base + '/staff/location', {
+    method:'POST',
+    headers: {
+      Origin:base,
+      'Content-Type':'application/x-www-form-urlencoded',
+      'Cf-Access-Jwt-Assertion':'aaa.bbb.ccc',
+    },
+    body:'gate=synthetic',
+  }), env);
+  assert.equal(response.status, 200);
+  assert.equal(forwarded.length, 1);
+  assert.equal(forwarded[0].headers.get('Origin'), base);
+  assert.equal(await forwarded[0].text(), 'gate=synthetic');
+  assert.equal(forwarded[0].headers.get('Cf-Access-Jwt-Assertion'), 'aaa.bbb.ccc');
+});
+
+test('enabled staff path rejects unsupported methods and lookalikes', async () => {
+  const {env, forwarded} = mock();
+  env.APEX_STAFF_PAGES_ENABLED = 'true';
+  const assertion = {'Cf-Access-Jwt-Assertion':'aaa.bbb.ccc'};
+  const wrongMethod = await gateway.fetch(new Request(base + '/staff', {
+    method:'PUT', headers:assertion
+  }), env);
+  assert.equal(wrongMethod.status, 405);
+  assert.equal(wrongMethod.headers.get('Allow'), 'GET, POST');
+  const lookalike = await gateway.fetch(new Request(base + '/staffing', {
+    headers:assertion
+  }), env);
+  assert.equal(lookalike.status, 404);
+  assert.equal(forwarded.length, 0);
+});
+
 test('missing service binding fails closed', async () => {
   const response = await gateway.fetch(new Request(base + '/'), {});
   assert.equal(response.status, 503);

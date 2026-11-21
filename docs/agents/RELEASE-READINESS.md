@@ -1,6 +1,12 @@
 # Technical release-readiness handoff
 
-## Current assignment — 2026-11-17 zero-billing exact-gate picker
+## Current assignment — 2026-11-22 booking release
+
+**cdx-18 is the primary engineering owner, taking over from cdx-74.** V10.6 + CTA Motion is approved, merged and deployed. The [current booking release decision](../release-acceptance.md#current-booking-release-decision--2026-11-22-pkt) supersedes the dated assignments below and the prior owner banner on [#84](https://github.com/MuazShafiq/apex-kennels/issues/84). Use it with [#28 cutover](https://github.com/MuazShafiq/apex-kennels/issues/28) and [#37 device acceptance](https://github.com/MuazShafiq/apex-kennels/issues/37). Preserve the existing Form as the customer path. Keep website booking, financial and messaging gates closed pending their respective approvals.
+
+Production still has the v1-only constraint. Migration 008 is prepared and locally rehearsed. The serving Worker and Pages alias both pass closed-state probes. Turnstile allows the Worker hostname only. Fatima, physical-device and network acceptance, production migration authorization, and exact-host synthetic submission followed by reclosure are the next boundaries. Persistent activation requires its own approval.
+
+## Historical assignment — 2026-11-17 zero-billing exact-gate picker
 
 The [canonical founder body of #93](https://github.com/MuazShafiq/apex-kennels/issues/93) supersedes previous customer autocomplete/search requirements and conflicting checkpoints below. Implement one MapLibre/OpenFreeMap gate picker with explicit confirmation, consumer Google Maps share/paste and optional GPS; preserve independent pickup/drop-off, same-gate default and map-failure fallback. No paid service, public-booking/financial/message activation or customer submission. See [current location behavior](../customer-shared-map-pins.md), [retirement inventory](../location-search.md), and [human release checks](../release-acceptance.md). Physical iPhone/Safari and affected-ISP/mobile-data remain separate human acceptance. Source implementation is not deployment; the sole operator records actual tests, release version and unchanged flags.
 

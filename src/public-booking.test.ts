@@ -149,26 +149,17 @@ test('invalid website payload and unconfirmed gate blocked before verification',
   assert.equal(checks,0);
 });
 
-test('new website request requires explicit V10.6 service consent before challenge or persistence',async()=>{
+test('website booking accepts omitted or declined WhatsApp consent',()=>{
   const {whatsappServiceOptIn:_checked,...withoutConsent}=booking.details;
-  const persist=async()=>{throw new Error('Unexpected persistence');};
-  let checks=0;
-  const opts={verifyChallenge:async()=>{checks++;return true;}};
-  for(const details of [
-    withoutConsent,
-    {...withoutConsent,whatsappInvoiceOptIn:true},
-    {...withoutConsent,whatsappServiceOptIn:false},
-    {...withoutConsent,whatsappServiceOptIn:null},
-    {...withoutConsent,whatsappServiceOptIn:'true'},
-  ]){
-    const response=await handleWorkerRequest(request({...good,booking:{...booking,details}}),env,persist,opts);
-    assert.equal(response.status,400);
+  for(const consent of [undefined,false]){
+    const details={...withoutConsent,whatsappServiceOptIn:consent};
+    const parsed=parsePublicBookingEnvelope({...good,booking:{...booking,details}});
+    assert.equal(parsed.booking.details?.whatsappServiceOptIn,consent);
   }
-  const invalidPhone=await handleWorkerRequest(
-    request({...good,booking:{...booking,phone:'not a number'}}),env,persist,opts);
-  assert.equal(invalidPhone.status,400);
-  assert.deepEqual(await invalidPhone.json(),{error:'Enter a valid WhatsApp number.'});
-  assert.equal(checks,0);
+  assert.throws(()=>parsePublicBookingEnvelope({...good,booking:{...booking,
+    details:{...withoutConsent,whatsappServiceOptIn:'true'}}}),/whatsappServiceOptIn/);
+  assert.throws(()=>parsePublicBookingEnvelope({...good,booking:{...booking,phone:'not a number'}}),
+    /Enter a valid phone number/);
 });
 
 test('siteverify requires matching hostname and action; fake or reused challenge rejected',async()=>{

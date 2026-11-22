@@ -1,5 +1,11 @@
 # Remaining release acceptance
 
+## Founder launch decision (2026-11-23 PKT)
+
+The [latest founder authorization in #84](https://github.com/MuazShafiq/apex-kennels/issues/84) authorizes persistent public booking and customer-link cutover after the full approved implementation passes release acceptance. The earlier approval requirements below describe the previous release decision.
+
+The approved-release branch removes the WhatsApp agreement from native booking. Test booking with a contact number and accepted boarding terms, and verify the new request creates no WhatsApp consent row. Keep testing purpose-specific consent separately before any provider activation. Stage 1 evidence below applies to the previously deployed form.
+
 ## Stage 1 controlled production test — 2026-11-22 PKT
 
 **Closed. Stage 1 booking, v2 consent and distinct transport pins verified.** This checkpoint supersedes the earlier migration and widget status below. Production migration 008 was already applied. A read-only catalog check in Neon project `holy-bar-96685960`, branch `br-dry-lab-azyb3ewl`, compute `ep-bold-mud-azjqt3cx`, database `neondb`, independently confirmed the validated constraint allows exactly v1 and v2. The managed **Apex Kennels Booking** widget was updated and read back with both `apex-kennels-api.muaz-shafiq18.workers.dev` and `apexkennels.pages.dev`.

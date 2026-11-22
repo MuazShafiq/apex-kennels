@@ -261,7 +261,7 @@ try{
     !(await page.locator('#transport-dropoff').isChecked()),
     name+' No transport did not clear other choices');
   await fillBookingCareAndContact(page);
-  verifyAlignment(await page.evaluate(checkboxAlignment,'[data-f="termsAccepted"] .chk, [data-f="whatsappServiceOptIn"] .chk'));
+  verifyAlignment(await page.evaluate(checkboxAlignment,'[data-f="termsAccepted"] .chk'));
   assert(await page.locator('#preview').isVisible(),name+' booking closed state disappeared');
   assert(await page.locator('#submit').isDisabled(),name+' submit enabled on a closed gate');
   assert(errors.length===0,name+' JS errors: '+errors.join(';'));

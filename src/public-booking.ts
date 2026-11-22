@@ -13,10 +13,8 @@ export function parsePublicBookingEnvelope(value:unknown):{
   if(typeof token!=='string'||token.length<1||token.length>2048||
      /[\u0000-\u001f\u007f]/.test(token))throw new Error('Invalid security token');
   const booking=parseIntake(request.booking,'website');
-  if(booking.details?.whatsappServiceOptIn!==true)
-    throw new IntakeError('Please agree to receive booking updates and your approved invoice on WhatsApp.');
   if(!booking.phone || booking.phone.replace(/\D/g,'').length<10)
-    throw new IntakeError('Enter a valid WhatsApp number.');
+    throw new IntakeError('Enter a valid phone number.');
   return {booking,turnstileToken:token};
 }
 

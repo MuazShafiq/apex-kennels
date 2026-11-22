@@ -338,8 +338,7 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
       medicationFeedingInstructions:optional(data,'medicationFeedingInstructions'),
       pickupDropoffRequested:needsTransport,
       cameraCageRequested:field(data,'cameraCageRequested')==='yes',
-      termsAccepted:data.get('termsAccepted')==='on',
-      whatsappServiceOptIn:data.get('whatsappServiceOptIn')==='on'
+      termsAccepted:data.get('termsAccepted')==='on'
     };
     const booking={
       source:'website',externalResponseId:requestId,
@@ -498,11 +497,10 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
     data=>{
       const errors=requiredAnswers(data,{
         customerName:'Add your full name.',
-        phone:'Add your WhatsApp number.',
+        phone:'Add your phone number.',
         emergencyContactPhone:'Add an emergency contact number.',
         ownerAddress:'Add your home address.',
-        termsAccepted:'Please read and accept the boarding terms.',
-        whatsappServiceOptIn:'Please agree to receive booking updates and your approved invoice on WhatsApp.'
+        termsAccepted:'Please read and accept the boarding terms.'
       });
       if(!errors.phone&&field(data,'phone').replace(/\D/g,'').length<10)errors.phone='That number looks too short.';
       if(form.elements.email.validity.typeMismatch)errors.email='Check the email address, or leave it blank.';

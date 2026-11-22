@@ -79,7 +79,6 @@ const origin=site+':'+port;
 const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
 async function submitRequest(page){
   await fillBookingCareAndContact(page);
-  await page.locator('[name="whatsappServiceOptIn"]').check();
   await page.locator('#submit').click();
 }
 const newPage=async({map='synthetic',viewport={width:390,height:844},atTransport=true}={})=>{
@@ -141,14 +140,7 @@ try{
   assert.equal(saved.length,0);
   await confirmExactPin(first.page,'33.700000, 73.080000');
   await fillBookingCareAndContact(first.page);
-  const consent=first.page.locator('[name="whatsappServiceOptIn"]');
-  assert.equal(await consent.isChecked(),false);
-  assert.equal(await consent.getAttribute('required'),'');
-  await first.page.locator('#submit').click();
-  assert.equal(saved.length,0,'Unchecked service consent must stop before persistence');
-  assert.equal(challengeChecks,0,'Unchecked service consent must stop before challenge verification');
-  assert.match(await first.page.locator('[data-f="whatsappServiceOptIn"] .f-err').innerText(),/please agree/i);
-  await consent.check();
+  assert.equal(await first.page.locator('[name="whatsappServiceOptIn"]').count(),0);
   await first.page.locator('#submit').click();
   await first.page.locator('#complete').waitFor({state:'visible'});
   assert.equal(await first.page.evaluate(()=>document.activeElement.id),'complete');
@@ -156,7 +148,7 @@ try{
   assert.deepEqual(saved[0].transportLocation,{
     latitude:33.7,longitude:73.08,service:'both',customerConfirmed:true});
   assert.equal(saved[0].transportDropoffLocation,undefined);
-  assert.equal(saved[0].details.whatsappServiceOptIn,true);
+  assert.equal(saved[0].details.whatsappServiceOptIn,undefined);
   assert.equal(await first.page.locator('#complete [data-np-name]').innerText(),'APEX SYNTHETIC CANARY DOG');
   assert.equal(await first.page.locator('#complete [contenteditable]').count(),0);
   assert.equal(Object.keys(saved[0].details.personalityTraits).length,8);

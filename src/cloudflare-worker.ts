@@ -180,8 +180,7 @@ function bearerAuthorized(header: string | null, configuredSecret: string): bool
     timingSafeEqual(provided, expected);
 }
 
-async function limitedJson(request: Request): Promise<unknown> {
-  const limit = 16_384;
+async function limitedJson(request: Request, limit = 16_384): Promise<unknown> {
   const contentLength = request.headers.get('content-length');
   if (contentLength && Number(contentLength) > limit) {
     throw new IntakeError('Request too large', 413);
@@ -326,7 +325,7 @@ export async function handleWorkerRequest(
     if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json'))
       return json({error:'JSON required'},415);
     let parsed:ReturnType<typeof parsePublicBookingEnvelope>;
-    try{parsed=parsePublicBookingEnvelope(await limitedJson(request));}
+    try{parsed=parsePublicBookingEnvelope(await limitedJson(request, 96 * 1024));}
     catch(error){
       if(error instanceof IntakeError)return json({error:error.message},error.status);
       return json({error:'Check the booking form and try again'},400);

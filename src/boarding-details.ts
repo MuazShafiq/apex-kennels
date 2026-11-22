@@ -55,15 +55,16 @@ function optionalBool(value:unknown, name:string):boolean|undefined {
 }
 
 /** An absent details object is valid for legacy synthetic intake tests. */
-export function parseBoardingDetails(value:unknown, website=false): BoardingDetails|undefined {
+export function parseBoardingDetails(value:unknown, website: boolean | 'dog'=false): BoardingDetails|undefined {
   if (value===undefined || value===null) return undefined;
   if (typeof value!=='object' || Array.isArray(value)) throw new IntakeError('Invalid details object');
   const row=value as Record<string,unknown>;
   const allowed=[
-    'ownerAddress','pickupDropoffRequested','cameraCageRequested','emergencyContactPhone',
+    'cameraCageRequested',
     'breed','gender','age','vaccinationStatus','distemperHistory','veterinarianPhone',
-    'personalityTraits','specialInstructions','medicationFeedingInstructions','termsAccepted',
-    'whatsappInvoiceOptIn',...(website?['whatsappServiceOptIn']:[])
+    'personalityTraits','specialInstructions','medicationFeedingInstructions',
+    ...(website==='dog'?[]:['ownerAddress','pickupDropoffRequested','emergencyContactPhone',
+      'termsAccepted','whatsappInvoiceOptIn',...(website?['whatsappServiceOptIn']:[])])
   ];
   if (Object.keys(row).some(key=>!allowed.includes(key))) throw new IntakeError('Unexpected details field');
 
@@ -107,12 +108,18 @@ export function parseBoardingDetails(value:unknown, website=false): BoardingDeta
   };
   // Presence of a details object means a full real Form response, not an
   // incomplete partial record. Optional care notes and the trait grid may be empty.
-  for (const field of ['ownerAddress','emergencyContactPhone','breed','gender','age','vaccinationStatus','distemperHistory'] as const) {
+  for (const field of ['breed','gender','age','vaccinationStatus','distemperHistory'] as const) {
     if (!details[field]) throw new IntakeError('Missing required '+field);
   }
-  if (details.pickupDropoffRequested===undefined || details.cameraCageRequested===undefined) {
+  if (website!=='dog') {
+    for (const field of ['ownerAddress','emergencyContactPhone'] as const) {
+      if (!details[field]) throw new IntakeError('Missing required '+field);
+    }
+    if (details.pickupDropoffRequested===undefined) throw new IntakeError('Missing boarding add-on choices');
+    if (details.termsAccepted!==true) throw new IntakeError('Terms acknowledgement required');
+  }
+  if (details.cameraCageRequested===undefined) {
     throw new IntakeError('Missing boarding add-on choices');
   }
-  if (details.termsAccepted!==true) throw new IntakeError('Terms acknowledgement required');
   return Object.fromEntries(Object.entries(details).filter(([,v])=>v!==undefined));
 }

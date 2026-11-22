@@ -264,3 +264,32 @@ test('booking and selected location are written in the same database transaction
   assert.equal(queries.filter(x=>x.sql==='BEGIN').length,1);
   assert.equal(queries.filter(x=>x.sql==='COMMIT').length,1);
 });
+
+test('website additional dogs have separate care, cage choice and immutable intake identity',async()=>{
+  const {ownerAddress,pickupDropoffRequested,emergencyContactPhone,termsAccepted,whatsappServiceOptIn,...care}=booking.details;
+  const second={petName:'APEX SYNTHETIC CANARY SECOND DOG',details:{...care,cameraCageRequested:true}};
+  const parse=(additionalDogs:unknown)=>parsePublicBookingEnvelope({...good,booking:{...booking,additionalDogs}}).booking;
+  const input=parse([second]);
+  assert.deepEqual(input.additionalDogs,[second]);
+  assert.equal(fingerprintIntake(parse([])),fingerprintIntake(parse(undefined)));
+  assert.notEqual(fingerprintIntake(input),fingerprintIntake(parse([])));
+  assert.notEqual(fingerprintIntake(input),fingerprintIntake(parse([{...second,details:care}])));
+  assert.throws(()=>parse([{...second,details:{...second.details,termsAccepted}}]),/Unexpected details field/);
+  assert.throws(()=>parse([{...second,details:{...second.details,personalityTraits:{}}}]),/each dog/);
+  assert.throws(()=>parse(Array(4).fill(second)),/up to three/);
+  const calls:{sql:string;params?:unknown[]}[]=[];
+  const client:DbClient={
+    async query<T>(sql:string,params?:unknown[]):Promise<QueryResult<T>>{
+      calls.push({sql,params});
+      return {rows:[{id:String(calls.length)} as T],rowCount:1};
+    },
+    release(){}
+  };
+  await saveBooking({connect:async()=>client},input);
+  const links=calls.filter(({sql})=>sql.startsWith('INSERT INTO public.booking_pets'));
+  assert.equal(links.length,2);
+  assert.equal(links[0].params?.[0],links[1].params?.[0]);
+  assert.notEqual(links[0].params?.[1],links[1].params?.[1]);
+  assert.deepEqual(JSON.parse(String(links[1].params?.[2])),second.details);
+  assert.equal(calls.at(-1)?.sql,'COMMIT');
+});

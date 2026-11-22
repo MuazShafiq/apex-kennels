@@ -4,6 +4,8 @@ import {IntakeError} from './intake-error.ts';
 import {validateCustomerLocation,validateDropoffLocation,type CustomerLocation,type DropoffLocation} from './customer-location-input.ts';
 export {IntakeError} from './intake-error.ts';
 
+export type AdditionalDog = {petName:string;details:BoardingDetails};
+
 export type IntakeRequest = {
   source: 'google_form' | 'website';
   externalResponseId: string;
@@ -11,6 +13,7 @@ export type IntakeRequest = {
   email?: string;
   phone?: string;
   petName: string;
+  additionalDogs?: AdditionalDog[];
   startDate: string;
   endDate: string;
   accommodationType?: string;
@@ -74,6 +77,21 @@ export function parseIntake(value: unknown, expectedSource: 'google_form'|'websi
        PERSONALITY_TRAITS.some(trait=>typeof details.personalityTraits?.[trait]!=='boolean'))
       throw new IntakeError('Complete all care questions');
   }
+  let additionalDogs:AdditionalDog[]|undefined;
+  if(row.additionalDogs!==undefined){
+    if(expectedSource!=='website'||!Array.isArray(row.additionalDogs)||row.additionalDogs.length>3)
+      throw new IntakeError('Expected up to three additional dogs for a website booking');
+    if(row.additionalDogs.length) additionalDogs=Array.from(row.additionalDogs,(dog:unknown)=>{
+      if(!dog||typeof dog!=='object'||Array.isArray(dog)||
+         Object.keys(dog).sort().join(',')!=='details,petName')
+        throw new IntakeError('Invalid additional dog');
+      const entry=dog as Record<string,unknown>;
+      const details=parseBoardingDetails(entry.details,'dog');
+      if(!details||PERSONALITY_TRAITS.some(trait=>typeof details.personalityTraits?.[trait]!=='boolean'))
+        throw new IntakeError('Complete all care questions for each dog');
+      return {petName:textField(entry.petName,'petName')!,details};
+    });
+  }
   let transportLocation:CustomerLocation|undefined;
   let transportDropoffLocation:DropoffLocation|undefined;
   if(expectedSource==='website') {
@@ -93,7 +111,7 @@ export function parseIntake(value: unknown, expectedSource: 'google_form'|'websi
     }
   }
   return { source:expectedSource, externalResponseId, customerName, email, phone, petName,
-    startDate, endDate, accommodationType, details, ...(transportLocation?{transportLocation}:{}),
+    startDate, endDate, accommodationType, details, ...(additionalDogs?{additionalDogs}:{}), ...(transportLocation?{transportLocation}:{}),
     ...(transportDropoffLocation?{transportDropoffLocation}:{}) };
 }
 
@@ -106,6 +124,7 @@ export function fingerprintIntake(input: IntakeRequest): string {
     startDate: input.startDate, endDate: input.endDate,
     accommodationType: input.accommodationType ?? null,
     details: input.details ?? null,
+    ...(input.additionalDogs?.length?{additionalDogs:input.additionalDogs}:{}),
     ...(input.source==='website' ? {transportLocation:input.transportLocation??null,
       ...(input.transportDropoffLocation?{transportDropoffLocation:input.transportDropoffLocation}:{})} : {})
   })).digest('hex');

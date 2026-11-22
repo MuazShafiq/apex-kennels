@@ -332,3 +332,9 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 - Node 24 cf:check passed 343 tests, typecheck and Worker dry-run. Synthetic booking browser suite passed across transport choices. Fresh production smoke passed and direct probes confirmed config HTTP 200 enabled:false and booking POST 503 on both Worker and Pages. No new production submission.
 - Next owner cdx-18: continue multi-dog intake, grouped invoicing and real stay decisions, then integrate final staff and invoice canvases and verify launch prerequisites.
 - The mobile visual suite also passed all 42 page layouts. Updated docs/release-acceptance.md with the new founder decision and no-consent canary evidence requirement.
+
+### 2026-11-23 | cdx-18 | Multi-dog intake and storage foundation
+
+- Extended website-only intake, request limits, fingerprints, transactional booking/pet links, and synthetic marker checks. Additive migration 009 stores additional per-dog care and cage choice on booking_pets. Primary and historical dog details retain their existing representation. Initial intake limit is four dogs sharing dates, owner, transport and terms.
+- Node 24 cf:check passed all 344 tests, typecheck and Worker dry-run. Disposable loopback PostgreSQL verified migration 009, mixed cage and care readback, two concurrent identical saves yielding one booking, and altered replay yielding 409. No production migration, deployment, or gate change.
+- Next owner cdx-18: connect the booking UI, protected staff readback and grouped invoice pricing to the validated intake model. This checkpoint is internal backend support.

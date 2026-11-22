@@ -26,7 +26,7 @@ test('alerts, staff queue/detail and invoice source use the same synthetic class
     assert(sql.includes('b.external_submission_id'),'query must retain raw source marker for the shared classifier');
     return {rows:[{id,status:base.status,customer_name:marker.customerName??base.customerName,
       pet_names:marker.petName??base.petNames,external_submission_id:marker.externalResponseId??null,
-      start_date:base.startDate,end_date:base.endDate,pet_count:1,
+      start_date:base.startDate,end_date:base.endDate,pet_count:1,camera_pet_count:0,
       camera_cage_requested:false,pickup_dropoff_requested:false}]};
   }) as unknown as typeof Client.prototype.query);
   for(marker of [...markers,{}]){

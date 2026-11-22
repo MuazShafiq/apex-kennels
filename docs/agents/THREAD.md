@@ -338,3 +338,9 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 - Extended website-only intake, request limits, fingerprints, transactional booking/pet links, and synthetic marker checks. Additive migration 009 stores additional per-dog care and cage choice on booking_pets. Primary and historical dog details retain their existing representation. Initial intake limit is four dogs sharing dates, owner, transport and terms.
 - Node 24 cf:check passed all 344 tests, typecheck and Worker dry-run. Disposable loopback PostgreSQL verified migration 009, mixed cage and care readback, two concurrent identical saves yielding one booking, and altered replay yielding 409. No production migration, deployment, or gate change.
 - Next owner cdx-18: connect the booking UI, protected staff readback and grouped invoice pricing to the validated intake model. This checkpoint is internal backend support.
+
+### 2026-11-23 | cdx-18 | Mixed-cage invoice pricing
+
+- Staff draft and transport quote paths now use stored cage counts, and approval reconstructs grouped prices and checks current counts under the existing locks. Historical bookings retain their booking-level cage choice. Daily pricing is the default. Staff must explicitly select the exactly-30-day package.
+- Current PDF renderer can display both boarding rows using its existing variable-row table. The final branded PDF remains pending. Node 24 cf:check passed 345 tests, typecheck and Worker dry-run. Focused follow-up verified mixed-cage PDF generation and rollback on changed cage count. All eight synthetic invoice browser groups and 42 mobile layouts passed.
+- No migration, deployment or gate changes. Next owner cdx-18: complete native multi-dog UI and staff per-dog care display, then staff decisions and approved design integration.

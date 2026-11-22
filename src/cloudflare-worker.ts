@@ -463,7 +463,7 @@ export async function handleWorkerRequest(
       const result=await preparePinnedTransportDraft({
         startDate:source.startDate,endDate:source.endDate,
         cage:source.cameraCageRequested?'camera':'normal',
-        petCount:source.petCount,fullMonthPackageSelected:selected.packageChoice==='monthly',
+        petCount:source.petCount,cameraPetCount:source.cameraPetCount,fullMonthPackageSelected:selected.packageChoice==='monthly',
         transport:{requested:true}
       },{
         kennelPin:APEX_KENNEL_LOCATION.pin,

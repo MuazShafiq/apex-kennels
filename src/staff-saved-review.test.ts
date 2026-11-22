@@ -21,7 +21,7 @@ const env:WorkerEnv={
 const context:StaffContext={access:{
   aud:'test-app-audience',getIdentity:async()=>({email:'owner@example.test'})
 }};
-const newReview=()=>makeReviewSnapshot(prepareStaffDraftReview(booking,'auto'));
+const newReview=()=>makeReviewSnapshot(prepareStaffDraftReview(booking,'monthly'));
 const form=(fields:Record<string,string>,from=origin)=>new Request(origin+'/staff/draft/save',{
   method:'POST',headers:{Origin:from,'Content-Type':'application/x-www-form-urlencoded'},
   body:new URLSearchParams(fields).toString()

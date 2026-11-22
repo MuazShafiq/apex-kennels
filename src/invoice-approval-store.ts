@@ -33,6 +33,8 @@ export async function approveInvoice(databaseUrl:string,input:ApprovalInput,acto
     const current=await db.query("SELECT b.id,b.status,b.start_date::text,b.end_date::text,c.full_name,b.external_submission_id,"+
       'd.camera_cage_requested,d.pickup_dropoff_requested,'+
       '(SELECT COUNT(*)::integer FROM public.booking_pets bp WHERE bp.booking_id=b.id) AS pet_count,'+
+      "(SELECT COUNT(*)::integer FROM public.booking_pets bp WHERE bp.booking_id=b.id AND COALESCE("+
+      "(to_jsonb(bp)->'care_details'->>'cameraCageRequested')::boolean,d.camera_cage_requested)) AS camera_pet_count,"+
       "COALESCE((SELECT STRING_AGG(p.name, ', ' ORDER BY p.name) FROM public.booking_pets bp JOIN public.pets p ON p.id=bp.pet_id WHERE bp.booking_id=b.id),'') AS pet_names "+
       'FROM public.booking_requests b JOIN public.customers c ON c.id=b.customer_id '+
       'LEFT JOIN public.booking_form_details d ON d.booking_id=b.id WHERE b.id=$1 FOR UPDATE OF b,c',[input.bookingId]);
@@ -42,9 +44,12 @@ export async function approveInvoice(databaseUrl:string,input:ApprovalInput,acto
     const row=result.rows[0];if(!row)throw new InvoiceApprovalError('Save a reviewed estimate first');
     const saved:SavedReview={snapshot:row.snapshot as SavedReview['snapshot'],revision:Number(row.revision),updatedBy:String(row.updated_by),updatedAt:String(row.updated_at)};
     const snapshot=prepareApproval(saved,input,actor,config);
-    const review=snapshot.review,sourceQuote=review.ownerOverride?.sourceQuote??review.quote,boarding=sourceQuote.lines[0];
+    const review=snapshot.review,sourceQuote=review.ownerOverride?.sourceQuote??review.quote;
+    const boarding=sourceQuote.lines.filter(line=>line.label==='Standard boarding'||line.label==='Camera cage boarding');
+    const petCount=boarding.reduce((total,line)=>total+line.quantity,0)/sourceQuote.billedDays;
+    const cameraPetCount=(boarding.find(line=>line.label==='Camera cage boarding')?.quantity??0)/sourceQuote.billedDays;
     const synthetic=isSyntheticBooking({customerName:String(source.full_name),petName:String(source.pet_names),externalResponseId:typeof source.external_submission_id==='string'?source.external_submission_id:undefined});
-    if(source.start_date!==review.booking.startDate||source.end_date!==review.booking.endDate||source.full_name!==review.booking.customerName||source.pet_names!==review.booking.petNames||synthetic!==review.booking.synthetic||Number(source.pet_count)!==boarding.quantity/sourceQuote.billedDays||source.camera_cage_requested!==(boarding.label==='Camera cage boarding')||source.pickup_dropoff_requested!==!!review.transport)throw new InvoiceApprovalError('Booking details changed; save a fresh reviewed estimate');
+    if(source.start_date!==review.booking.startDate||source.end_date!==review.booking.endDate||source.full_name!==review.booking.customerName||source.pet_names!==review.booking.petNames||synthetic!==review.booking.synthetic||Number(source.pet_count)!==petCount||source.camera_cage_requested===null||Number(source.camera_pet_count)!==cameraPetCount||source.pickup_dropoff_requested!==!!review.transport)throw new InvoiceApprovalError('Booking details changed; save a fresh reviewed estimate');
     if(review.transport){
       let pin:Record<string,unknown>|undefined;
       try{

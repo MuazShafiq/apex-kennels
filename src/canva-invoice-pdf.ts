@@ -338,13 +338,13 @@ async function renderCanvaPdf(
   const extras=q.lines.filter(l=>!/^(Standard|Camera cage) boarding$/i.test(l.label));
   const transport=extras.filter(l=>l.label==='Pet transport');
   const other=extras.filter(l=>l.label!=='Pet transport');
-  if(!ownerEdited&&(boarding.length!==1||transport.length>1||
+  if(!ownerEdited&&((boarding.length<1||boarding.length>2||new Set(boarding.map(l=>l.label)).size!==boarding.length)||transport.length>1||
      transport.some(l=>l.quantity!==1||l.unitPricePkr<=0||l.totalPkr!==l.unitPricePkr)||
      other.some(l=>l.totalPkr!==0||!/grooming/i.test(l.label))||
      (transport.length===1&&!snapshot.transport)))
     throw new Error('Canva staff PDF cannot represent unverified priced extras');
   const line=boarding[0],pets=line?line.quantity/q.billedDays:0;
-  if(!ownerEdited&&(!Number.isSafeInteger(pets)||pets<1))throw new Error('Invalid pet quantity');
+  if(!ownerEdited&&boarding.some(l=>!Number.isSafeInteger(l.quantity/q.billedDays)||l.quantity/q.billedDays<1))throw new Error('Invalid pet quantity');
   const pdf=await PDFDocument.load(blankPdf,{ignoreEncryption:false});
   if(pdf.getPageCount()!==2)throw new Error('Unexpected Canva invoice template variants');
   const discount=q.discounts.reduce((s,d)=>s+d.amountPkr,0);
@@ -371,7 +371,7 @@ async function renderCanvaPdf(
   identity(page,bold,period(b.startDate,b.endDate),264.9975,159,false);
   if(b.petBreeds)identity(page,bold,b.petBreeds,428.7533,103,false);
   let ownerPages:PDFPage[]|undefined;
-  if(ownerEdited){
+  if(ownerEdited||boarding.length>1){
     ownerPages=await drawOwnerTable(pdf,page,regular,bold,q,discount!==0);
   }else{
   if(/camera cage/i.test(line.label))insert(page,regular,' - camera cage',117.8,396.115,12,BLACK,157);

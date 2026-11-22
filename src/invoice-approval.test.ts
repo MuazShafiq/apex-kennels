@@ -5,6 +5,7 @@ import {prepareStaffDraftReview,type StaffInvoiceSource} from './staff-invoice-d
 import {makeReviewSnapshot,type SavedReview} from './staff-saved-review.ts';
 import {prepareApproval,validateApprovalSnapshot,requireInvoiceOwner,type ApprovalInput,type ApprovalConfig} from './invoice-approval.ts';
 import {approveInvoice,issueInvoice,type InvoiceDb} from './invoice-approval-store.ts';
+import {renderCanvaStaffPdf} from './canva-invoice-pdf.ts';
 import {buildApexInvoiceDraft} from './apex-invoice-draft.ts';
 import {APEX_KENNEL_LOCATION,APEX_KENNEL_ACCESS} from './apex-location-config.ts';
 import {parseNotifiedPetrolRate,FUEL_SOURCE} from './islamabad-petrol-rate.ts';
@@ -61,7 +62,7 @@ test('Postgres jsonb object key ordering does not change approval pricing',()=>{
   const s=reorder(saved()) as SavedReview;
   assert.equal(prepareApproval(s,input,owner,config,now).review.quote.totalPkr,7500);
 });
-function fakeDb(options:{existing?:Record<string,unknown>;numberUsed?:boolean;changed?:boolean;error?:string;snapshot?:SavedReview;pin?:Record<string,unknown>;synthetic?:boolean;sourceSynthetic?:boolean;deliveryRequested?:boolean}={}){
+function fakeDb(options:{existing?:Record<string,unknown>;numberUsed?:boolean;changed?:boolean;cameraChanged?:boolean;error?:string;snapshot?:SavedReview;pin?:Record<string,unknown>;synthetic?:boolean;sourceSynthetic?:boolean;deliveryRequested?:boolean}={}){
   const calls:{sql:string;params?:unknown[]}[]=[];
   const s=options.snapshot??saved();s.updatedAt=new Date().toISOString();
   if(options.synthetic!==undefined)s.snapshot.booking.synthetic=options.synthetic;
@@ -70,7 +71,7 @@ function fakeDb(options:{existing?:Record<string,unknown>;numberUsed?:boolean;ch
   const db:InvoiceDb={connect:async()=>{},end:async()=>{},query:async(sql,params)=>{
     calls.push({sql,params});
     if(options.error&&sql.includes(options.error))throw new Error('synthetic database failure');
-    if(sql.includes('FOR UPDATE OF b,c'))return {rows:[{id,status:'requested',start_date:booking.startDate,end_date:booking.endDate,full_name:s.snapshot.booking.customerName,pet_names:s.snapshot.booking.petNames,pet_count:options.changed?2:1,camera_cage_requested:false,pickup_dropoff_requested:!!s.snapshot.transport,external_submission_id:(options.sourceSynthetic??s.snapshot.booking.synthetic)?'APEX-CF-SMOKE-fixture':'invoice-unit-fixture'}]};
+    if(sql.includes('FOR UPDATE OF b,c'))return {rows:[{id,status:'requested',start_date:booking.startDate,end_date:booking.endDate,full_name:s.snapshot.booking.customerName,pet_names:s.snapshot.booking.petNames,pet_count:options.changed?2:1,camera_pet_count:options.cameraChanged?1:0,camera_cage_requested:false,pickup_dropoff_requested:!!s.snapshot.transport,external_submission_id:(options.sourceSynthetic??s.snapshot.booking.synthetic)?'APEX-CF-SMOKE-fixture':'invoice-unit-fixture'}]};
     if(sql.includes('FROM public.booking_transport_locations'))return {rows:options.pin?[options.pin]:[]};
     if(sql.includes('FROM public.invoice_draft_reviews'))return {rows:[{snapshot:s.snapshot,revision:1,updated_by:owner,updated_at:s.updatedAt}]};
     if(sql.includes('WHERE booking_id=$1'))return {rows:options.existing?[options.existing]:[]};
@@ -94,7 +95,7 @@ test('store serializes numbering and locks saved revision before insert; commits
   assert.equal(calls.at(-1)?.sql,'COMMIT');
 });
 test('duplicate invoice number, modified booking and audit write failure roll back',async()=>{
-  for(const options of [{numberUsed:true},{changed:true},{error:'invoice_approval_audit'}]){
+  for(const options of [{numberUsed:true},{changed:true},{cameraChanged:true},{error:'invoice_approval_audit'}]){
     const {db,calls}=fakeDb(options);
     await assert.rejects(approveInvoice('synthetic://no-database',input,owner,config,()=>db));
     assert.equal(calls.at(-1)?.sql,'ROLLBACK');
@@ -233,4 +234,20 @@ test('migration enforces unique numbering, private data and immutable issued sna
   assert.match(sql,/NEW.snapshot IS DISTINCT FROM OLD.snapshot/);
   assert.match(sql,/ENABLE ROW LEVEL SECURITY/);
   assert.doesNotMatch(sql,/paid|DROP TABLE/i);
+});
+
+test('mixed cages produce one group per rate and one explicit package discount',async()=>{
+  const mixed={...booking,petNames:'Dog A, Dog B',petCount:2,cameraPetCount:1,endDate:'2026-12-14'};
+  const daily=prepareStaffDraftReview(mixed,'auto');
+  assert.equal(daily.draft?.quote.totalPkr,165000);
+  const snapshot=makeReviewSnapshot(prepareStaffDraftReview(mixed,'monthly'));
+  assert.deepEqual(snapshot.quote.lines.map(({label,quantity,totalPkr})=>[label,quantity,totalPkr]),[
+    ['Standard boarding',30,75000],['Camera cage boarding',30,90000]
+  ]);
+  assert.equal(snapshot.quote.discounts[0]?.amountPkr,20000);
+  assert.equal(snapshot.quote.totalPkr,145000);
+  const approved=prepareApproval({...saved(),snapshot},input,owner,config,now);
+  assert.deepEqual(approved.review.quote,snapshot.quote);
+  const pdf=await renderCanvaStaffPdf(snapshot,'2026-11-15',readFileSync('public/invoice/canva-blank.pdf'));
+  assert.equal(Buffer.from(pdf.subarray(0,5)).toString(),'%PDF-');
 });

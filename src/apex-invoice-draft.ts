@@ -33,6 +33,7 @@ export type ApexDraftInput = {
   endDate: string;
   cage: 'normal' | 'camera';
   petCount: number;
+  cameraPetCount?: number;
   /** Show free grooming only when it was requested or provided. */
   groomingRequested?: boolean;
   /** A full-month package is a 30 billed-day stay, explicitly selected by staff. */
@@ -93,15 +94,20 @@ export function buildApexInvoiceDraft(input: ApexDraftInput): ApexDraftQuote {
   const monthly = input.fullMonthPackageSelected;
   if(monthly && billedDays !== APEX_CONFIRMED_PRICING.fullMonthBilledDays)
     throw new Error('Full-month discount requires exactly 30 billed days');
-  const unitPricePkr=input.cage==='normal'
-    ?APEX_CONFIRMED_PRICING.normalPerDayPkr:APEX_CONFIRMED_PRICING.cameraPerDayPkr;
-  const quantity=input.petCount*billedDays;
-  if(!Number.isSafeInteger(quantity))throw new Error('Boarding quantity overflow');
-  const boardingLine:QuoteLine={
-    label:input.cage==='camera'?'Camera cage boarding':'Standard boarding',
-    quantity,unitPricePkr,totalPkr:safeMoney(quantity*unitPricePkr)
-  };
-  const lines: QuoteLine[] = [boardingLine];
+  const cameraCount=input.cameraPetCount??(input.cage==='camera'?input.petCount:0);
+  if(!Number.isSafeInteger(cameraCount)||cameraCount<0||cameraCount>input.petCount)
+    throw new Error('Invalid camera cage quantity');
+  const lines:QuoteLine[]=[];
+  const groups=[
+    ['Standard boarding',input.petCount-cameraCount,APEX_CONFIRMED_PRICING.normalPerDayPkr],
+    ['Camera cage boarding',cameraCount,APEX_CONFIRMED_PRICING.cameraPerDayPkr],
+  ] as const;
+  for(const [label,count,unitPricePkr] of groups){
+    if(!count)continue;
+    const quantity=count*billedDays;
+    if(!Number.isSafeInteger(quantity))throw new Error('Boarding quantity overflow');
+    lines.push({label,quantity,unitPricePkr,totalPkr:safeMoney(quantity*unitPricePkr)});
+  }
   if (input.groomingRequested === true) {
     lines.push({label:'Grooming (complimentary)',quantity:input.petCount,unitPricePkr:0,totalPkr:0});
   }

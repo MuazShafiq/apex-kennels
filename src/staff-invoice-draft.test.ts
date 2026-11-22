@@ -128,11 +128,11 @@ test('printable review supports confirmed 30-day packages but blocks incomplete 
     assert.doesNotMatch(renderStaffDraftReview(review),/Preview Canva invoice \(PDF\)/);
   }
 });
-test('30-day package is suggested automatically but staff may explicitly choose daily',()=>{
+test('30-day package requires an explicit choice',()=>{
   const booking={...standard,startDate:'2026-11-01',endDate:'2026-11-30',cameraCageRequested:true};
   const automatic=prepareStaffDraftReview(booking,'auto');
-  assert.equal(automatic.packageChoice,'monthly');
-  assert.equal(automatic.draft?.quote.totalPkr,80000);
+  assert.equal(automatic.packageChoice,'daily');
+  assert.equal(automatic.draft?.quote.totalPkr,90000);
   const daily=prepareStaffDraftReview(booking,'daily');
   assert.equal(daily.packageChoice,'daily');
   assert.equal(daily.draft?.quote.totalPkr,90000);

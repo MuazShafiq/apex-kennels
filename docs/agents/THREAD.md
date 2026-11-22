@@ -344,3 +344,9 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 - Staff draft and transport quote paths now use stored cage counts, and approval reconstructs grouped prices and checks current counts under the existing locks. Historical bookings retain their booking-level cage choice. Daily pricing is the default. Staff must explicitly select the exactly-30-day package.
 - Current PDF renderer can display both boarding rows using its existing variable-row table. The final branded PDF remains pending. Node 24 cf:check passed 345 tests, typecheck and Worker dry-run. Focused follow-up verified mixed-cage PDF generation and rollback on changed cage count. All eight synthetic invoice browser groups and 42 mobile layouts passed.
 - No migration, deployment or gate changes. Next owner cdx-18: complete native multi-dog UI and staff per-dog care display, then staff decisions and approved design integration.
+
+### 2026-11-23 | cdx-18 | Customer multi-dog booking
+
+- Added up to three additional dogs in the existing dog and care steps, with separate identity, cage, health and care answers. The daily subtotal reflects all chosen cages. An exactly 30-day package is shown as conditional on staff confirmation. Submission and receipt include all dogs.
+- Node 24 cf:check passed 345 tests, typecheck and Worker dry-run. Synthetic booking browser tests covered add/remove, required validation, mixed-cage summary and per-dog care readback at the Worker boundary. The 42-layout mobile suite passed. No live Turnstile, Neon write, deployment or gate change.
+- Next owner cdx-18: show per-dog care in staff detail and implement the audited booking decision workflow.

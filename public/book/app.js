@@ -2,6 +2,8 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
 
 (function(){
   'use strict';
+  const $=(selector,parent=document)=>parent.querySelector(selector);
+  const $$=(selector,parent=document)=>[...parent.querySelectorAll(selector)];
   const form=document.getElementById('booking');
   const pickupRequested=document.getElementById('transport-pickup');
   const dropoffRequested=document.getElementById('transport-dropoff');
@@ -303,14 +305,101 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
 
   function field(data,name){return String(data.get(name)||'').trim();}
   function optional(data,name){return field(data,name)||undefined;}
+  const extraDogs=[];
+  let dogSequence=0;
+  const dogBody=$('#booking-step-2');
+  const careBody=$('#booking-step-4');
+  const dogGrid=$('.grid',dogBody);
+  const careTraits=$('.traits',careBody);
+  const careGrid=$('.grid',careBody);
+  const cageField=$('[data-f="cameraCageRequested"]');
+  const addDog=document.createElement('button');
+  addDog.type='button';
+  addDog.className='back add-dog';
+  addDog.textContent='Add another dog';
+  dogBody.insertBefore(addDog,$('.nav-row',dogBody));
+
+  function cloneDogFields(template,prefix){
+    const clone=template.cloneNode(true);
+    for(const node of [clone,...$$('[id], [for], [name], [data-f], [aria-describedby]',clone)]){
+      for(const attr of ['id','for','name','data-f','aria-describedby']){
+        if(node.hasAttribute(attr))node.setAttribute(attr,node.getAttribute(attr).split(/\s+/).map(value=>prefix+value).join(' '));
+      }
+    }
+    for(const node of $$('.f-err',clone)){node.removeAttribute('id');node.hidden=true;node.textContent='';}
+    for(const node of $$('.bad',clone))node.classList.remove('bad');
+    for(const input of $$('input,textarea',clone)){
+      if(input.type==='radio')input.checked=false;
+      else input.value='';
+      input.removeAttribute('aria-invalid');
+      const descriptions=(input.getAttribute('aria-describedby')||'').split(' ').filter(value=>value&&!value.includes('booking-error-'));
+      if(descriptions.length) input.setAttribute('aria-describedby',descriptions.join(' '));
+      else input.removeAttribute('aria-describedby');
+    }
+    return clone;
+  }
+
+  function refreshDogs(data=new FormData(form)){
+    extraDogs.forEach(({prefix,heading,careHeading},index)=>{
+      heading.textContent='Dog '+(index+2);
+      careHeading.textContent=field(data,prefix+'petName')||heading.textContent;
+    });
+    addDog.disabled=extraDogs.length>=3;
+  }
+
+  addDog.addEventListener('click',()=>{
+    if(extraDogs.length>=3)return;
+    const prefix='dog'+(++dogSequence)+'-';
+    const identity=document.createElement('section');
+    const care=document.createElement('section');
+    identity.className=care.className='extra-dog';
+    const heading=document.createElement('h3');
+    const careHeading=document.createElement('h3');
+    const remove=document.createElement('button');
+    remove.type='button';
+    remove.className='back';
+    remove.textContent='Remove dog';
+    const grid=cloneDogFields(dogGrid,prefix);
+    grid.append(cloneDogFields(cageField,prefix));
+    identity.append(heading,grid,remove);
+    care.append(careHeading,cloneDogFields(careTraits,prefix),cloneDogFields(careGrid,prefix));
+    dogBody.insertBefore(identity,addDog);
+    careBody.insertBefore(care,$('.nav-row',careBody));
+    const dog={prefix,identity,care,heading,careHeading};
+    extraDogs.push(dog);
+    remove.addEventListener('click',()=>{
+      extraDogs.splice(extraDogs.indexOf(dog),1);
+      identity.remove();
+      care.remove();
+      refreshDogs();
+      updateSummary();
+      showErrors(1,{});
+      addDog.focus();
+    });
+    refreshDogs();
+    updateSummary();
+    $('input',grid).focus();
+  });
+
+  function dogCare(data,prefix=''){
+    const answer=name=>field(data,prefix+name);
+    const personalityTraits=Object.fromEntries(traitNames.map(name=>{
+      const value=answer('trait_'+name);
+      if(value!=='Yes'&&value!=='No')throw new Error('Complete the care questions for each dog.');
+      return [name,value==='Yes'];
+    }));
+    return {
+      breed:answer('breed'),gender:answer('gender'),age:answer('age'),
+      vaccinationStatus:answer('vaccinationStatus'),distemperHistory:answer('distemperHistory'),
+      veterinarianPhone:optional(data,prefix+'veterinarianPhone'),personalityTraits,
+      specialInstructions:optional(data,prefix+'specialInstructions'),
+      medicationFeedingInstructions:optional(data,prefix+'medicationFeedingInstructions'),
+      cameraCageRequested:answer('cameraCageRequested')==='yes'
+    };
+  }
+
   function payload(){
     const data=new FormData(form);
-    const personalityTraits={};
-    for(const key of traitNames){
-      const answer=field(data,'trait_'+key);
-      if(answer!=='Yes'&&answer!=='No')throw new Error('Complete the care questions.');
-      personalityTraits[key]=answer==='Yes';
-    }
     const choice=transportChoice();
     const needsTransport=choice!=='none';
     if(!needsTransport&&!noTransport.checked){
@@ -329,15 +418,8 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
     const details={
       ownerAddress:field(data,'ownerAddress'),
       emergencyContactPhone:field(data,'emergencyContactPhone'),
-      breed:field(data,'breed'),gender:field(data,'gender'),age:field(data,'age'),
-      vaccinationStatus:field(data,'vaccinationStatus'),
-      distemperHistory:field(data,'distemperHistory'),
-      veterinarianPhone:optional(data,'veterinarianPhone'),
-      personalityTraits,
-      specialInstructions:optional(data,'specialInstructions'),
-      medicationFeedingInstructions:optional(data,'medicationFeedingInstructions'),
+      ...dogCare(data),
       pickupDropoffRequested:needsTransport,
-      cameraCageRequested:field(data,'cameraCageRequested')==='yes',
       termsAccepted:data.get('termsAccepted')==='on'
     };
     const booking={
@@ -347,6 +429,9 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
       startDate:field(data,'startDate'),endDate:field(data,'endDate'),
       details
     };
+    if(extraDogs.length)booking.additionalDogs=extraDogs.map(({prefix})=>({
+      petName:field(data,prefix+'petName'),details:dogCare(data,prefix)
+    }));
     if(needsTransport){
       booking.transportLocation={
         ...(choice==='dropoff'?dropoff.point():pickup.point()),
@@ -358,8 +443,6 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
     return booking;
   }
 
-  const $=(selector,parent=document)=>parent.querySelector(selector);
-  const $$=(selector,parent=document)=>[...parent.querySelectorAll(selector)];
   const steps=$$('[data-step]',form);
   const stepLinks=$$('[data-pl]');
   const ticket=$('#stay-ticket');
@@ -397,11 +480,20 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
     const days=end>=start?(end-start)/86400000+1:0;
     const space=field(data,'cameraCageRequested');
     const rate=rates[space];
-    const hasPackageRate=days===30&&!!rate;
-    const daily=rate?days*rate.daily:0;
+    const selectedRates=[rate,...extraDogs.map(({prefix})=>rates[field(data,prefix+'cameraCageRequested')])];
+    const dailyRate=selectedRates.reduce((sum,selected)=>sum+(selected?.daily??0),0);
+    const hasPackageRate=days===30&&selectedRates.every(Boolean);
+    const daily=days*dailyRate;
+    const packageTotal=hasPackageRate?selectedRates.reduce((sum,selected)=>sum+selected.package,0):0;
+    const spaceSummary=extraDogs.length
+      ? [rates.no,rates.yes].map((category,index)=>{
+          const count=selectedRates.filter(selected=>selected===category).length;
+          return count?count+' '+(index?'camera':'standard'):'';
+        }).filter(Boolean).join(' + ')
+      :spaceLabel(space);
     return {
-      start,end,days,rate,hasPackageRate,daily,space,
-      total:hasPackageRate?rate.package:daily,
+      start,end,days,rate,hasPackageRate,dailyRate,space,spaceSummary,packageTotal,
+      total:daily,
       dates:days?dateFormat.format(start)+' → '+dateFormat.format(end):''
     };
   }
@@ -429,32 +521,33 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
   function updateSummary(){
     const data=new FormData(form);
     const s=stay(data);
-    const name=field(data,'petName');
+    const name=bookingDogNames(data);
+    refreshDogs(data);
     const ticketName=$('[data-tk-name]');
     ticketName.classList.toggle('empty',!name);
     ticketName.firstChild.nodeValue=name||'Your dog';
     $('[data-tk-dates]').textContent=s.dates||'Dates not set';
     summaryValue('[data-tk-days]',s.days&&String(s.days),'—');
-    summaryValue('[data-tk-space]',spaceLabel(s.space),'Not chosen');
-    summaryValue('[data-tk-board]',s.rate?(s.hasPackageRate?'30-day rate':rupees(s.rate.daily)+' per billed day'):'','—');
+    summaryValue('[data-tk-space]',s.spaceSummary,'Not chosen');
+    summaryValue('[data-tk-board]',s.dailyRate?rupees(s.dailyRate)+' per billed day':'','—');
     summaryValue('[data-tk-trans]',transportChoice()==='none'?(noTransport.checked?'None':''):'To be quoted','Not chosen');
     $('[data-tk-tot]').textContent=rupees(s.total);
     $('[data-mb-v]').textContent=rupees(s.total);
     $('[data-mb-t]').textContent=s.days?billedDays(s.days)+' · boarding subtotal':'Boarding subtotal';
     $('[data-pkg]').hidden=!s.hasPackageRate;
     $('[data-tk-pkg]').hidden=!s.hasPackageRate;
-    $('[data-tk-was]').hidden=!s.hasPackageRate;
-    $('[data-tk-was]').textContent=rupees(s.daily);
     for(const node of $$('[data-package-copy]')){
-      node.textContent=s.hasPackageRate?'30-day rate applied. You save '+rupees(s.daily-s.total)+'.':'';
+      node.textContent=s.hasPackageRate?'30-day package: '+rupees(s.packageTotal)+' if confirmed by staff.':'';
     }
     $('[data-days]').hidden=!s.days;
     if(s.days){
       $('[data-days-n]').textContent=billedDays(s.days);
       $('[data-days-r]').textContent=dateFormat.format(s.start)+' to '+dateFormat.format(s.end)+', both days included';
     }
-    const vaccination=field(data,'vaccinationStatus');
-    $('[data-vacc-note]').hidden=!(vaccination==='Partially vaccinated'||vaccination==='None'||field(data,'distemperHistory')==='Yes');
+    for(const {prefix,identity} of [{prefix:'',identity:dogGrid},...extraDogs]){
+      const vaccination=field(data,prefix+'vaccinationStatus');
+      $('[data-vacc-note]',identity).hidden=!(vaccination==='Partially vaccinated'||vaccination==='None'||field(data,prefix+'distemperHistory')==='Yes');
+    }
     const careNotes=$$('.trait[data-detail]').filter(trait=>{
       const yes=$('input:checked',trait)?.value==='Yes';
       trait.classList.toggle('yes',yes);
@@ -465,6 +558,19 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
   }
 
   // Keep all five sections in the real form so edits are retained between steps.
+  function bookingDogNames(data){
+    return [field(data,'petName'),...extraDogs.map(({prefix})=>field(data,prefix+'petName'))].filter(Boolean).join(', ');
+  }
+
+  function dogAnswers(data,required,additional={}){
+    const errors=requiredAnswers(data,required);
+    for(const {prefix} of extraDogs){
+      const fields=Object.entries({...required,...additional}).map(([name,message])=>[prefix+name,message]);
+      Object.assign(errors,requiredAnswers(data,Object.fromEntries(fields)));
+    }
+    return errors;
+  }
+
   const checks=[
     data=>{
       const errors={};
@@ -476,14 +582,14 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
       if(!s.rate)errors.cameraCageRequested='Choose standard boarding or a camera cage.';
       return errors;
     },
-    data=>requiredAnswers(data,{
+    data=>dogAnswers(data,{
       petName:'Tell us your dog’s name.',
       breed:'Add the breed, or “mixed”.',
       gender:'Choose male or female.',
       age:'Add an age, even roughly.',
       vaccinationStatus:'Choose a vaccination status.',
       distemperHistory:'Choose yes, no or not sure.'
-    }),
+    },{cameraCageRequested:'Choose standard boarding or a camera cage.'}),
     ()=>{
       const errors={};
       if(!pickupRequested.checked&&!dropoffRequested.checked&&!noTransport.checked)
@@ -493,7 +599,7 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
         errors.dropoffLink='Set and confirm the drop-off gate.';
       return errors;
     },
-    data=>requiredAnswers(data,Object.fromEntries(traitNames.map(name=>['trait_'+name,'Choose yes or no.']))),
+    data=>dogAnswers(data,Object.fromEntries(traitNames.map(name=>['trait_'+name,'Choose yes or no.']))),
     data=>{
       const errors=requiredAnswers(data,{
         customerName:'Add your full name.',
@@ -553,7 +659,7 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
       const s=stay(data);
       return billedDays(s.days)+' · '+spaceLabel(s.space);
     }
-    if(index===1)return field(data,'petName')+' · '+field(data,'breed');
+    if(index===1)return bookingDogNames(data);
     if(index===2)return transportLabel();
     if(index===3)return 'All answered';
     return 'Contact information and boarding terms';
@@ -639,29 +745,32 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
 
   function showConfirmation(booking,reference){
     const s=stay(new FormData(form));
-    const space=spaceLabel(s.space);
+    const space=s.spaceSummary;
     const receipt={
       '[data-d-r1]':s.dates,
       '[data-d-r2]':space,
       '[data-d-r3]':transportLabel(),
-      '[data-d-r4]':rupees(s.total)+(s.hasPackageRate?' · 30-day rate':''),
+      '[data-d-r4]':rupees(s.total),
       '[data-d-space]':space,
       '[data-d-sub]':s.space==='yes'?'24/7 CCTV':'Dog boarding',
       '[data-np-date]':s.dates,
       '#reference':reference
     };
     for(const [selector,value] of Object.entries(receipt))$(selector,complete).textContent=value;
-    $('[data-np-name]',plaque).textContent=booking.petName;
+    const names=[booking.petName,...(booking.additionalDogs||[]).map(dog=>dog.petName)].join(', ');
+    $('[data-np-name]',plaque).textContent=names;
     formView.hidden=true;
     complete.hidden=false;
     document.body.classList.add('sent');
-    setPlaqueName(plaque,booking.petName);
+    setPlaqueName(plaque,names);
     complete.focus({preventScroll:true});
     complete.scrollIntoView({block:'start'});
   }
 
   $('[data-restart]',complete).addEventListener('click',()=>{
     form.reset();
+    for(const dog of extraDogs.splice(0)){dog.identity.remove();dog.care.remove();}
+    refreshDogs();
     pickup.reset();
     dropoff.reset();
     completed.clear();

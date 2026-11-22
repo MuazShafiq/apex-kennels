@@ -104,10 +104,14 @@ export async function fillBookingThroughDog(page){
   await page.locator('#booking-step-3').waitFor({state:'visible'});
 }
 
-export async function fillBookingCareAndContact(page){
+export async function fillBookingCareAndContact(page,additionalDogPrefix){
   await page.locator('[data-next="3"]').click();
   for(const key of ['friendly','fears','climber','foodSensitivities','barksExcessively','allergies','biteHistory','medicalConditions']){
     await page.locator('label:has([name="trait_'+key+'"][value="No"])').click();
+    if(additionalDogPrefix){
+      const answer=key==='allergies'?'Yes':'No';
+      await page.locator('label:has([name="'+additionalDogPrefix+'trait_'+key+'"][value="'+answer+'"])').click();
+    }
   }
   await page.locator('[data-next="4"]').click();
   await page.locator('[name="customerName"]').fill('APEX CANARY BROWSER TEST');

@@ -1,7 +1,7 @@
 import {APEX_STAFF_THEME_CSS,APEX_STAFF_BRAND} from './apex-brand.ts';
 import {Client} from '@neondatabase/serverless';
 import {isSyntheticBooking} from './synthetic-booking.ts';
-import type {PersonalityTrait} from './boarding-details.ts';
+import type {BoardingDetails,PersonalityTrait} from './boarding-details.ts';
 
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 export function parseStaffBookingId(url:URL):string {
@@ -9,7 +9,7 @@ export function parseStaffBookingId(url:URL):string {
   if(!UUID.test(id))throw new Error('Invalid booking ID');
   return id;
 }
-export type StaffPet={name:string;breed:string|null};
+export type StaffPet={name:string;breed:string|null;care_details?:BoardingDetails|null};
 export type StaffBookingDetail={
   id:string;status:string;createdAt:string;startDate:string;endDate:string;
   customerName:string;email:string|null;phone:string|null;accommodationType:string|null;
@@ -57,11 +57,11 @@ export async function readStaffBookingDetail(databaseUrl:string,id:string):Promi
     const row=booking.rows[0];
     if(!row)return null;
     const petRows=await db.query<StaffPet>(`
-      SELECT p.name,p.breed
+      SELECT p.name,p.breed,to_jsonb(bp)->'care_details' AS care_details
       FROM public.booking_pets bp
       JOIN public.pets p ON p.id=bp.pet_id
       WHERE bp.booking_id=$1
-      ORDER BY p.name
+      ORDER BY (to_jsonb(bp)->>'care_details' IS NOT NULL),p.name,p.id
       LIMIT 100`,[id]);
     let transportLocation:StaffBookingDetail['transportLocation']=null;
     try{
@@ -116,33 +116,55 @@ function section(title:string,contents:string):string{
   return '<section class="panel"><h2>'+esc(title)+'</h2><dl class="detail-grid">'+contents+'</dl></section>';
 }
 
+const cage=(choice:boolean|null|undefined)=>typeof choice==='boolean'
+  ?choice?'Camera cage':'Standard cage'
+  :present(null);
+const vaccination=(status:string|null|undefined)=>!status||status==='None'||status==='Partially vaccinated'
+  ?present(status)+'<br><strong>Staff vaccination review required</strong>'
+  :present(status);
+function careTraits(traits:BoardingDetails['personalityTraits']|null):string{
+  return Object.entries(traitLabels).map(([key,label])=>'<div class="trait">'+esc(label)
+    +': <strong>'+yesNo(traits?.[key as PersonalityTrait]??null)+'</strong></div>').join('');
+}
+function renderAdditionalDog(pet:StaffPet,care:BoardingDetails):string{
+  return section(pet.name,
+    value('Breed',present(pet.breed))
+    +value('Requested cage',cage(care.cameraCageRequested))
+    +value('Vaccination status',vaccination(care.vaccinationStatus))
+    +value('Canine distemper history',present(care.distemperHistory))
+    +value('Vet phone number',present(care.veterinarianPhone))
+    +value('Pet gender',present(care.gender))
+    +value('Pet age',present(care.age))
+    +value('Medication and feeding',present(care.medicationFeedingInstructions))
+    +value('Special instructions',present(care.specialInstructions))
+    +value('Owner-reported traits and health',careTraits(care.personalityTraits)));
+}
+
 /** Staff-only HTML. All customer-controlled content is HTML-escaped; no data leaves the server. */
 export function renderStaffBookingDetail(b:StaffBookingDetail):string {
   const petText=b.pets.length
     ? b.pets.map(p=>esc(p.name)+(p.breed?' ('+esc(p.breed)+')':'')).join(', ')
     : '<span class="missing">No linked pets</span>';
+  const extraPets=b.pets.filter(pet=>pet.care_details);
+  const primary=extraPets.length?b.pets.find(pet=>!pet.care_details)?.name:undefined;
   const form=b.hasFormDetails
     ? section('Boarding & transport',
-        value('Requested cage',b.cameraCageRequested===null?'<span class="missing">Not recorded</span>':b.cameraCageRequested?'Camera cage':'Standard cage')
-        +value('Pickup / drop-off requested',yesNo(b.pickupDropoffRequested))
+        value('Pickup / drop-off requested',yesNo(b.pickupDropoffRequested))
         +value('Owner address',present(b.ownerAddress))
         +value('Boarding terms accepted',yesNo(b.termsAccepted)))
-      +section('Health & emergency',
-        value('Vaccination status',present(b.vaccinationStatus))
+      +section(primary?primary+' · Health & emergency':'Health & emergency',
+        value('Requested cage',cage(b.cameraCageRequested))
+        +value('Vaccination status',vaccination(b.vaccinationStatus))
         +value('Canine distemper history',present(b.distemperHistory))
         +value('Emergency contact number',present(b.emergencyContactPhone))
         +value('Vet phone number',present(b.veterinarianPhone))
         +value('Pet gender',present(b.petGender))
         +value('Pet age',present(b.petAgeDescription)))
-      +section('Care instructions',
+      +section(primary?primary+' · Care instructions':'Care instructions',
         value('Medication and feeding',present(b.medicationFeedingInstructions))
         +value('Special instructions',present(b.specialInstructions))
-        +value('Owner-reported traits and health',
-          Object.entries(traitLabels).map(([key,label])=>'<div class="trait">'+esc(label)
-          +': <strong>'+(b.personalityTraits?.[key as PersonalityTrait]===true?'Yes':
-            b.personalityTraits?.[key as PersonalityTrait]===false?'No':'Not recorded')
-          +'</strong></div>').join('')
-          ))
+        +value('Owner-reported traits and health',careTraits(b.personalityTraits)))
+      +extraPets.map(pet=>renderAdditionalDog(pet,pet.care_details!)).join('')
     : '<section class="notice">Full boarding details are missing. Check the original Google Form before confirming this stay.</section>';
   const location=b.transportLocation;
   const transport=location&&Number.isFinite(location.latitude)&&Number.isFinite(location.longitude)

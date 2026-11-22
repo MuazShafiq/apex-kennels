@@ -350,3 +350,9 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 - Added up to three additional dogs in the existing dog and care steps, with separate identity, cage, health and care answers. The daily subtotal reflects all chosen cages. An exactly 30-day package is shown as conditional on staff confirmation. Submission and receipt include all dogs.
 - Node 24 cf:check passed 345 tests, typecheck and Worker dry-run. Synthetic booking browser tests covered add/remove, required validation, mixed-cage summary and per-dog care readback at the Worker boundary. The 42-layout mobile suite passed. No live Turnstile, Neon write, deployment or gate change.
 - Next owner cdx-18: show per-dog care in staff detail and implement the audited booking decision workflow.
+
+### 2026-11-23 | cdx-18 | Protected per-dog care review
+
+- Staff booking detail reads linked per-dog care and separates cage, vaccination, health and care answers from the primary dog. Missing or incomplete vaccination records flag staff review. Legacy records remain readable, and staff authorization and no-store response handling are preserved.
+- Disposable loopback PostgreSQL read back the primary and separate second-dog cage/vaccination fields from migration 009 fixtures. Node 24 cf:check passed 346 tests, typecheck and Worker dry-run. Synthetic booking browser and 42 mobile layouts passed. The protected detail regression covers escaped names and instructions and vaccination warnings.
+- No production changes. Next owner cdx-18: audited stay actions and verification, then staff run sheet and invoice design.

@@ -140,3 +140,19 @@ test('customer-confirmed pickup pin appears only in staff booking details, not i
   const noPin=renderStaffBookingDetail({...detail,transportLocation:null});
   assert.doesNotMatch(noPin,/Open in Google Maps/);
 });
+
+test('protected booking detail separates dogs and flags missing vaccination evidence',async()=>{
+  const mixed:StaffBookingDetail={...detail,vaccinationStatus:null,pets:[...detail.pets,{
+    name:'Camera Dog <script>',breed:'Mixed',care_details:{
+      cameraCageRequested:true,vaccinationStatus:'None',personalityTraits:{allergies:true},
+      medicationFeedingInstructions:'Separate meal & medication'
+    }
+  }]};
+  const response=await handleWorkerRequest(new Request(url),env,undefined,{context:staff,detail:async()=>mixed});
+  assert.equal(response.status,200);
+  const html=await response.text();
+  assert.match(html,/Rover &amp; &lt;script&gt;alert\(2\)&lt;\/script&gt; · Health &amp; emergency/);
+  assert.match(html,/Camera Dog &lt;script&gt;<\/h2>.*Camera cage.*Separate meal &amp; medication.*Allergies: <strong>Yes/);
+  assert.equal((html.match(/Staff vaccination review required/g)??[]).length,2);
+  assert.doesNotMatch(html,/<script>/);
+});

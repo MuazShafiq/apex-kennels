@@ -427,3 +427,8 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 
 - Staff run-sheet selections now open a booking with the active search and status filters. The protected detail page reads the same bounded queue to show the lane position and previous/next links within that lane. Stay-action redirects keep the filter context. Direct detail links need no queue read.
 - Node 24 cf:check passed 350 tests, typecheck and Worker dry-run. The protected route regression proves navigation stays within the filtered lane. The 42-layout mobile suite passed. No production changes.
+
+### 2026-11-23 | cdx-18 | Invoice variant metadata
+
+- Branded PDFs now put the review reference or issued number in one status/reference band and show one Date field. Review variants keep their nonpayable marks on every page. The printed stay uses readable dates.
+- Independently rendered a mixed-cage 30-day review and issued fixture with PyMuPDF. Both retained separate boarding rows and PKR 145,000 total. Verified one date and one reference, and payment fields only on the issued variant. All 350 Node tests, typecheck, Worker dry-run, and nine synthetic invoice browser groups passed. No production changes.

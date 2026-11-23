@@ -661,7 +661,7 @@ export async function handleWorkerRequest(
     catch { return json({error:'Invalid filter'},400); }
     try {
       const rows=await (staff.list??listStaffBookings)(env.DATABASE_URL,filter);
-      return path==='/staff' ? html(renderStaffConsoleHtml(rows,{demo:false,filter,email}))
+      return path==='/staff' ? html(renderStaffConsoleHtml(rows,{demo:false,filter,email,selectedId:new URL(request.url).searchParams.get('stay')??undefined}))
         : json({items:rows,limit:50,readOnly:true});
     } catch { return json({error:'Internal server error'},500); }
   }

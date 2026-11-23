@@ -282,12 +282,12 @@ test('external redirect failure gives safe unresolved result, not a fake locatio
   assert.match(await response.text(),/Unable to read that location link/);
 });
 
-test('staff booking queue links to Access-gated pin checker; demo does not',async()=>{
+test('run sheet omits the standalone legacy pin checker link',async()=>{
   const allowed=await handleWorkerRequest(new Request(origin+'/staff'),env,undefined,{
     context:valid,list
   });
   assert.equal(allowed.status,200);
-  assert.match(await allowed.text(),/href="\/staff\/location"/);
+  assert.doesNotMatch(await allowed.text(),/href="\/staff\/location"/);
   const demo=await handleWorkerRequest(new Request(origin+'/demo/staff'),{});
   assert.equal(demo.status,200);
   assert.doesNotMatch(await demo.text(),/href="\/staff\/location"/);
@@ -343,4 +343,24 @@ test('print format validation rejects duplicate and unknown query formats before
     assert.equal(response.status,400);
   }
   assert.equal(reads,0);
+});
+
+test('run sheet shows distinct lanes and uses recorded arrival for the selected stay',async()=>{
+  const rows:StaffBooking[]=[
+    booking,
+    {...booking,id:'arrived',status:'approved',petNames:'Arrived Dog',checkedInAt:'2026-12-12T08:15:00Z'},
+    {...booking,id:'due',status:'approved',petNames:'Expected Dog'},
+    {...booking,id:'closed',status:'completed',petNames:'Closed Dog'}
+  ];
+  const response=await handleWorkerRequest(new Request(origin+'/staff?stay=arrived'),env,undefined,{
+    context:valid,list:async()=>rows
+  });
+  const html=await response.text();
+  assert.match(html,/<h2>To review<\/h2><span class="lane-count">1 stay/);
+  assert.match(html,/<h2>Approved stays<\/h2><span class="lane-count">2 stays/);
+  assert.match(html,/<h2>Closed<\/h2><span class="lane-count">1 stay/);
+  assert.match(html,/aria-current="true"><span class="chip in">Checked in<\/span>.*Arrived Dog/);
+  assert.match(html,/<span class="chip ">Approved<\/span>.*Expected Dog/);
+  assert.match(html,/href="\/staff\/booking\?id=arrived">View details/);
+  assert.doesNotMatch(html,/\/staff\/location|sample@example\.test/);
 });

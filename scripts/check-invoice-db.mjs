@@ -387,6 +387,12 @@ async function checkNativeStay(dbUrl){
     assert.ok(Date.parse(history[3].recorded_at)>=Date.parse(history[2].recorded_at));
     assert.equal((await pool.query('SELECT status FROM public.booking_requests WHERE id=$1',[id])).rows[0].status,'completed');
     assert.equal((await pool.query('SELECT id FROM public.approved_invoices WHERE booking_id=$1',[id])).rowCount,0);
+    for(const sql of [
+      'UPDATE public.booking_stay_history SET reason=NULL WHERE booking_id=$1',
+      'DELETE FROM public.booking_stay_history WHERE booking_id=$1',
+    ])await assert.rejects(pool.query(sql,[id]),/append-only/);
+    await assert.rejects(pool.query('TRUNCATE public.booking_stay_history'),/append-only/);
+    assert.deepEqual(await readStayHistory(pool,id),history);
     console.log('PASS native multi-dog storage, stable retry, competing decisions and audited stay without invoice effects');
   }finally{await pool.end();}
 }

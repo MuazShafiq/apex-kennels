@@ -9,7 +9,10 @@
 import assert from 'node:assert/strict';
 import {randomUUID,createHash,createHmac} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
-import {Client} from 'pg';
+import {Client,Pool} from 'pg';
+import {parseIntake} from '../src/intake.ts';
+import {saveBooking} from '../src/booking-store.ts';
+import {applyStayDecision,parseStayDecision,readStayHistory} from '../src/staff-stay.ts';
 import {pathToFileURL} from 'node:url';
 import {prepareStaffDraftReview} from '../src/staff-invoice-draft.ts';
 import {saveOwnerInvoiceEdit} from '../src/owner-invoice-edit.ts';
@@ -337,6 +340,57 @@ try{
 
 }
 
+async function checkNativeStay(dbUrl){
+  const pool=new Pool({connectionString:dbUrl});
+  try{
+    for(const migration of ['009_additional_dog_care','010_booking_stay_history']){
+      await pool.query(await readFile(new URL('../db/migrations/'+migration+'.sql',import.meta.url),'utf8'));
+    }
+    const traits={friendly:true,fears:false,climber:false,foodSensitivities:false,barksExcessively:false,
+      allergies:false,biteHistory:false,medicalConditions:false};
+    const care={breed:'Mixed',gender:'Female',age:'Adult',vaccinationStatus:'None',
+      distemperHistory:'No',personalityTraits:traits,cameraCageRequested:false};
+    const input=parseIntake({source:'website',externalResponseId:randomUUID(),customerName:'SYNTHETIC STAY',
+      phone:'03000000000',petName:'Standard Dog',startDate:'2026-12-01',endDate:'2026-12-30',
+      details:{...care,ownerAddress:'Synthetic address',emergencyContactPhone:'03000000001',
+        termsAccepted:true,pickupDropoffRequested:false},
+      additionalDogs:[{petName:'Camera Dog',details:{...care,cameraCageRequested:true}}]},'website');
+    const [first,retry]=await Promise.all([saveBooking(pool,input),saveBooking(pool,input)]);
+    assert.equal(first.bookingId,retry.bookingId);
+    assert.equal(Number(first.created)+Number(retry.created),1);
+    const id=first.bookingId;
+    const pets=await pool.query('SELECT p.name,bp.care_details FROM public.booking_pets bp JOIN public.pets p ON p.id=bp.pet_id WHERE bp.booking_id=$1 ORDER BY p.name',[id]);
+    assert.deepEqual(pets.rows,[{name:'Camera Dog',care_details:input.additionalDogs[0].details},{name:'Standard Dog',care_details:null}]);
+    await assert.rejects(saveBooking(pool,{...input,additionalDogs:[]}),{status:409});
+    const decision=async(action,status,revision,extra={},actor='staff@example.test')=>{
+      const form=new URLSearchParams({action,expectedStatus:status,revision:String(revision),...extra});
+      const db=await pool.connect();
+      try{
+        await db.query('BEGIN');
+        await applyStayDecision(db,id,actor,parseStayDecision(form));
+        await db.query('COMMIT');
+      }catch(error){await db.query('ROLLBACK');throw error;}
+      finally{db.release();}
+    };
+    await Promise.all([decision('start_review','requested',0),decision('start_review','requested',0)]);
+    const approval={vaccinationAttested:'yes'};
+    const race=await Promise.allSettled([decision('approve','reviewing',1,approval),
+      decision('approve','reviewing',1,approval,'second@example.test')]);
+    assert.equal(race.filter(result=>result.status==='fulfilled').length,1);
+    assert.equal(race.find(result=>result.status==='rejected').reason.status,409);
+    await assert.rejects(decision('check_out','approved',2),{status:409});
+    await decision('check_in','approved',2);
+    await decision('check_out','approved',3);
+    const history=await readStayHistory(pool,id);
+    assert.deepEqual(history.map(event=>event.action),['start_review','approve','check_in','check_out']);
+    assert.equal(history[1].vaccination_attested,true);
+    assert.ok(Date.parse(history[3].recorded_at)>=Date.parse(history[2].recorded_at));
+    assert.equal((await pool.query('SELECT status FROM public.booking_requests WHERE id=$1',[id])).rows[0].status,'completed');
+    assert.equal((await pool.query('SELECT id FROM public.approved_invoices WHERE booking_id=$1',[id])).rowCount,0);
+    console.log('PASS native multi-dog storage, stable retry, competing decisions and audited stay without invoice effects');
+  }finally{await pool.end();}
+}
+
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
 const adminRaw=process.env.INVOICE_TEST_POSTGRES_URL;
 if(!adminRaw)throw new Error('Set INVOICE_TEST_POSTGRES_URL to an explicit loopback PostgreSQL /postgres admin database.');
@@ -352,4 +406,5 @@ const admin=new Client({connectionString:adminRaw});await admin.connect();
 try{await admin.query('CREATE DATABASE '+database);}finally{await admin.end();}
 console.log('Synthetic LOCAL database: '+database+' (retained; no Neon branch used)');
 await runInvoiceDbChecks({dbUrl,database});
+await checkNativeStay(dbUrl);
 }

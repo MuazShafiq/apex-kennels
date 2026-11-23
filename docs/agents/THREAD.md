@@ -387,3 +387,8 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 - Added a dog-name plate, recorded status and latest event, billed-day strip, run-sheet return and accessible section navigation for overview, transport, estimate/invoice and history. The estimate card routes to protected real pricing. Section navigation uses anchors and retains all stay forms and per-dog health data behind Access.
 - Node 24 cf:check passed all 348 tests, typecheck and Worker dry-run. Synthetic booking browser tests passed. Production smoke confirmed the existing closed preview, anonymous staff denial and intake auth. No production mutation.
 - Next owner cdx-18: finish invoice screen fidelity and review integration CI and outstanding launch prerequisites.
+
+### 2026-11-23 | cdx-18 | Repeatable release database proof
+
+- Added native booking and stay coverage to the existing loopback-only CLI integration check run by Node 22/24 CI. Migrations 009/010 are exercised in its fresh database. Checked two distinct dog-care records, concurrent idempotency, changed payload refusal, competing staff approvals, explicit check-in/out ordering, vaccination attestation and absence of an invoice from stay approval.
+- The complete local check passed in disposable PostgreSQL database apex_invoice_test_1795394455802_496819c4, including the existing 21 invoice groups with fake providers. Draft PR #123 is the integration branch. No remote schema, gate or deployment changes.

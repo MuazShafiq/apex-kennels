@@ -432,3 +432,23 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 
 - Branded PDFs now put the review reference or issued number in one status/reference band and show one Date field. Review variants keep their nonpayable marks on every page. The printed stay uses readable dates.
 - Independently rendered a mixed-cage 30-day review and issued fixture with PyMuPDF. Both retained separate boarding rows and PKR 145,000 total. Verified one date and one reference, and payment fields only on the issued variant. All 350 Node tests, typecheck, Worker dry-run, and nine synthetic invoice browser groups passed. No production changes.
+
+### 2026-11-23 | cdx-18 | Release PR ready for review
+
+- PR #123 exact head b0ef85a passed Node 22/24, mobile browser CI, GitGuardian and Workers preview build 77dad616-673f-4427-9659-c59d286ae9d2. The feature preview serves the multi-dog booking asset, returns disabled config and 503 on empty booking POST, denies a forged stay mutation and renders a nonpayable review PDF with no bank details.
+- Moved PR #123 out of draft for release review. No merge or production changes. Production 009/010 and live release acceptance remain pending.
+
+### 2026-11-23 | cdx-18 | Closed production deployment
+
+- PR #123 merged as 2b51507ad8961b6888fb14aefe855744a8b96f59. Exact main Node 22/24 CI run 45164884792, production smoke run 45164884973 and Workers build 83e59a97-843e-42b7-9c2c-159dd942030f succeeded. Wrangler deployment lists are unordered. Sorting by created_on confirmed 7af39538-8940-4035-b035-1932832ca36d serves d3d16cab-d698-4696-8f0b-62e51152af00 at 100%.
+- The serving version has public booking explicitly false and all four invoice/WhatsApp activation flags absent. Both hosts serve the multi-dog asset, report disabled and reject empty POST. Private Pages routes return 404, anonymous stay mutation on Worker returned 302 and unauthenticated Form intake is denied. Production review PDF rendered with nonpayable markers and no payment fields.
+- No production DDL, canary, customer contact, invoice issuance or provider send. Pending 009/010, authorized staff and Form continuity, physical device/network and bounded Pages/Neon acceptance before opening the gate. Older versions and Form fallback retained.
+
+### 2026-11-23 | cdx-18 | Deployed gate-picker readback
+
+- Both production origins passed no-write gate-picker smoke on the merged release. Exact pin parsing, ambiguous and outside-area refusal, cross-origin denial, pinned local assets and retired search were verified. This does not establish device/ISP behavior or a real provider route.
+- Confirmed merged migration blob identities 13b9110bad2f0ec9cf9b3bdb7fa0440b0ccfe290 (009) and 7efbc8ba106e47c484767c167ec48f279a2e87c0 (010). No production SQL. Requested outstanding human staff sign-in, queue coverage and physical device/network evidence. Existing founder cutover authority remains in effect once acceptance passes.
+
+### 2026-11-23 | cdx-18 | Form persistence evidence
+
+- Production Neon read-only aggregate for the identified production branch joined Google Form ingestion events to their persisted Google Form bookings. One completion occurred in the last seven days and none since the serving release deployed at 11:25 UTC. No customer fields or identifiers were read. Current authenticated Form and recovery continuity therefore remain unverified. No submission or production write performed.

@@ -4,11 +4,19 @@
 
 The [latest founder authorization in #84](https://github.com/MuazShafiq/apex-kennels/issues/84) authorizes persistent public booking and customer-link cutover after the full approved implementation passes release acceptance. The earlier approval requirements below describe the previous release decision.
 
-The approved-release branch removes the WhatsApp agreement from native booking. Test booking with a contact number and accepted boarding terms, and verify the new request creates no WhatsApp consent row. Keep testing purpose-specific consent separately before any provider activation. Stage 1 evidence below applies to the previously deployed form.
+The deployed approved release removes the WhatsApp agreement from native booking. Test booking with a contact number and accepted boarding terms, and verify the new request creates no WhatsApp consent row. Keep testing purpose-specific consent separately before any provider activation. Stage 1 evidence below applies to the previously deployed form.
+
+### Serving release checkpoint
+
+PR #123 merged at `2b51507`. Main Node 22 and 24 CI, Workers Builds, production smoke, and the earlier exact-feature-head mobile browser suite passed. The production deployment `7af39538-8940-4035-b035-1932832ca36d` was observed serving Worker version `d3d16cab-d698-4696-8f0b-62e51152af00` at 100%. Booking was explicitly false. Invoice approval, issuance, customer WhatsApp and owner alert bindings were absent.
+
+The Worker and Pages served the new multi-dog asset, reported disabled booking and rejected empty booking POSTs. Exact-pin no-write smoke passed on both origins. Worker denied the anonymous stay mutation, and the Worker preview PDF rendered with review markers and no bank fields. The production Neon catalog confirmed migration 008 and found neither the migration 009 care column nor the migration 010 history table. An aggregate read found one Form ingestion in the preceding seven days and none since this release at the time of the check. That leaves current authenticated Form ingest and recovery unverified.
+
+The release remains closed while production migrations 009 and 010, authorized staff and unallowlisted identity checks, staff queue coverage, physical device and affected network checks, and the bounded Pages/Neon canary remain pending. See the [founder checkpoint](https://github.com/MuazShafiq/apex-kennels/issues/84#issuecomment-7099800747), [booking release evidence](https://github.com/MuazShafiq/apex-kennels/issues/28#issuecomment-7099801391) and [financial activation evidence](https://github.com/MuazShafiq/apex-kennels/issues/39#issuecomment-7099802048).
 
 ### Approved-release cutover checklist
 
-Use [draft PR #123](https://github.com/MuazShafiq/apex-kennels/pull/123) for integration and the [founder decision](https://github.com/MuazShafiq/apex-kennels/issues/84#issuecomment-7084213754) for cutover authority. The Stage 1 checkpoints below describe the prior release.
+Use [merged PR #123](https://github.com/MuazShafiq/apex-kennels/pull/123) for integration and the [founder decision](https://github.com/MuazShafiq/apex-kennels/issues/84#issuecomment-7084213754) for cutover authority. The Stage 1 checkpoints below describe the prior release.
 
 1. Record the exact reviewed PR head and successful Node 22/24, browser, and Workers preview checks. Verify the approved staff and invoice flows from that head. Before the closed deployment, record the serving Worker version, actual flags, active Pages gateway and working Form fallback.
 2. Verify the production Neon project, branch and compute through an authenticated read-only session. Confirm migration 008 remains validated and inspect 009 and 010 separately. For migration 009, check the nullable JSONB care column and validated object constraint on booking_pets. For 010, check the private history table, enabled RLS, zero policies, foreign key and unique booking/action constraint. Confirm the runtime role's access without exposing customer rows. Apply pending additive DDL only through the reviewed production migration procedure and its scope authorization. Retain these additions on Worker rollback.

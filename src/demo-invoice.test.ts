@@ -18,7 +18,7 @@ test('invoice preview is clearly synthetic, draft-only and not payable',()=>{
 });
 
 test('public invoice demo uses original Canva PDF and no production secrets',async()=>{
-  const blank=readFileSync('public/invoice/canva-blank.pdf');
+  const blank=readFileSync('public/invoice/branded-artwork.pdf');
   const env={ASSETS:{fetch:async(_request:Request)=>new Response(
     new Blob([new Uint8Array(blank)],{type:'application/pdf'}))}};
   const response=await handleWorkerRequest(

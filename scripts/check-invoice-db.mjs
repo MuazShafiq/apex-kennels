@@ -15,7 +15,7 @@ import {prepareStaffDraftReview} from '../src/staff-invoice-draft.ts';
 import {saveOwnerInvoiceEdit} from '../src/owner-invoice-edit.ts';
 import {makeReviewSnapshot,saveReviewDraft} from '../src/staff-saved-review.ts';
 import {approveInvoice,issueInvoice,loadApprovedInvoice,loadIssuedInvoicePdf} from '../src/invoice-approval-store.ts';
-import {renderCanvaApprovedPdf} from '../src/canva-invoice-pdf.ts';
+import {renderBrandedApprovedPdf} from '../src/branded-invoice-pdf.ts';
 import {enqueueInvoiceDelivery,dispatchInvoiceDelivery,loadInvoiceDelivery,retryInvoiceDelivery,reconcileInvoiceDelivery,applyInvoiceWebhook} from '../src/invoice-delivery-store.ts';
 import {verifyInvoiceWebhook,parseInvoiceWebhook} from '../src/invoice-delivery.ts';
 
@@ -28,7 +28,7 @@ const config={enabled:'true',issuanceEnabled:'true',deliveryEnabled:'true',owner
 const deliveryConfig={enabled:'true',accessToken:'synthetic-test-token-'.repeat(3),phoneNumberId:'123456789012',apiVersion:'v24.0',template:'synthetic_invoice_pdf',language:'en_US'};
 const secret='synthetic-webhook-signing-secret-only';
 const recipient='923000000000';
-const template=new Uint8Array(await readFile(new URL('../public/invoice/canva-blank.pdf',import.meta.url)));
+const template=new Uint8Array(await readFile(new URL('../public/invoice/branded-artwork.pdf',import.meta.url)));
 let checks=0;let nextNumber=101;
 const pass=name=>{checks++;console.log('PASS '+name);};
 const freshNumber=()=>String(nextNumber++).padStart(4,'0');
@@ -51,7 +51,7 @@ async function fixture({consent=true,synthetic=false,deliveryRequested=consent&&
 const approve=input=>approveInvoice(dbUrl,input,owner,config,factory);
 async function issued(options){
   const input=await fixture(options),invoice=await approve(input);
-  const pdf=await renderCanvaApprovedPdf(invoice.snapshot,template);
+  const pdf=await renderBrandedApprovedPdf(invoice.snapshot,template);
   await issueInvoice(dbUrl,invoice.id,owner,config,pdf,factory);
   return {input,invoice,pdf};
 }
@@ -95,7 +95,7 @@ try{
   assert.equal(edited.rows[0].snapshot.quote.totalPkr,1900);assert.equal(edited.rows[0].snapshot.ownerOverride.sourceQuote.totalPkr,7500);
   const frozenEdited=await approve({...editInput,revision:2});
   await assert.rejects(saveOwnerInvoiceEdit(dbUrl,editInput.bookingId,2,manualRows,'reset',owner,config,factory),/frozen/);
-  const editPdf=await renderCanvaApprovedPdf(frozenEdited.snapshot,template);
+  const editPdf=await renderBrandedApprovedPdf(frozenEdited.snapshot,template);
   await issueInvoice(dbUrl,frozenEdited.id,owner,config,editPdf,factory);
   const readEdited=await loadApprovedInvoice(dbUrl,frozenEdited.id,factory);assert.equal(readEdited.snapshot.review.quote.totalPkr,1900);
   assert.deepEqual(await loadIssuedInvoicePdf(dbUrl,frozenEdited.id,factory),editPdf);
@@ -142,14 +142,14 @@ try{
   await issueInvoice(dbUrl,realPdf.invoice.id,owner,config,replacement,factory);
   assert.deepEqual(await loadIssuedInvoicePdf(dbUrl,realPdf.invoice.id,factory),realPdf.pdf);
   await assert.rejects(db.query("UPDATE public.approved_invoices SET snapshot=snapshot||'{\"changed\":true}' WHERE id=$1",[realPdf.invoice.id]),/transition/);
-  pass('Canva PDF persisted once; duplicate issuance and download preserve exact bytes/digest');
+  pass('Branded PDF persisted once; duplicate issuance and download preserve exact bytes/digest');
   assert.equal(read.snapshot.deliveryRequested,true);
   assert.equal((await state(realPdf.invoice.id)).state,'queued');
   assert.equal((await db.query("SELECT count(*)::integer AS n FROM public.invoice_delivery_audit WHERE invoice_id=$1 AND action='queued'",[realPdf.invoice.id])).rows[0].n,1);
   pass('combined approval intent issues exact PDF and atomically queues one delivery/audit');
 
   const rollbackInput=await fixture(),rollbackInvoice=await approve(rollbackInput);
-  const rollbackPdf=await renderCanvaApprovedPdf(rollbackInvoice.snapshot,template);
+  const rollbackPdf=await renderBrandedApprovedPdf(rollbackInvoice.snapshot,template);
   // This trigger exists only in the NEW disposable database and forces the
   // final queued-audit write to fail after PDF/status/outbox writes occurred.
   await db.query("CREATE FUNCTION public.synthetic_fail_queued_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='queued' THEN RAISE EXCEPTION 'synthetic queued audit fault'; END IF; RETURN NEW; END $$");

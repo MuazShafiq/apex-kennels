@@ -293,12 +293,12 @@ test('run sheet omits the standalone legacy pin checker link',async()=>{
   assert.doesNotMatch(await demo.text(),/href="\/staff\/location"/);
 });
 
-test('printable Canva staff PDF is Access-protected and rejects unpriced transport',async()=>{
+test('printable branded staff PDF is Access-protected and rejects unpriced transport',async()=>{
   const url=origin+'/staff/draft?id='+invoiceBookingId+'&format=print';
-  const blank=readFileSync('public/invoice/canva-blank.pdf');
+  const blank=readFileSync('public/invoice/branded-artwork.pdf');
   let reads=0,assetReads=0;
   const pdfEnv:WorkerEnv={...env,ASSETS:{fetch:async request=>{
-    assert.equal(new URL(request.url).pathname,'/invoice/canva-blank.pdf');
+    assert.equal(new URL(request.url).pathname,'/invoice/branded-artwork.pdf');
     assetReads++;
     return new Response(new Uint8Array(blank),{
       headers:{'Content-Type':'application/pdf'}

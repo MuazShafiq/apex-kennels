@@ -29,6 +29,7 @@ async function renderInvoice(input:ReviewSnapshot,date:string,fontSource:Uint8Ar
   pdf.registerFontkit(fontkit);
   const regular=await pdf.embedFont(rawFontAttachment(source,'Inter-Regular-Subset'),{subset:false});
   const bold=await pdf.embedFont(rawFontAttachment(source,'Inter-Bold-Subset'),{subset:false});
+  const headerArt=await pdf.embedPage(source.getPage(0));
   const rows=layoutCanvaItems(q,regular).flat();
   let page:PDFPage;
   let cursor=0;
@@ -62,6 +63,7 @@ async function renderInvoice(input:ReviewSnapshot,date:string,fontSource:Uint8Ar
     page=pdf.addPage([width,height]);
     const header=first?140:85;
     rect(0,0,width,header,raven);
+    if(first)page.drawPage(headerArt,{x:0,y:height-header,width,height:header});
     rect(margin,header-3,42,3,coral);
     rect(margin,24,30,38,powder);
     page.drawSvgPath(dogPath,{x:margin+3,y:height-33,scale:.073,color:raven});

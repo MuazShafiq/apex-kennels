@@ -70,7 +70,7 @@ export async function invoiceStaffRoute(request:Request,env:WorkerEnv,email:stri
       if(env.APEX_INVOICE_ISSUANCE_ENABLED!=='true')throw new InvoiceApprovalError('Invoice issuance is disabled',503);
       if(invoice.snapshot.deliveryRequested)validateDeliveryConfig(deliveryConfig(env));
       if(!env.ASSETS)throw new InvoiceApprovalError('Invoice template unavailable',503);
-      const template=await env.ASSETS.fetch(new Request(new URL('/invoice/canva-blank.pdf',request.url)));
+      const template=await env.ASSETS.fetch(new Request(new URL('/invoice/branded-artwork.pdf',request.url)));
       if(!template.ok)throw new InvoiceApprovalError('Invoice template unavailable',503);
       const pdf=await renderBrandedApprovedPdf(invoice.snapshot,new Uint8Array(await template.arrayBuffer()));
       await issueInvoice(env.DATABASE_URL!,invoice.id,email,config,pdf);
@@ -134,7 +134,7 @@ export async function invoiceStaffRoute(request:Request,env:WorkerEnv,email:stri
         let pdf:Uint8Array|null;
         if(action==='preview.pdf'){
           if(!env.ASSETS)return response('Invoice template unavailable',503);
-          const template=await env.ASSETS.fetch(new Request(new URL('/invoice/canva-blank.pdf',request.url)));
+          const template=await env.ASSETS.fetch(new Request(new URL('/invoice/branded-artwork.pdf',request.url)));
           if(!template.ok)return response('Invoice template unavailable',503);
           pdf=await renderBrandedStaffPdf(invoice.snapshot.review,invoice.snapshot.approvedAt.slice(0,10),new Uint8Array(await template.arrayBuffer()));
         }else pdf=await loadIssuedInvoicePdf(env.DATABASE_URL,invoice.id);

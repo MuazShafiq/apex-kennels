@@ -21,11 +21,11 @@ const encode=x=>Buffer.from(JSON.stringify(x)).toString('base64url');
 const now=Math.floor(Date.now()/1000);
 const data=encode({alg:'RS256',kid:jwk.kid})+'.'+encode({iss:issuer,aud:audience,email:owner,iat:now-1,exp:now+3600});
 const token=data+'.'+sign('sha256',Buffer.from(data),privateKey).toString('base64url');
-const template=new Uint8Array(await readFile(new URL('../public/invoice/canva-blank.pdf',import.meta.url)));
+const template=new Uint8Array(await readFile(new URL('../public/invoice/branded-artwork.pdf',import.meta.url)));
 const editorScript=await readFile(new URL('../public/book/owner-invoice-editor.js',import.meta.url));
 const mark=await readFile(new URL('../public/book/apex-dog-mark.svg',import.meta.url));
 const bank={bank:'HBL',accountTitle:'SYNTHETIC BROWSER TEST ONLY',accountNumber:'00000000000000',iban:'PK00HABB0000000000000000'};
-const env={DATABASE_URL:'synthetic://no-database',APEX_INVOICE_APPROVAL_ENABLED:'true',APEX_INVOICE_ISSUANCE_ENABLED:'true',APEX_INVOICE_WHATSAPP_ENABLED:'true',APEX_INVOICE_OWNER_EMAIL:owner,APEX_INVOICE_BANK_JSON:JSON.stringify(bank),APEX_INVOICE_MANUAL_NUMBER_FLOOR:'0100',STAFF_ACCESS_AUD:audience,STAFF_ACCESS_ISSUER:issuer,STAFF_ALLOWED_EMAILS:owner,WHATSAPP_ACCESS_TOKEN:'synthetic-browser-token-'.repeat(3),WHATSAPP_PHONE_NUMBER_ID:'123456789012',WHATSAPP_GRAPH_VERSION:'v24.0',APEX_INVOICE_WHATSAPP_TEMPLATE:'synthetic_invoice_pdf',ASSETS:{fetch:async request=>new URL(request.url).pathname==='/invoice/canva-blank.pdf'?new Response(template,{headers:{'Content-Type':'application/pdf'}}):new Response('Not found',{status:404})}};
+const env={DATABASE_URL:'synthetic://no-database',APEX_INVOICE_APPROVAL_ENABLED:'true',APEX_INVOICE_ISSUANCE_ENABLED:'true',APEX_INVOICE_WHATSAPP_ENABLED:'true',APEX_INVOICE_OWNER_EMAIL:owner,APEX_INVOICE_BANK_JSON:JSON.stringify(bank),APEX_INVOICE_MANUAL_NUMBER_FLOOR:'0100',STAFF_ACCESS_AUD:audience,STAFF_ACCESS_ISSUER:issuer,STAFF_ALLOWED_EMAILS:owner,WHATSAPP_ACCESS_TOKEN:'synthetic-browser-token-'.repeat(3),WHATSAPP_PHONE_NUMBER_ID:'123456789012',WHATSAPP_GRAPH_VERSION:'v24.0',APEX_INVOICE_WHATSAPP_TEMPLATE:'synthetic_invoice_pdf',ASSETS:{fetch:async request=>new URL(request.url).pathname==='/invoice/branded-artwork.pdf'?new Response(template,{headers:{'Content-Type':'application/pdf'}}):new Response('Not found',{status:404})}};
 const originalFetch=globalThis.fetch;
 let jwksRequests=0;
 globalThis.fetch=async target=>{

@@ -134,7 +134,7 @@ async function brandedInvoiceResponse(
   env:WorkerEnv,request:Request,snapshot:ReviewSnapshot,reviewDate:string,download=false
 ):Promise<Response>{
   if(!env.ASSETS)return json({error:'Invoice font assets unavailable'},503);
-  const url=new URL('/invoice/canva-blank.pdf',request.url);
+  const url=new URL('/invoice/branded-artwork.pdf',request.url);
   const template=await env.ASSETS.fetch(new Request(url));
   if(!template.ok)return json({error:'Invoice font assets unavailable'},503);
   const bytes=await renderBrandedStaffPdf(snapshot,reviewDate,

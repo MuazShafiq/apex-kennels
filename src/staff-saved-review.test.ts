@@ -224,9 +224,9 @@ test('database conflicts are visible but no retries or external messages occur',
   assert.equal((await response.json() as {error:string}).error,'Draft changed in another tab');
 });
 
-test('saved invoice and print preview serve Canva PDF; no legacy HTML or payment details',async()=>{
+test('saved invoice and print preview serve branded PDF; no legacy HTML or payment details',async()=>{
   const {readFileSync}=await import('node:fs');
-  const blank=readFileSync('public/invoice/canva-blank.pdf');
+  const blank=readFileSync('public/invoice/branded-artwork.pdf');
   const assets={fetch:async(_request:Request)=>new Response(
     new Blob([new Uint8Array(blank)],{type:'application/pdf'}))};
   const withAssets={...env,ASSETS:assets};

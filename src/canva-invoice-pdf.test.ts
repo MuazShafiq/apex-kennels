@@ -27,7 +27,7 @@ const sample:ReviewSnapshot={
 test('public synthetic invoice route serves one-page branded review PDF',async()=>{
   const response=await handleWorkerRequest(
     new Request('https://example.workers.dev/demo/invoice'),
-    {ASSETS:{fetch:async()=>new Response(blank,{headers:{'Content-Type':'application/pdf'}})}}
+    {ASSETS:{fetch:async()=>new Response(readFileSync('public/invoice/branded-artwork.pdf'),{headers:{'Content-Type':'application/pdf'}})}}
   );
   assert.equal(response.status,200);
   assert.match(response.headers.get('content-type')??'',/^application\/pdf/);

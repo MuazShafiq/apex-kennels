@@ -375,3 +375,9 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 - Added an explicit Approve & issue intent with no delivery. A conflicting retry cannot convert a frozen delivery intent. The current approval-only action remains available. No change to invoice number allocation, immutable issue storage, provider gates or callback recovery.
 - Node 24 cf:check passed 348 tests, typecheck and Worker dry-run. Nine synthetic invoice browser groups passed, including issue-only with zero additional outbox/provider effects and matching immutable downloaded and provider bytes. PyMuPDF rendered the actual review bytes and extracted review markings without payment fields. No real invoice or provider call.
 - The PDF currently draws a solid raven header. The approved header texture and remaining staff screen fidelity, integration and production acceptance are pending. No production changes.
+
+### 2026-11-23 | cdx-18 | Approved PDF header artwork
+
+- Active PDF routes now load public/invoice/branded-artwork.pdf. Its first page carries the approved header texture from Apex export asset dae6b25f40fd7ea41e91f33f395c6169.webp, cropped at the right and bottom and converted to JPEG for PDF embedding. The file bundles the existing two Inter OTF subsets. The legacy Canva template is preserved for historical design provenance and tests.
+- Rendered and visually inspected the actual synthetic A4 review with PyMuPDF. Verified an embedded header image, nonpayable text and absence of payment fields. Node 24 cf:check passed all 348 tests, typecheck and Worker dry-run. Nine invoice browser groups passed. Updated the disposable integration suite to use the active renderer and passed 21 PostgreSQL groups in apex_invoice_test_1795393860003_01fbeab5 with fake providers.
+- No production mutations. Next owner cdx-18: complete approved staff detail/invoice interaction and release integration.

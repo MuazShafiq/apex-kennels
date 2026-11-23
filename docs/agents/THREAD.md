@@ -417,3 +417,8 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 ### 2026-11-23 | cdx-18 | Append-only stay audit
 
 - Hardened still-pending migration 010 with valid transition and vaccination attestation constraints and a statement-level guard against updates, deletes and truncation. Disposable PostgreSQL apex_invoice_test_1795431656376_1db358d6 verified all three rewrites fail, the history stays intact, and native stay and 21 invoice groups pass. No production changes.
+
+### 2026-11-23 | cdx-18 | Both-host rollback verification
+
+- Closed-state production monitor now checks canonical Pages booking configuration for disabled without a site key, empty POST rejection and 404 on private routes with anonymous and forged-assertion requests. Custom non-production Worker origins keep Worker-only verification.
+- Fresh read-only Wrangler inspection found deployment 04304f45-9b43-4d66-a487-c3f26ac5137d, version d30cb893-b3c5-4458-8d6a-84a6783d3e66 at 100%, and all five activation flags absent from the serving version. Extended live smoke passed. No production writes.

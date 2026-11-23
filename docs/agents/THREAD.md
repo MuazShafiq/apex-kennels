@@ -381,3 +381,9 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 - Active PDF routes now load public/invoice/branded-artwork.pdf. Its first page carries the approved header texture from Apex export asset dae6b25f40fd7ea41e91f33f395c6169.webp, cropped at the right and bottom and converted to JPEG for PDF embedding. The file bundles the existing two Inter OTF subsets. The legacy Canva template is preserved for historical design provenance and tests.
 - Rendered and visually inspected the actual synthetic A4 review with PyMuPDF. Verified an embedded header image, nonpayable text and absence of payment fields. Node 24 cf:check passed all 348 tests, typecheck and Worker dry-run. Nine invoice browser groups passed. Updated the disposable integration suite to use the active renderer and passed 21 PostgreSQL groups in apex_invoice_test_1795393860003_01fbeab5 with fake providers.
 - No production mutations. Next owner cdx-18: complete approved staff detail/invoice interaction and release integration.
+
+### 2026-11-23 | cdx-18 | Staff booking detail layout
+
+- Added a dog-name plate, recorded status and latest event, billed-day strip, run-sheet return and accessible section navigation for overview, transport, estimate/invoice and history. The estimate card routes to protected real pricing. Section navigation uses anchors and retains all stay forms and per-dog health data behind Access.
+- Node 24 cf:check passed all 348 tests, typecheck and Worker dry-run. Synthetic booking browser tests passed. Production smoke confirmed the existing closed preview, anonymous staff denial and intake auth. No production mutation.
+- Next owner cdx-18: finish invoice screen fidelity and review integration CI and outstanding launch prerequisites.

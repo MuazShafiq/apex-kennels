@@ -201,7 +201,11 @@ try{
   pass('interrupted combined approval resumes through Continue approved delivery');
 
   delivery={state:'failed',attempts:1,updatedAt:new Date().toISOString(),providerMessageId:null,errorKind:'failed'};
-  await page.reload();assert.equal(await page.getByRole('button',{name:'Retry failed delivery'}).count(),1);
+  await page.reload();
+  const retryButton=page.getByRole('button',{name:'Retry failed delivery'});
+  assert.equal(await retryButton.count(),1);
+  assert.equal(await retryButton.evaluate(button=>getComputedStyle(button).position),'fixed');
+  assert.equal(await retryButton.evaluate(button=>button.form.action.endsWith('/staff/invoices/retry')),true);
   const beforeRetry=effects.provider;await confirm();await submit('Retry failed delivery');
   assert.equal(effects.retries,1);assert.equal(effects.provider,beforeRetry+1);assert.equal(delivery.state,'provider_accepted');
   delivery={state:'ambiguous',attempts:2,updatedAt:new Date().toISOString(),providerMessageId:null,errorKind:'ambiguous'};

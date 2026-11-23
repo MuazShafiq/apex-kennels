@@ -392,3 +392,8 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 
 - Added native booking and stay coverage to the existing loopback-only CLI integration check run by Node 22/24 CI. Migrations 009/010 are exercised in its fresh database. Checked two distinct dog-care records, concurrent idempotency, changed payload refusal, competing staff approvals, explicit check-in/out ordering, vaccination attestation and absence of an invoice from stay approval.
 - The complete local check passed in disposable PostgreSQL database apex_invoice_test_1795394455802_496819c4, including the existing 21 invoice groups with fake providers. Draft PR #123 is the integration branch. No remote schema, gate or deployment changes.
+
+### 2026-11-23 | cdx-18 | Mobile invoice retry
+
+- Issued invoice view shows the official number in one nameplate and keeps one state summary. Eligible failed delivery now has a single fixed mobile retry button associated with the existing checked retry form. Ambiguous and terminal states retain their existing recovery behavior.
+- Node 24 cf:check passed 348 tests, typecheck and Worker dry-run. Nine invoice browser groups passed, verifying one mobile fixed retry button and its real form target with synthetic provider effects. All 42 responsive layouts passed. Previous PR #123 head 858a0c1 passed Node 22/24 and Workers preview build. No live sends or production changes.

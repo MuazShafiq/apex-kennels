@@ -156,3 +156,25 @@ test('protected booking detail separates dogs and flags missing vaccination evid
   assert.equal((html.match(/Staff vaccination review required/g)??[]).length,2);
   assert.doesNotMatch(html,/<script>/);
 });
+
+test('stay mutation requires signed staff, same origin, and explicit attestation',async()=>{
+  const target=origin+'/staff/booking/action?id='+id;
+  const post=(form:string,from=origin)=>new Request(target,{
+    method:'POST',headers:{origin:from,'content-type':'application/x-www-form-urlencoded'},body:form
+  });
+  const body='action=approve&expectedStatus=reviewing&revision=1';
+  let writes=0;
+  const stayDecision=async(_database:string,bookingId:string,actor:string)=>{
+    assert.equal(bookingId,id);
+    assert.equal(actor,'staff@example.test');
+    writes++;
+  };
+  assert.equal((await handleWorkerRequest(post(body),env,undefined,{stayDecision})).status,403);
+  assert.equal((await handleWorkerRequest(post(body,'https://other.example'),env,undefined,{context:staff,stayDecision})).status,403);
+  assert.equal((await handleWorkerRequest(post(body),env,undefined,{context:staff,stayDecision})).status,400);
+  assert.equal(writes,0);
+  const response=await handleWorkerRequest(post(body+'&vaccinationAttested=yes'),env,undefined,{context:staff,stayDecision});
+  assert.equal(response.status,303);
+  assert.equal(response.headers.get('location'),'/staff/booking?id='+id);
+  assert.equal(writes,1);
+});

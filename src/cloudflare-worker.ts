@@ -1,3 +1,4 @@
+import {parseStayDecision,recordStayDecision,StayError} from './staff-stay.ts';
 export {LocationSearchBudget} from './location-search-budget.ts';
 import {renderCanvaStaffPdf} from './canva-invoice-pdf.ts';
 import {invoiceStaffRoute,invoiceWebhookRoute,type InvoiceWorkflowDeps} from './invoice-workflow-routes.ts';
@@ -68,7 +69,7 @@ export type StaffList = (databaseUrl: string, filter: StaffFilter) => Promise<St
 export type StaffContext = {access?: {aud: string; getIdentity(): Promise<{email?:string}|null>}; waitUntil?:(task:Promise<unknown>)=>void};
 export type StaffDraftReader=(databaseUrl:string,bookingId:string)=>Promise<StaffInvoiceSource|null>;
 export type StaffDetailReader=(databaseUrl:string,bookingId:string)=>Promise<StaffBookingDetail|null>;
-export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; ownerAlerts?:OwnerAlertDeps; saveReview?:(url:string,snapshot:ReviewSnapshot,revision:number,email:string)=>Promise<SaveReviewResult>; loadReview?:(url:string,bookingId:string)=>Promise<SavedReview|null>;
+export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; stayDecision?:typeof recordStayDecision; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; ownerAlerts?:OwnerAlertDeps; saveReview?:(url:string,snapshot:ReviewSnapshot,revision:number,email:string)=>Promise<SaveReviewResult>; loadReview?:(url:string,bookingId:string)=>Promise<SavedReview|null>;
   transportRoute?:()=>Promise<RouteResult>; transportFuel?:()=>Promise<PetrolRateResult>;
   invoiceWorkflow?:InvoiceWorkflowDeps;
 };
@@ -396,6 +397,34 @@ export async function handleWorkerRequest(
       const result=await (staff.resolvePin??resolveSharedGoogleMapsPin)(sharedUrl);
       return html(renderStaffPinChecker(result));
     }catch{return json({error:'Location lookup failed'},502);}
+  }
+  if(path==='/staff/booking/action'){
+    if(request.method!=='POST')return json({error:'Method not allowed'},405,{Allow:'POST'});
+    if(!env.STAFF_ACCESS_AUD||!env.STAFF_ALLOWED_EMAILS||!env.DATABASE_URL)
+      return json({error:'Staff access not configured'},503);
+    const email=await authorizedStaff(env,staff.context,request);
+    const url=new URL(request.url);
+    if(!email||request.headers.get('origin')!==url.origin)return json({error:'Forbidden'},403);
+    if(request.headers.get('content-type')?.split(';')[0]?.trim()!=='application/x-www-form-urlencoded')
+      return json({error:'Invalid form type'},415);
+    let id:string;
+    try{id=parseStaffBookingId(url);}
+    catch{return json({error:'Invalid booking ID'},400);}
+    let decision:ReturnType<typeof parseStayDecision>;
+    try{decision=parseStayDecision(await boundedForm(request));}
+    catch(error){
+      return error instanceof StayError||error instanceof DraftSaveError
+        ?json({error:error.message},error.status):json({error:'Invalid stay action form'},400);
+    }
+    try{
+      await (staff.stayDecision??recordStayDecision)(env.DATABASE_URL,id,email,decision);
+      return new Response(null,{status:303,headers:{
+        Location:'/staff/booking?id='+encodeURIComponent(id),'Cache-Control':'private, no-store'
+      }});
+    }catch(error){
+      if(error instanceof StayError)return json({error:error.message},error.status);
+      return json({error:'Could not record the stay action'},500);
+    }
   }
   if (path === '/staff/booking') {
     if(request.method!=='GET')return json({error:'Method not allowed'},405,{Allow:'GET'});

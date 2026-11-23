@@ -1,3 +1,4 @@
+import {availableStayActions,readStayHistory,type StayAction,type StayEvent} from './staff-stay.ts';
 import {APEX_STAFF_THEME_CSS,APEX_STAFF_BRAND} from './apex-brand.ts';
 import {Client} from '@neondatabase/serverless';
 import {isSyntheticBooking} from './synthetic-booking.ts';
@@ -13,6 +14,7 @@ export type StaffPet={name:string;breed:string|null;care_details?:BoardingDetail
 export type StaffBookingDetail={
   id:string;status:string;createdAt:string;startDate:string;endDate:string;
   customerName:string;email:string|null;phone:string|null;accommodationType:string|null;
+  stayHistory?:StayEvent[];
   pets:StaffPet[];isSynthetic:boolean;hasFormDetails:boolean;
   transportLocation?:{latitude:number;longitude:number;service:string;customerConfirmed:boolean;
     dropoffLatitude?:number|null;dropoffLongitude?:number|null}|null;
@@ -83,7 +85,13 @@ export async function readStaffBookingDetail(databaseUrl:string,id:string):Promi
       // additive table is migrated. An absent table is not a failed booking.
       if(!error||typeof error!=='object'||!('code' in error)||error.code!=='42P01')throw error;
     }
+    let stayHistory:StayEvent[]|undefined;
+    try{stayHistory=await readStayHistory(db,id);}
+    catch(error){
+      if(!error||typeof error!=='object'||!('code' in error)||error.code!=='42P01')throw error;
+    }
     return {
+      stayHistory,
       id:row.id,status:row.status,createdAt:row.created_at,
       startDate:row.start_date,endDate:row.end_date,
       customerName:row.customer_name,email:row.email,phone:row.phone,
@@ -138,6 +146,32 @@ function renderAdditionalDog(pet:StaffPet,care:BoardingDetails):string{
     +value('Medication and feeding',present(care.medicationFeedingInstructions))
     +value('Special instructions',present(care.specialInstructions))
     +value('Owner-reported traits and health',careTraits(care.personalityTraits)));
+}
+
+const stayLabels:Record<StayAction,string>={
+  start_review:'Start review',approve:'Approve stay',decline:'Decline stay',
+  check_in:'Record check-in',check_out:'Record check-out'
+};
+function renderStayControls(b:StaffBookingDetail):string{
+  if(!b.stayHistory)return '';
+  const history=b.stayHistory;
+  const revision=history.at(-1)?.revision??0;
+  const forms=availableStayActions(b.status,history).map(action=>
+    '<form method="post" action="/staff/booking/action?id='+encodeURIComponent(b.id)+'">'
+    +'<input type="hidden" name="action" value="'+action+'">'
+    +'<input type="hidden" name="revision" value="'+revision+'">'
+    +'<input type="hidden" name="expectedStatus" value="'+esc(b.status)+'">'
+    +(action==='approve'?'<label><input type="checkbox" name="vaccinationAttested" value="yes" required> I reviewed the vaccination status for each dog.</label>':'')
+    +(action==='decline'?'<label for="decline-reason">Decline reason</label><textarea id="decline-reason" name="reason" maxlength="250" required></textarea>':'')
+    +'<button class="action" type="submit">'+stayLabels[action]+'</button></form>').join('');
+  const events=history.map(event=>'<li><strong>'+stayLabels[event.action]+'</strong> '
+    +esc(event.recorded_at)+' · '+esc(event.actor)
+    +'<br>'+esc(event.prior_status)+' → '+esc(event.new_status)
+    +(event.vaccination_attested?' · Vaccination reviewed':'')
+    +(event.reason?'<br>'+esc(event.reason):'')+'</li>').join('');
+  return (forms?'<section class="panel stay"><h2>Stay decisions</h2>'+forms+'</section>':'')
+    +'<section class="panel stay"><h2>Stay history</h2>'
+    +(events?'<ol>'+events+'</ol>':'<p>No stay actions recorded.</p>')+'</section>';
 }
 
 /** Staff-only HTML. All customer-controlled content is HTML-escaped; no data leaves the server. */
@@ -197,20 +231,21 @@ export function renderStaffBookingDetail(b:StaffBookingDetail):string {
    +'.missing,.fine{color:#8b9991;font-weight:400}.fine{font-size:12px;line-height:1.6}.trait{padding:5px 0;font-size:12px;font-weight:400}.trait strong{font-weight:700}'
    +'.banner,.notice{border-radius:10px;padding:14px 18px;margin:18px 0;border:1px solid #edd2a0;background:#fff1d8;color:#7c5623;font-size:12px;font-weight:700}'
    +'.actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.action{background:#1e4937;color:white;border-radius:8px;text-decoration:none;padding:12px 16px;font-size:12px;font-weight:700}'
+   +'.stay form{display:grid;justify-items:start;gap:10px;margin:12px 0}.stay textarea{width:min(100%,420px);min-height:65px}.stay button{cursor:pointer;border:0;min-height:44px}.stay li{overflow-wrap:anywhere;margin:8px 0}'
    +'@media(max-width:620px){.detail-grid{grid-template-columns:1fr}.panel{padding:18px}}'+APEX_STAFF_THEME_CSS+'</style></head><body>'
    +'<main class="wrap">'+APEX_STAFF_BRAND+'<a href="/staff">← Booking queue</a>'
    +'<p class="tag" style="margin-top:30px">Apex Kennels / Staff</p>'
    +'<h1>Booking details</h1>'
    +(b.isSynthetic?'<div class="banner">TEST RECORD · DO NOT CONTACT</div>':'')
    +'<section class="panel"><h2>'+esc(b.customerName)+'</h2><dl class="detail-grid">'
-   +value('Booking ID',esc(b.id))+value('Booking status',esc(b.status))
+   +value('Booking ID',esc(b.id))+value('Booking status',b.status==='approved'&&b.stayHistory?.some(event=>event.action==='check_in')?'Checked in':esc(b.status))
    +value('Requested dates',esc(b.startDate)+' → '+esc(b.endDate))
    +value('Received',esc(b.createdAt))
    +value('Pets',petText)
    +value('Assigned accommodation',present(b.accommodationType))
    +value('Owner phone',present(b.phone))
    +value('Owner email',present(b.email))
-   +'</dl></section>'+transport+form
+   +'</dl></section>'+renderStayControls(b)+transport+form
    +'<div class="actions"><a class="action" href="/staff/draft?id='+encodeURIComponent(b.id)+'">Review price estimate</a>'
    +(b.pickupDropoffRequested===true||b.transportLocation
      ?'<a class="action" href="/staff/transport?id='+encodeURIComponent(b.id)+'">Price pickup / drop-off</a>':'')

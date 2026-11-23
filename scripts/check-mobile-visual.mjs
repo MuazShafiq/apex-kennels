@@ -21,7 +21,7 @@ const demoSource={
 };
 const base=process.cwd();
 const detail={
-  id:demoSource.bookingId,customerName:demoSource.customerName,status:'requested',
+  id:demoSource.bookingId,customerName:demoSource.customerName,status:'reviewing',stayHistory:[],
   createdAt:'2026-11-10T00:00:00Z',startDate:demoSource.startDate,endDate:demoSource.endDate,
   email:null,phone:'0000000000',accommodationType:null,isSynthetic:true,hasFormDetails:true,
   pets:[{name:'APEX SYNTHETIC CANARY PET',breed:'Synthetic'}],

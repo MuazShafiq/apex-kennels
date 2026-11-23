@@ -408,3 +408,8 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 
 - Recorded the current proposed release sequence in docs/release-acceptance.md with separate exact-head CI, production schema checks, closed deployment, bounded real Pages/Neon canary, reclosure and persistent cutover. Documented independent invoice, alerts and fixed-route evidence.
 - At observed PR #123 head 0ab8f81, GitGuardian passed and Node/browser/Workers checks were pending. Fresh production smoke passed with booking closed, unauthenticated staff denied and intake auth enforced. No production mutation.
+
+### 2026-11-23 | cdx-18 | Production Neon preflight
+
+- Authenticated read-only catalog query against project holy-bar-96685960, branch br-dry-lab-azyb3ewl, compute ep-bold-mud-azjqt3cx, database neondb. The validated migration 008 constraint allows v1/v2 consent. booking_pets.care_details and booking_stay_history are absent. Production 009/010 remain required. The query read catalog metadata only and made no changes.
+- Exact PR #123 head 141489e passed all Node 22/24 jobs, mobile browser CI, GitGuardian and Workers preview build cfe32028-58a4-4601-a9f6-63f7e7e32f71.

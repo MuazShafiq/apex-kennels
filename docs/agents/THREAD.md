@@ -448,3 +448,7 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 
 - Both production origins passed no-write gate-picker smoke on the merged release. Exact pin parsing, ambiguous and outside-area refusal, cross-origin denial, pinned local assets and retired search were verified. This does not establish device/ISP behavior or a real provider route.
 - Confirmed merged migration blob identities 13b9110bad2f0ec9cf9b3bdb7fa0440b0ccfe290 (009) and 7efbc8ba106e47c484767c167ec48f279a2e87c0 (010). No production SQL. Requested outstanding human staff sign-in, queue coverage and physical device/network evidence. Existing founder cutover authority remains in effect once acceptance passes.
+
+### 2026-11-23 | cdx-18 | Form persistence evidence
+
+- Production Neon read-only aggregate for the identified production branch joined Google Form ingestion events to their persisted Google Form bookings. One completion occurred in the last seven days and none since the serving release deployed at 11:25 UTC. No customer fields or identifiers were read. Current authenticated Form and recovery continuity therefore remain unverified. No submission or production write performed.

@@ -422,3 +422,8 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 
 - Closed-state production monitor now checks canonical Pages booking configuration for disabled without a site key, empty POST rejection and 404 on private routes with anonymous and forged-assertion requests. Custom non-production Worker origins keep Worker-only verification.
 - Fresh read-only Wrangler inspection found deployment 04304f45-9b43-4d66-a487-c3f26ac5137d, version d30cb893-b3c5-4458-8d6a-84a6783d3e66 at 100%, and all five activation flags absent from the serving version. Extended live smoke passed. No production writes.
+
+### 2026-11-23 | cdx-18 | Filtered stay navigation
+
+- Staff run-sheet selections now open a booking with the active search and status filters. The protected detail page reads the same bounded queue to show the lane position and previous/next links within that lane. Stay-action redirects keep the filter context. Direct detail links need no queue read.
+- Node 24 cf:check passed 350 tests, typecheck and Worker dry-run. The protected route regression proves navigation stays within the filtered lane. The 42-layout mobile suite passed. No production changes.

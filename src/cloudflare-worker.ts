@@ -1,3 +1,4 @@
+import {staffDetailHref,staffDetailNavigation} from './staff-console.ts';
 import {parseStayDecision,recordStayDecision,StayError} from './staff-stay.ts';
 export {LocationSearchBudget} from './location-search-budget.ts';
 import {renderBrandedStaffPdf} from './branded-invoice-pdf.ts';
@@ -411,6 +412,11 @@ export async function handleWorkerRequest(
     let id:string;
     try{id=parseStaffBookingId(url);}
     catch{return json({error:'Invalid booking ID'},400);}
+    let redirect='/staff/booking?id='+encodeURIComponent(id);
+    if(url.searchParams.get('from')==='run'){
+      try{redirect=staffDetailHref(id,parseStaffFilter(url));}
+      catch{return json({error:'Invalid run sheet filter'},400);}
+    }
     let decision:ReturnType<typeof parseStayDecision>;
     try{decision=parseStayDecision(await boundedForm(request));}
     catch(error){
@@ -420,7 +426,7 @@ export async function handleWorkerRequest(
     try{
       await (staff.stayDecision??recordStayDecision)(env.DATABASE_URL,id,email,decision);
       return new Response(null,{status:303,headers:{
-        Location:'/staff/booking?id='+encodeURIComponent(id),'Cache-Control':'private, no-store'
+        Location:redirect,'Cache-Control':'private, no-store'
       }});
     }catch(error){
       if(error instanceof StayError)return json({error:error.message},error.status);
@@ -440,7 +446,16 @@ export async function handleWorkerRequest(
     try{
       const detail=await (staff.detail??readStaffBookingDetail)(env.DATABASE_URL,id);
       if(!detail)return json({error:'Booking not found'},404);
-      return html(renderStaffBookingDetail(detail));
+      const url=new URL(request.url);
+      let navigation:ReturnType<typeof staffDetailNavigation>|undefined;
+      if(url.searchParams.get('from')==='run'){
+        let filter:StaffFilter;
+        try{filter=parseStaffFilter(url);}
+        catch{return json({error:'Invalid run sheet filter'},400);}
+        const rows=await (staff.list??listStaffBookings)(env.DATABASE_URL,filter);
+        navigation=staffDetailNavigation(rows,id,filter);
+      }
+      return html(renderStaffBookingDetail(detail,navigation));
     }catch{return json({error:'Internal server error'},500);}
   }
   if(path==='/staff/transport'){

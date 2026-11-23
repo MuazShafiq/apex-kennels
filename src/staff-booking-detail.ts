@@ -1,3 +1,4 @@
+import type {staffDetailNavigation} from './staff-console.ts';
 import {availableStayActions,readStayHistory,type StayAction,type StayEvent} from './staff-stay.ts';
 import {countBilledDays} from './pricing.ts';
 import {APEX_STAFF_THEME_CSS,APEX_STAFF_BRAND} from './apex-brand.ts';
@@ -153,12 +154,12 @@ const stayLabels:Record<StayAction,string>={
   start_review:'Start review',approve:'Approve stay',decline:'Decline stay',
   check_in:'Record check-in',check_out:'Record check-out'
 };
-function renderStayControls(b:StaffBookingDetail):string{
+function renderStayControls(b:StaffBookingDetail,actionQuery:string):string{
   if(!b.stayHistory)return '';
   const history=b.stayHistory;
   const revision=history.at(-1)?.revision??0;
   const forms=availableStayActions(b.status,history).map(action=>
-    '<form method="post" action="/staff/booking/action?id='+encodeURIComponent(b.id)+'">'
+    '<form method="post" action="/staff/booking/action?'+esc(actionQuery)+'">'
     +'<input type="hidden" name="action" value="'+action+'">'
     +'<input type="hidden" name="revision" value="'+revision+'">'
     +'<input type="hidden" name="expectedStatus" value="'+esc(b.status)+'">'
@@ -176,7 +177,7 @@ function renderStayControls(b:StaffBookingDetail):string{
 }
 
 /** Staff-only HTML. All customer-controlled content is HTML-escaped; no data leaves the server. */
-export function renderStaffBookingDetail(b:StaffBookingDetail):string {
+export function renderStaffBookingDetail(b:StaffBookingDetail,navigation?:ReturnType<typeof staffDetailNavigation>):string {
   const petText=b.pets.length
     ? b.pets.map(p=>esc(p.name)+(p.breed?' ('+esc(p.breed)+')':'')).join(', ')
     : '<span class="missing">No linked pets</span>';
@@ -246,7 +247,11 @@ export function renderStaffBookingDetail(b:StaffBookingDetail):string {
    +'@media(max-width:620px){.detail-grid{grid-template-columns:1fr}.panel{padding:18px}}'+APEX_STAFF_THEME_CSS
    +'.detail-hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(230px,300px);gap:16px;margin-top:20px}.detail-hero .panel{margin:0}.nameplate{border-radius:16px;background:#120709;color:#fff;padding:clamp(20px,4vw,38px);overflow-wrap:anywhere}.nameplate h1{color:#fff;margin:8px 0}.nameplate .tag{color:#bfe3f4}.nameplate .chip{display:inline-block;background:#bfe3f4;color:#120709;border-radius:8px;padding:4px 9px;font-weight:750}.nameplate p{margin:9px 0 0}.estimate p{margin:0 0 12px}.detail-nav{display:flex;flex-wrap:wrap;gap:8px;margin:15px 0}.detail-nav a{display:inline-flex;align-items:center;min-height:44px;padding:6px 11px;border-radius:8px;background:#eef6fa;color:#120709}.stay-dates{border-bottom:2px solid #fd6e6e;padding-bottom:10px}.detail-hero .action,.actions .action{display:inline-flex;align-items:center;min-height:44px;background:#120709;color:#fff}section[id],aside[id]{scroll-margin-top:12px}@media(max-width:700px){.detail-hero{grid-template-columns:1fr}}'
    +'</style></head><body>'
-   +'<main class="wrap">'+APEX_STAFF_BRAND+'<a href="/staff?stay='+bookingHref+'#selected-stay">← Run sheet</a>'
+   +'<main class="wrap">'+APEX_STAFF_BRAND+'<nav class="detail-nav" aria-label="Run sheet navigation">'
+   +'<a href="'+esc(navigation?.back??('/staff?stay='+bookingHref+'#selected-stay'))+'">← Run sheet</a>'
+   +(navigation?.position?'<span>'+esc(navigation.position)+'</span>':'')
+   +(navigation?.previous?'<a href="'+esc(navigation.previous.href)+'">Previous: '+esc(navigation.previous.name)+'</a>':'')
+   +(navigation?.next?'<a href="'+esc(navigation.next.href)+'">Next: '+esc(navigation.next.name)+'</a>':'')+'</nav>'
    +'<div class="detail-hero"><header class="nameplate"><span class="tag">Booking details · '+esc(b.id.slice(0,8))+'</span>'
    +'<h1>'+petText+'</h1><p><span class="chip">'+esc(status)+'</span>'
    +(latest?' '+esc(stayLabels[latest.action])+' · '+esc(latest.recorded_at):'')+'</p>'
@@ -262,7 +267,7 @@ export function renderStaffBookingDetail(b:StaffBookingDetail):string {
    +value('Assigned accommodation',present(b.accommodationType))
    +value('Owner phone',present(b.phone))
    +value('Owner email',present(b.email))
-   +'</dl></section>'+form+renderStayControls(b)
+   +'</dl></section>'+form+renderStayControls(b,navigation?.actionQuery??new URLSearchParams({id:b.id}).toString())
    +'<div id="transport">'+(transport||section('Transport',value('Requested transport',yesNo(b.pickupDropoffRequested))))
    +(b.pickupDropoffRequested===true||b.transportLocation
      ?'<div class="actions"><a class="action" href="/staff/transport?id='+bookingHref+'">Price pickup / drop-off</a></div>':'')+'</div>'

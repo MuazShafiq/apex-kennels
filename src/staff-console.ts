@@ -26,6 +26,28 @@ form{display:flex;flex-wrap:wrap;gap:8px;min-width:0}input,select,button,.action
 @media(max-width:480px){nav{gap:8px 14px}.who{display:none}form input{flex:1 1 100%}.week-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 `;
 
+function laneIndex(status:StaffBooking['status']):number{
+  if(status==='requested'||status==='reviewing')return 0;
+  if(status==='approved')return 1;
+  return 2;
+}
+const laneLabels=['To review','Approved stays','Closed'];
+export function staffDetailHref(id:string,filter:StaffFilter):string{
+  return '/staff/booking?'+new URLSearchParams({id,from:'run',status:filter.status,q:filter.query});
+}
+export function staffDetailNavigation(rows:StaffBooking[],id:string,filter:StaffFilter){
+  const current=rows.find(row=>row.id===id);
+  const lane=current?rows.filter(row=>laneIndex(row.status)===laneIndex(current.status)):[];
+  const at=lane.findIndex(row=>row.id===id);
+  const link=(row:StaffBooking|undefined)=>row?{href:staffDetailHref(row.id,filter),name:row.petNames}:undefined;
+  return {
+    back:'/staff?'+new URLSearchParams({stay:id,status:filter.status,q:filter.query})+'#selected-stay',
+    position:current?laneLabels[laneIndex(current.status)]+' · '+(at+1)+' of '+lane.length:undefined,
+    previous:link(lane[at-1]),next:link(lane[at+1]),
+    actionQuery:new URLSearchParams({id,from:'run',status:filter.status,q:filter.query}).toString()
+  };
+}
+
 function weekStrip(rows:StaffBooking[],now:Date):string{
   const approved=rows.filter(row=>row.status==='approved'&&!row.isSynthetic);
   const midnight=Date.parse(dateKey.format(now)+'T00:00:00+05:00');
@@ -49,7 +71,7 @@ export function renderStaffConsoleHtml(rows:StaffBooking[],page:StaffPage):strin
   const visible=page.demo?rows.filter(row=>(page.filter.status==='all'||page.filter.status===row.status)
     &&(!q||(row.customerName+' '+row.petNames).toLowerCase().includes(q))):rows;
   const selected=visible.find(row=>row.id===page.selectedId);
-  const href=(row:StaffBooking)=>page.demo?'/demo/draft':'/staff/booking?id='+encodeURIComponent(row.id);
+  const href=(row:StaffBooking)=>page.demo?'/demo/draft':staffDetailHref(row.id,page.filter);
   const status=(row:StaffBooking)=>checkedIn(row)?'Checked in':title(row.status);
   const card=(row:StaffBooking)=>{
     const query=new URLSearchParams({status:page.filter.status,q:page.filter.query,stay:row.id});

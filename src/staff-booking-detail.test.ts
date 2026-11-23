@@ -178,3 +178,25 @@ test('stay mutation requires signed staff, same origin, and explicit attestation
   assert.equal(response.headers.get('location'),'/staff/booking?id='+id);
   assert.equal(writes,1);
 });
+
+test('detail navigation stays within the filtered lane',async()=>{
+  const nextId='123e4567-e89b-42d3-a456-426614174002';
+  const upcomingId='123e4567-e89b-42d3-a456-426614174003';
+  const target=url+'&from=run&status=all&q=Rover';
+  const list=async(_database:string,filter:{query:string})=>{
+    assert.equal(filter.query,'Rover');
+    const row={id,status:'requested' as const,customerName:'Fixture',petNames:'Rover',email:null,phone:null,
+      startDate:detail.startDate,endDate:detail.endDate,accommodationType:null,createdAt:detail.createdAt};
+    return [row,{...row,id:nextId,status:'reviewing' as const,petNames:'Rover Two'},
+      {...row,id:upcomingId,status:'approved' as const,petNames:'Rover Three'}];
+  };
+  const response=await handleWorkerRequest(new Request(target),env,undefined,{
+    context:staff,detail:async()=>({...detail,stayHistory:[]}),list
+  });
+  assert.equal(response.status,200);
+  const html=await response.text();
+  assert.match(html,/To review · 1 of 2/);
+  assert.match(html,/Next: Rover Two/);
+  assert.doesNotMatch(html,/Rover Three|Previous:/);
+  assert.match(html,/staff\/booking\/action\?id=[^"]+&amp;from=run&amp;status=all&amp;q=Rover/);
+});

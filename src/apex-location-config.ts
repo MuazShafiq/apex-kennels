@@ -29,3 +29,19 @@ export const APEX_KENNEL_ACCESS = Object.freeze({
   roadApproachValidated: false,
   mandatoryForTravelToAndFromKennel: true,
 });
+
+/** Operational evidence bound to the exact fixed routing coordinates. */
+export function readFixedRouteVerification(raw:string|undefined,now=new Date()):
+  {verifiedOn:string;reference:string}|undefined {
+  if(!raw||raw.length>1000)return undefined;
+  try{
+    const value=JSON.parse(raw);
+    const samePin=(pin:GeoPin|undefined,expected:GeoPin)=>pin?.lat===expected.lat&&pin?.lon===expected.lon;
+    if(!samePin(value.kennel,APEX_KENNEL_LOCATION.pin)||!samePin(value.bawli,APEX_KENNEL_ACCESS.pin)||
+       typeof value.verifiedOn!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value.verifiedOn)||
+       new Date(value.verifiedOn+'T00:00:00Z').toISOString().slice(0,10)!==value.verifiedOn||
+       value.verifiedOn>now.toISOString().slice(0,10)||
+       typeof value.reference!=='string'||!/^[-A-Za-z0-9_.]{1,80}$/.test(value.reference))return undefined;
+    return {verifiedOn:value.verifiedOn,reference:value.reference};
+  }catch{return undefined;}
+}

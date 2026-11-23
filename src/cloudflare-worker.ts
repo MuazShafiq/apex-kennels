@@ -6,7 +6,7 @@ import {whatsappWebhookRoute} from './whatsapp-webhook.ts';
 import {renderStaffTransportForm,renderStaffTransportResult,
   parseStaffTransportSelection} from './staff-transport-review.ts';
 import {preparePinnedTransportDraft} from './transport-quote-from-pins.ts';
-import {APEX_KENNEL_LOCATION,APEX_KENNEL_ACCESS} from './apex-location-config.ts';
+import {APEX_KENNEL_LOCATION,APEX_KENNEL_ACCESS,readFixedRouteVerification} from './apex-location-config.ts';
 import type {RouteResult} from './transport-route.ts';
 import type {PetrolRateResult} from './islamabad-petrol-rate.ts';
 import { timingSafeEqual } from 'node:crypto';
@@ -46,6 +46,7 @@ export type WorkerEnv = {
   APEX_PUBLIC_BOOKING_ENABLED?: string;
   APEX_STAFF_DRAFTS_ENABLED?: string;
   GEOAPIFY_API_KEY?:string;
+  APEX_FIXED_ROUTE_VERIFICATION?:string;
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
   ASSETS?: {fetch(request:Request):Promise<Response>};
@@ -451,6 +452,7 @@ export async function handleWorkerRequest(
       return json({error:'Staff access not configured'},503);
     const email=await authorizedStaff(env,staff.context,request);
     if(!email)return json({error:'Forbidden'},403);
+    const fixedRoute=readFixedRouteVerification(env.APEX_FIXED_ROUTE_VERIFICATION);
     try{
       if(request.method==='GET'){
         const url=new URL(request.url);
@@ -469,7 +471,7 @@ export async function handleWorkerRequest(
           return json({error:'This booking did not request transport'},409);
         const review=prepareStaffDraftReview(source,'auto');
         const saved=await (staff.loadReview??loadSavedReview)(env.DATABASE_URL,id);
-        return html(renderStaffTransportForm(source,review.packageChoice,saved?.revision??0));
+        return html(renderStaffTransportForm(source,review.packageChoice,saved?.revision??0,fixedRoute));
       }
       // The only mutation is a signed-in staff member explicitly saving a review.
       if(request.headers.get('origin')!==new URL(request.url).origin||
@@ -499,8 +501,8 @@ export async function handleWorkerRequest(
         kennelAccessWaypoint:APEX_KENNEL_ACCESS.pin,
         customerPin:selected.customerPin,
         dropoffPin:selected.dropoffPin,dropoffPinConfirmed:selected.dropoffConfirmed,
-        kennelPinConfirmed:selected.kennelConfirmed,
-        kennelAccessWaypointConfirmed:selected.accessConfirmed,
+        kennelPinConfirmed:!!fixedRoute||selected.kennelConfirmed,
+        kennelAccessWaypointConfirmed:!!fixedRoute||selected.accessConfirmed,
         customerPinConfirmed:selected.customerConfirmed,
         visit:selected.visit==='both'?'pickup_and_dropoff':selected.visit
       },{
@@ -510,7 +512,7 @@ export async function handleWorkerRequest(
       const priced=result.route.ok&&result.fuelLookup==='CURRENT_NOTIFIED_RATE'&&
         !!result.draft.fuelRateSnapshot&&
         result.draft.quote.lines.some(l=>l.label==='Pet transport'&&l.totalPkr>0)&&
-        selected.customerConfirmed&&selected.kennelConfirmed&&selected.accessConfirmed&&
+        selected.customerConfirmed&&(!!fixedRoute||selected.kennelConfirmed&&selected.accessConfirmed)&&
         (!selected.dropoffPin||selected.dropoffConfirmed);
       if(selected.action==='save'){
         if(!priced||!result.route.ok||!result.draft.fuelRateSnapshot)
@@ -529,7 +531,7 @@ export async function handleWorkerRequest(
           'Cache-Control':'private, no-store'
         }});
       }
-      return html(renderStaffTransportResult(source,selected,result));
+      return html(renderStaffTransportResult(source,selected,result,!!fixedRoute));
     }catch(error){
       if(error instanceof DraftSaveError)return json({error:error.message},error.status);
       return json({error:'Unable to prepare transport estimate'},500);

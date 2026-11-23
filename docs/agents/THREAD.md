@@ -397,3 +397,9 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 
 - Issued invoice view shows the official number in one nameplate and keeps one state summary. Eligible failed delivery now has a single fixed mobile retry button associated with the existing checked retry form. Ambiguous and terminal states retain their existing recovery behavior.
 - Node 24 cf:check passed 348 tests, typecheck and Worker dry-run. Nine invoice browser groups passed, verifying one mobile fixed retry button and its real form target with synthetic provider effects. All 42 responsive layouts passed. Previous PR #123 head 858a0c1 passed Node 22/24 and Workers preview build. No live sends or production changes.
+
+### 2026-11-23 | cdx-18 | Reusable fixed transport verification
+
+- The protected quote form can use an operational inspection reference instead of repeating the two fixed-point checks for each request. The optional Worker binding APEX_FIXED_ROUTE_VERIFICATION accepts JSON with kennel and bawli objects containing exact numeric lat/lon pairs, verifiedOn (YYYY-MM-DD UTC) and reference (opaque internal evidence ID). Configure only after the actual kennel entrance and Bawli vehicle approach are confirmed. A coordinate change invalidates the reference. Clear the binding when access conditions materially change and verify again before reinstating it.
+- Quote and save independently read the server-side binding. The quote does not replay configuration-derived confirmations in browser hidden fields. Customer gate confirmation, separate drop-off confirmation, fresh route/fuel and invoice-level review still apply. No production binding changes or physical verification were performed.
+- Node 24 cf:check passed 349 tests, typecheck and Worker dry-run. The synthetic booking browser suite passed. Mobile verification passed all 42 layouts on a sequential rerun after an initial map-fallback click timeout.

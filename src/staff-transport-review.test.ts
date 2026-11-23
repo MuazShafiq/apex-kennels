@@ -186,3 +186,23 @@ test('unverified route cannot save, and unavailable fuel never gets a fallback c
   });
   assert.equal(fuelDown.status,409);assert.equal(saves,0);
 });
+
+test('verified fixed reference waives only fixed checks and is rechecked on save',async()=>{
+  const proof={kennel:route.estimate.kennelPin,bawli:route.estimate.kennelAccessWaypoint,
+    verifiedOn:'2026-11-05',reference:'synthetic-route-audit'};
+  const configured={...env,APEX_FIXED_ROUTE_VERIFICATION:JSON.stringify(proof)};
+  const url=origin+'/staff/transport?id='+id;
+  const html=await (await handleWorkerRequest(new Request(url),configured,undefined,{...deps,loadReview:async()=>null})).text();
+  assert.match(html,/synthetic-route-audit/);
+  assert.doesNotMatch(html,/name="kennelConfirmed"|name="accessConfirmed"/);
+  assert.match(html,/name="customerConfirmed"/);
+  const {kennelConfirmed,accessConfirmed,...bookingFields}=fields;
+  const quote=await (await handleWorkerRequest(post(bookingFields),configured,undefined,deps)).text();
+  assert.match(quote,/Save review-only estimate/);
+  assert.doesNotMatch(quote,/name="kennelConfirmed"|name="accessConfirmed"/);
+  const save=post({...bookingFields,action:'save'});
+  const changed={...configured,APEX_FIXED_ROUTE_VERIFICATION:JSON.stringify({...proof,kennel:{lat:1,lon:1}})};
+  assert.equal((await handleWorkerRequest(save,changed,undefined,deps)).status,409);
+  const {customerConfirmed,...missingCustomer}=bookingFields;
+  assert.equal((await handleWorkerRequest(post({...missingCustomer,action:'save'}),configured,undefined,deps)).status,409);
+});

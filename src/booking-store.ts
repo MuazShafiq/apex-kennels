@@ -82,6 +82,16 @@ export async function saveBooking(pool: DbPool, input: IntakeRequest, alert?:Own
       'INSERT INTO public.booking_pets(booking_id,pet_id) VALUES ($1,$2)',
       [booking.id,pet.id]
     );
+    for (const dog of input.additionalDogs??[]) {
+      const additionalPet=requiredRow(await tx.query<IdRow>(
+        'INSERT INTO public.pets(customer_id,name,breed) VALUES ($1,$2,$3) RETURNING id',
+        [customer.id,dog.petName,dog.details.breed??null]
+      ),'additional pet');
+      await tx.query(
+        'INSERT INTO public.booking_pets(booking_id,pet_id,care_details) VALUES ($1,$2,$3::jsonb)',
+        [booking.id,additionalPet.id,JSON.stringify(dog.details)]
+      );
+    }
     if (input.details) {
       const d=input.details;
       await tx.query(

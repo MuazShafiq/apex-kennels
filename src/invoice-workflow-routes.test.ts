@@ -79,7 +79,7 @@ test('issuance and send gates remain independent; issued PDF downloads use store
 test('frozen preview uses approved snapshot, while queued dispatch and manual reconciliation are explicit',async()=>{
   const approved=invoice();let queued=0,dispatched=0,reconciled=0;
   const deps:InvoiceWorkflowDeps={loadInvoiceCorrection:async()=>null,loadApprovedInvoice:async()=>approved,loadInvoiceDelivery:async()=>null,enqueueInvoiceDelivery:async()=>{queued++;},dispatchInvoiceDelivery:async()=>{dispatched++;},reconcileInvoiceDelivery:async(_url,ref,actor,input)=>{assert.equal(ref,id);assert.equal(actor,owner);assert.equal(input.confirmedNotSent,true);reconciled++;}};
-  const pdf=await invoiceStaffRoute(req('preview.pdf'),{...env,ASSETS:{fetch:async()=>new Response(readFileSync(new URL('../public/invoice/canva-blank.pdf',import.meta.url))) }},owner,deps);
+  const pdf=await invoiceStaffRoute(req('preview.pdf'),{...env,ASSETS:{fetch:async()=>new Response(readFileSync(new URL('../public/invoice/branded-artwork.pdf',import.meta.url))) }},owner,deps);
   assert.equal(pdf.status,200);assert.match((await pdf.text()).slice(0,5),/%PDF-/);
   const send=await invoiceStaffRoute(req('send',{}),{...env,APEX_INVOICE_WHATSAPP_ENABLED:'true'},owner,deps);
   assert.equal(send.status,303);assert.equal(queued,1);assert.equal(dispatched,1);
@@ -106,7 +106,7 @@ test('webhook verifies exact raw signature, bounded body and sender before persi
 });
 
 test('one confirmed approval runs issue and dispatch; interrupted approved intent can resume',async()=>{
-  const allEnabled={...env,APEX_INVOICE_ISSUANCE_ENABLED:'true',APEX_INVOICE_WHATSAPP_ENABLED:'true',WHATSAPP_ACCESS_TOKEN:'synthetic-token-'.repeat(4),WHATSAPP_PHONE_NUMBER_ID:'123456789012',WHATSAPP_GRAPH_VERSION:'v24.0',APEX_INVOICE_WHATSAPP_TEMPLATE:'synthetic_invoice_pdf',ASSETS:{fetch:async()=>new Response(readFileSync(new URL('../public/invoice/canva-blank.pdf',import.meta.url)))}};
+  const allEnabled={...env,APEX_INVOICE_ISSUANCE_ENABLED:'true',APEX_INVOICE_WHATSAPP_ENABLED:'true',WHATSAPP_ACCESS_TOKEN:'synthetic-token-'.repeat(4),WHATSAPP_PHONE_NUMBER_ID:'123456789012',WHATSAPP_GRAPH_VERSION:'v24.0',APEX_INVOICE_WHATSAPP_TEMPLATE:'synthetic_invoice_pdf',ASSETS:{fetch:async()=>new Response(readFileSync(new URL('../public/invoice/branded-artwork.pdf',import.meta.url)))}};
   const approved=invoice();approved.snapshot.deliveryRequested=true;
   const calls:string[]=[];
   const deps:InvoiceWorkflowDeps={loadInvoiceCorrection:async()=>null,approveInvoice:async(_url,input,actor,config)=>{assert.equal(input.deliveryRequested,true);assert.equal(actor,owner);assert.equal(config.deliveryEnabled,'true');calls.push('approve');return approved;},loadApprovedInvoice:async()=>approved,issueInvoice:async(_url,ref,_actor,_config,pdf)=>{assert.equal(ref,id);assert.equal(new TextDecoder().decode(pdf.slice(0,5)),'%PDF-');calls.push('issue');return {...approved,status:'issued'};},dispatchInvoiceDelivery:async()=>{calls.push('dispatch');}};

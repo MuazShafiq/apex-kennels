@@ -113,26 +113,26 @@ test('printable owner-review copy uses existing A4 invoice renderer but cannot b
   assert.doesNotMatch(html,/Payment details|IBAN|Pay now|Send invoice/);
   assert.doesNotMatch(html,/vaccination|medication|Emergency contact/i);
   const staffHtml=renderStaffDraftReview(standardReview);
-  assert.match(staffHtml,/Preview Canva invoice \(PDF\)/);
+  assert.match(staffHtml,/Preview invoice \(PDF\)/);
 });
 test('printable review supports confirmed 30-day packages but blocks incomplete transport',()=>{
   const monthly=prepareStaffDraftReview({...standard,
     startDate:'2026-11-01',endDate:'2026-11-30'},'monthly');
   assert.match(renderPrintableStaffReview(monthly,'2026-11-06'),/30-day boarding discount/);
-  assert.match(renderStaffDraftReview(monthly),/Preview Canva invoice \(PDF\)/);
+  assert.match(renderStaffDraftReview(monthly),/Preview invoice \(PDF\)/);
   for(const review of [
     prepareStaffDraftReview({...standard,transportRequested:true},'daily'),
     prepareStaffDraftReview({...standard,transportRequested:null},'daily')
   ]){
     assert.throws(()=>renderPrintableStaffReview(review,'2026-11-06'),/complete boarding-only estimate/i);
-    assert.doesNotMatch(renderStaffDraftReview(review),/Preview Canva invoice \(PDF\)/);
+    assert.doesNotMatch(renderStaffDraftReview(review),/Preview invoice \(PDF\)/);
   }
 });
-test('30-day package is suggested automatically but staff may explicitly choose daily',()=>{
+test('30-day package requires an explicit choice',()=>{
   const booking={...standard,startDate:'2026-11-01',endDate:'2026-11-30',cameraCageRequested:true};
   const automatic=prepareStaffDraftReview(booking,'auto');
-  assert.equal(automatic.packageChoice,'monthly');
-  assert.equal(automatic.draft?.quote.totalPkr,80000);
+  assert.equal(automatic.packageChoice,'daily');
+  assert.equal(automatic.draft?.quote.totalPkr,90000);
   const daily=prepareStaffDraftReview(booking,'daily');
   assert.equal(daily.packageChoice,'daily');
   assert.equal(daily.draft?.quote.totalPkr,90000);

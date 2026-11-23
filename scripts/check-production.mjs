@@ -2,7 +2,8 @@
  * No-credential, no-customer-data Apex Worker verification.
  * Retry after merges because GitHub Actions may start before Cloudflare finishes deploying.
  */
-const origin=process.env.APEX_WORKER_ORIGIN || 'https://apex-kennels-api.muaz-shafiq18.workers.dev';
+const workerOrigin='https://apex-kennels-api.muaz-shafiq18.workers.dev';
+const origin=process.env.APEX_WORKER_ORIGIN || workerOrigin;
 const base=new URL(origin);
 if (base.protocol!=='https:') throw new Error('Health checks require HTTPS');
 
@@ -12,19 +13,39 @@ async function get(path) {
     headers:{'Cache-Control':'no-cache'}});
 }
 
+async function checkPagesGateway(){
+  const pages='https://apexkennels.pages.dev';
+  const request=(path,init={})=>fetch(pages+path,{
+    redirect:'manual',signal:AbortSignal.timeout(12000),...init
+  });
+  const config=await request('/api/book/config');
+  if(config.status!==200)throw new Error('Pages booking config returned '+config.status);
+  const body=await config.json();
+  if(body.enabled!==false||Object.hasOwn(body,'siteKey'))throw new Error('Pages public booking did not fail closed');
+  const blocked=await request('/api/book',{method:'POST',
+    headers:{'Content-Type':'application/json','Origin':pages},body:'{}'});
+  if(blocked.status!==503)throw new Error('Pages booking POST returned '+blocked.status);
+  for(const path of ['/staff','/staff/api/bookings','/staff/booking/action','/api/ingest']){
+    for(const headers of [{},{'Cf-Access-Jwt-Assertion':'synthetic-invalid-assertion'}]){
+      const privatePath=await request(path,{headers});
+      if(privatePath.status!==404)throw new Error('Pages private route '+path+' returned '+privatePath.status);
+    }
+  }
+}
+
 async function runChecks() {
   const response=await get('/api/health');
   if(response.status!==200) throw new Error('Health endpoint returned '+response.status);
   const health=await response.json();
   if(health.status!=='ok'||health.service!=='apex-intake') throw new Error('Unexpected health identity');
 
-  // Until Fatima signs off, deployment must never accept public bookings.
+  // This monitor is used for a closed release or after rollback.
   // Read-only checks and a deliberately empty POST cannot create a booking.
   const configResponse=await get('/api/book/config');
   if(configResponse.status!==200)throw new Error('Booking config returned '+configResponse.status);
   const config=await configResponse.json();
   if(config.enabled!==false||Object.hasOwn(config,'siteKey'))
-    throw new Error('Public booking enabled before final owner approval');
+    throw new Error('Public booking enabled during the closed-state check');
 
   const page=await get('/book');
   if(page.status!==200)throw new Error('Customer booking preview unavailable: '+page.status);
@@ -99,6 +120,7 @@ let failure;
 for(let attempt=1;attempt<=10;attempt++){
   try {
     await runChecks();
+    if(base.origin===workerOrigin)await checkPagesGateway();
     console.log('Cloudflare production checks passed: health, disabled public booking, current preview, intake auth, staff denial, synthetic previews');
     failure=undefined;
     break;

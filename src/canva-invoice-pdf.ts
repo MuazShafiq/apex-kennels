@@ -20,7 +20,7 @@ const GRAY=rgb(124/255,126/255,131/255);
 const ALT_FONT_FILES=['Inter-Regular-Subset','Inter-Bold-Subset'] as const;
 const pkr=(n:number)=>n.toLocaleString('en-PK');
 
-function clean(value:string):string {
+export function clean(value:string):string {
   if(typeof value!=='string'||value.length===0||value.length>220||
     /[\x00-\x1F\x7F]/.test(value))
     throw new Error('Invalid invoice text');
@@ -33,7 +33,7 @@ function clean(value:string):string {
   return result;
 }
 
-function rawFontAttachment(pdf:PDFDocument,name:string):Uint8Array {
+export function rawFontAttachment(pdf:PDFDocument,name:string):Uint8Array {
   const names=pdf.context.lookup(pdf.catalog.get(PDFName.of('Names')),PDFDict);
   if(!names)throw new Error('Canva template missing embedded fonts');
   const embedded=pdf.context.lookup(names.get(PDFName.of('EmbeddedFiles')),PDFDict);
@@ -154,7 +154,7 @@ export function drawCanvaIbanSingleLine(page:PDFPage,font:PDFFont,iban:string):v
 }
 
 /** Bound the renderer independently of approval: persisted arithmetic is never trusted. */
-function validatePdfQuote(q:Quote,ownerEdited:boolean):void {
+export function validatePdfQuote(q:Quote,ownerEdited:boolean):void {
   const money=(n:number)=>Number.isSafeInteger(n)&&n>=0;
   if(q.currency!=='PKR'||!Number.isSafeInteger(q.billedDays)||q.billedDays<1||
      !Array.isArray(q.lines)||!Array.isArray(q.discounts)||
@@ -316,6 +316,11 @@ export async function renderCanvaStaffPdf(
 export async function renderCanvaApprovedPdf(
   approved:ApprovalSnapshot,blankPdf:Uint8Array
 ):Promise<Uint8Array> {
+  validatePayablePdf(approved);
+  return renderCanvaPdf(approved.review,approved.approvedAt.slice(0,10),blankPdf,approved);
+}
+
+export function validatePayablePdf(approved:ApprovalSnapshot):void {
   if(approved.version!==1||!/^\d{4}$/.test(approved.invoiceNumber)||
      !Number.isSafeInteger(approved.reviewRevision)||approved.reviewRevision<1||
      !approved.approvedBy||!Number.isFinite(Date.parse(approved.approvedAt))||
@@ -325,7 +330,6 @@ export async function renderCanvaApprovedPdf(
      !/^[0-9]{8,24}$/.test(approved.payment.accountNumber)||
      !/^PK[0-9]{2}HABB[A-Z0-9]{16}$/.test(approved.payment.iban))
     throw new Error('Invalid approved invoice snapshot');
-  return renderCanvaPdf(approved.review,approved.approvedAt.slice(0,10),blankPdf,approved);
 }
 
 async function renderCanvaPdf(
@@ -338,13 +342,13 @@ async function renderCanvaPdf(
   const extras=q.lines.filter(l=>!/^(Standard|Camera cage) boarding$/i.test(l.label));
   const transport=extras.filter(l=>l.label==='Pet transport');
   const other=extras.filter(l=>l.label!=='Pet transport');
-  if(!ownerEdited&&(boarding.length!==1||transport.length>1||
+  if(!ownerEdited&&((boarding.length<1||boarding.length>2||new Set(boarding.map(l=>l.label)).size!==boarding.length)||transport.length>1||
      transport.some(l=>l.quantity!==1||l.unitPricePkr<=0||l.totalPkr!==l.unitPricePkr)||
      other.some(l=>l.totalPkr!==0||!/grooming/i.test(l.label))||
      (transport.length===1&&!snapshot.transport)))
     throw new Error('Canva staff PDF cannot represent unverified priced extras');
   const line=boarding[0],pets=line?line.quantity/q.billedDays:0;
-  if(!ownerEdited&&(!Number.isSafeInteger(pets)||pets<1))throw new Error('Invalid pet quantity');
+  if(!ownerEdited&&boarding.some(l=>!Number.isSafeInteger(l.quantity/q.billedDays)||l.quantity/q.billedDays<1))throw new Error('Invalid pet quantity');
   const pdf=await PDFDocument.load(blankPdf,{ignoreEncryption:false});
   if(pdf.getPageCount()!==2)throw new Error('Unexpected Canva invoice template variants');
   const discount=q.discounts.reduce((s,d)=>s+d.amountPkr,0);
@@ -371,7 +375,7 @@ async function renderCanvaPdf(
   identity(page,bold,period(b.startDate,b.endDate),264.9975,159,false);
   if(b.petBreeds)identity(page,bold,b.petBreeds,428.7533,103,false);
   let ownerPages:PDFPage[]|undefined;
-  if(ownerEdited){
+  if(ownerEdited||boarding.length>1){
     ownerPages=await drawOwnerTable(pdf,page,regular,bold,q,discount!==0);
   }else{
   if(/camera cage/i.test(line.label))insert(page,regular,' - camera cage',117.8,396.115,12,BLACK,157);

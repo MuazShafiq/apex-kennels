@@ -2586,3 +2586,23 @@ body.gate-map-open {
 .bk .trait .seg label {
   min-height: 44px;
 }
+
+.bk .extra-dog {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(18, 7, 9, 0.14);
+}
+.bk .extra-dog h3 {
+  margin: 0 0 16px;
+  overflow-wrap: anywhere;
+}
+.bk .extra-dog .back,
+.bk .add-dog {
+  margin-top: 12px;
+}
+.bk .add-dog:disabled {
+  opacity: .55;
+}
+.bk .tk-name {
+  overflow-wrap: anywhere;
+}

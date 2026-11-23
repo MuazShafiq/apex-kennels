@@ -1,83 +1,110 @@
-import type { StaffBooking, StaffFilter } from './staff-bookings.ts';
-import { BOOKING_STATUSES } from './staff-bookings.ts';
+import { BOOKING_STATUSES,type StaffBooking,type StaffFilter } from './staff-bookings.ts';
 
-export type StaffPage = {demo:boolean; filter:StaffFilter; email?:string};
+export type StaffPage = {demo:boolean;filter:StaffFilter;email?:string;selectedId?:string;now?:Date};
 
-function escapeHtml(value:string):string {
-  return value.replace(/[&<>"']/g, c => c === '&' ? '&amp;'
-    : c === '<' ? '&lt;' : c === '>' ? '&gt;'
-    : c === '"' ? '&quot;' : '&#39;');
+const esc=(value:string)=>value.replace(/[&<>"']/g,c=>({
+  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+}[c]??c));
+const title=(value:string)=>value.charAt(0).toUpperCase()+value.slice(1);
+const dayFormat=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Karachi',weekday:'short',day:'numeric',month:'short'});
+const fullDate=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Karachi',weekday:'long',day:'numeric',month:'long',year:'numeric'});
+const dateKey=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'});
+const checkedIn=(row:StaffBooking)=>row.status==='approved'&&!!row.checkedInAt;
+
+const styles=`
+:root{font:15px/1.45 system-ui,sans-serif;color:#120709;background:#f2f8fc;--hair:#d3e3ec;--muted:#5b5156;--raven:#120709;--powder:#bfe3f4}
+*{box-sizing:border-box}body{margin:0}.shell{min-height:100vh;background:linear-gradient(180deg,#eef6fa,#f2f8fc 400px)}a{color:inherit}a,button,input,select{outline-offset:4px}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #9e122b}
+nav{background:var(--raven);color:white;display:flex;align-items:center;gap:24px;padding:12px clamp(16px,4vw,64px);flex-wrap:wrap}nav a{min-height:44px;display:inline-flex;align-items:center;text-decoration:none}nav a[aria-current]{border-bottom:2px solid var(--powder)}.brand{font-weight:850;letter-spacing:.09em;gap:10px}.brand img{background:var(--powder);padding:4px;border-radius:8px}.who{margin-left:auto;overflow-wrap:anywhere}
+main{padding:28px max(clamp(14px,3vw,48px),calc((100% - 1680px)/2))}.top{display:flex;align-items:end;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:20px}
+h1,h2,h3,p{margin:0}h1{font-size:clamp(32px,4vw,52px);line-height:.98;letter-spacing:-.055em}h1 span{color:#9e122b}.subtitle,.muted{color:var(--muted)}.subtitle{margin-top:8px}
+form{display:flex;flex-wrap:wrap;gap:8px;min-width:0}input,select,button,.action{min-height:44px;border-radius:9px;font:inherit;padding:8px 12px;border:1px solid var(--hair);max-width:100%}input,select{background:white}button,.action{background:var(--raven);color:white;text-decoration:none;font-weight:700;cursor:pointer}
+.week,.lane,.selected,.notice{background:white;border:1px solid var(--hair);border-radius:16px;padding:15px}.notice,.week{margin:0 0 20px}.week h2,.lane h2,.selected h2{font-size:17px;letter-spacing:-.025em}.week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin-top:12px}.day{background:#eef6fa;border-radius:9px;padding:8px;min-width:0}.day b,.day span{display:block}.day span,.lane-count,.meta{font-size:12px;color:var(--muted)}
+.run{display:grid;gap:18px;align-items:start}.lanes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.lane{min-width:0}.lane header{display:flex;gap:8px;justify-content:space-between;align-items:baseline;margin-bottom:12px}.lane-count{white-space:nowrap}.stay{display:block;padding:12px;margin-top:8px;border:1px solid var(--hair);border-radius:12px;background:#f6fafc;text-decoration:none;overflow-wrap:anywhere}.stay:hover,.stay[aria-current]{background:#eef6fa;border-color:#527489}.stay h3{font-size:18px}.meta{margin-top:4px}.chip{display:inline-block;padding:3px 7px;border-radius:6px;background:#e5edf2;font-size:12px;font-weight:750}.chip.in{background:#d7f0e6;color:#174a3b}.chip.review{background:#ffe9df;color:#861729}.test{background:#fff0d0;color:#6f4610}
+.selected{overflow-wrap:anywhere;scroll-margin-top:12px}.selected p{margin:10px 0}.action{display:inline-flex;align-items:center}.foot{margin-top:16px;font-size:13px;color:var(--muted)}.empty{padding:12px 0;font-size:14px}
+@media(min-width:1240px){.run{grid-template-columns:minmax(0,1fr) 344px}.selected{position:sticky;top:14px}}
+@media(max-width:800px){.lanes{grid-template-columns:1fr}.selected{grid-row:1}.week-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:480px){nav{gap:8px 14px}.who{display:none}form input{flex:1 1 100%}.week-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+`;
+
+function laneIndex(status:StaffBooking['status']):number{
+  if(status==='requested'||status==='reviewing')return 0;
+  if(status==='approved')return 1;
+  return 2;
 }
-function title(value:string):string { return value.charAt(0).toUpperCase()+value.slice(1); }
+const laneLabels=['To review','Approved stays','Closed'];
+export function staffDetailHref(id:string,filter:StaffFilter):string{
+  return '/staff/booking?'+new URLSearchParams({id,from:'run',status:filter.status,q:filter.query});
+}
+export function staffDetailNavigation(rows:StaffBooking[],id:string,filter:StaffFilter){
+  const current=rows.find(row=>row.id===id);
+  const lane=current?rows.filter(row=>laneIndex(row.status)===laneIndex(current.status)):[];
+  const at=lane.findIndex(row=>row.id===id);
+  const link=(row:StaffBooking|undefined)=>row?{href:staffDetailHref(row.id,filter),name:row.petNames}:undefined;
+  return {
+    back:'/staff?'+new URLSearchParams({stay:id,status:filter.status,q:filter.query})+'#selected-stay',
+    position:current?laneLabels[laneIndex(current.status)]+' · '+(at+1)+' of '+lane.length:undefined,
+    previous:link(lane[at-1]),next:link(lane[at+1]),
+    actionQuery:new URLSearchParams({id,from:'run',status:filter.status,q:filter.query}).toString()
+  };
+}
 
-const styles = [
-  ':root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#1b2d29;background:#f4f6f3}',
-  '*{box-sizing:border-box}html,body{margin:0;min-height:100%}body{font-size:14px}a{color:inherit;text-decoration:none}',
-  '.shell{display:flex;min-height:100vh}.sidebar{width:236px;padding:34px 22px;background:#182e2b;color:#f6f5ee;display:flex;flex-direction:column;flex-shrink:0}',
-  '.brand{font-size:19px;letter-spacing:.2em;font-weight:800}.under{font-size:10px;color:#a6bab2;letter-spacing:.21em;margin-top:2px}',
-  '.secondarynav{display:block;margin:12px 0 0;color:#d5e5d9;padding:12px 15px;font-size:12px}.navlabel{font-size:10px;text-transform:uppercase;letter-spacing:.16em;color:#a1b1a8;margin:70px 0 17px}.nav{background:#344e46;padding:15px;border-radius:9px;font-weight:700}',
-  '.sidebarfoot{margin-top:auto;font-size:12px;color:#afc0b8;line-height:1.9;border-top:1px solid #3b544b;padding-top:22px}',
-  'main{flex:1;padding:44px clamp(18px,4.6vw,72px);min-width:0}',
-  '.top{display:flex;justify-content:space-between;color:#8a9a91;font-size:12px;margin-bottom:50px;gap:12px}',
-  '.tag{font-size:10px;font-weight:800;letter-spacing:.1em;border-radius:40px;background:#e6efe8;color:#547362;padding:9px 12px;white-space:nowrap}',
-  '.kicker{font-size:11px;font-weight:800;letter-spacing:.2em;color:#8da097}.heading{display:flex;justify-content:space-between;align-items:end;margin:13px 0 34px;gap:15px}',
-  'h1{font-size:clamp(32px,4vw,48px);line-height:1;letter-spacing:-.055em;margin:0;font-weight:680}h2{margin:0;font-size:18px;letter-spacing:-.025em}',
-  '.sub{font-size:13px;color:#819089;line-height:1.7;margin:15px 0 0}.hint{font-size:12px;color:#82938a}',
-  '.notice{background:#fff0d7;border:1px solid #e8cb98;padding:17px 20px;border-radius:11px;color:#835b21;font-size:12px;margin-bottom:24px}',
-  '.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;margin-bottom:24px}',
-  '.metric{padding:24px;background:#fff;border:1px solid #e3eae5;border-radius:14px}.metriclabel{font-size:12px;color:#81928a}.number{font-size:43px;font-weight:670;letter-spacing:-.06em;margin:14px 0 7px}.fine{font-size:11px;color:#95a19b}',
-  '.panel{border:1px solid #e3eae5;background:#fff;border-radius:14px;overflow:hidden}',
-  '.panelhead{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:25px}',
-  'form{display:flex;gap:8px;flex-wrap:wrap}input,select{padding:11px 12px;border:1px solid #dce6de;background:#fbfcfa;border-radius:8px;font:inherit;color:#385247;font-size:12px}',
-  'button{background:#234138;color:#fff;border:0;padding:11px 18px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer}',
-  '.overflow{overflow-x:auto}table{width:100%;border-collapse:collapse;text-align:left;min-width:800px}',
-  'thead{background:#f7f9f6}th{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#88988e;padding:16px 22px}',
-  'td{border-top:1px solid #eef2ee;padding:19px 22px;vertical-align:middle;white-space:nowrap}',
-  '.strong{font-weight:690;color:#293e35}.secondary{font-size:11px;color:#89998e;margin-top:6px}',
-  '.action{color:#21664c;font-size:12px;font-weight:700;text-decoration:underline;text-underline-offset:4px}.state{display:inline-block;font-size:11px;font-weight:720;padding:8px 11px;border-radius:30px;background:#edf2ec;color:#597263}',
-  '.testmark{font-size:9px;letter-spacing:.07em;color:#9c6b2c;background:#fff2d9;padding:4px 7px;border-radius:4px;margin-left:8px;font-weight:800}.requested{background:#fff2dc;color:#956e2b}.reviewing{background:#e9f0f8;color:#557a9c}.approved{background:#e6f3ea;color:#367552}',
-  '.declined,.cancelled{background:#f8e9e9;color:#ac6161}.completed{background:#e7eeea;color:#3a7460}',
-  '.panelbottom{border-top:1px solid #e9efea;padding:18px 25px;color:#93a19a;font-size:11px;display:flex;justify-content:space-between}',
-  '.foot{margin-top:21px;color:#8e9a94;font-size:11px;line-height:1.8}',
-  '@media(max-width:970px){.sidebar{width:140px;padding:28px 12px}.brand{font-size:15px}.nav{font-size:12px}.heading,.panelhead{align-items:start;flex-direction:column}main{padding:30px 18px}}',
-  '@media(max-width:650px){.sidebar{display:none}main{padding:24px 13px}.metric{padding:13px}.number{font-size:32px}.metriclabel,.fine{font-size:10px}form input{max-width:155px}.panelhead{padding:20px}.heading{margin-bottom:24px}}',
-  "/* Apex brand follows the actual Canva invoice: ink, periwinkle, powder blue. */\n:root{color:#1b1c2c;background:#f4faff}\nbody{background:#f4faff}\n.sidebar{background:#191b35;color:#f3f7ff;border-right:1px solid #333a68}\n.sidebar a{color:inherit}\n.brand-wrap{display:flex;align-items:center;gap:10px}\n.brand-mark{width:45px;height:42px;object-fit:contain;display:block;background:#ddf4ff;border-radius:9px;padding:5px}\n.brand{color:#fff;font-size:18px;letter-spacing:.12em}\n.under{color:#c2c9f4;letter-spacing:.14em}\n.navlabel{color:#aab3da}\n.nav{background:#3e4095}\n.secondarynav,.sidebarfoot{color:#c5cee7}\n.sidebarfoot{border-top-color:#373a60}\n.shell{background:linear-gradient(180deg,#ddf4ff 0,#f4faff 335px)}\nmain{background:transparent}\n.top{color:#56658a}\n.tag{background:#eff1ff;color:#40489b}\n.kicker{color:#3e4095}\nh1,h2{color:#191b2e}\n.sub,.hint{color:#69738e}\n.metric,.panel{border-color:#d1e0f3;box-shadow:0 10px 32px rgba(39,62,130,.03)}\n.metriclabel,.fine,.secondary,.foot{color:#68758f}\n.number,.strong{color:#242747}\n.panelhead{background:#fff}\ninput,select{border-color:#bfcee8;background:#faffff;color:#343b69}\nbutton{background:#3e4095}\nthead{background:#eff7ff}\nth{color:#52659a}\ntd{border-top-color:#e3edf8}\n.action{color:#3e4095}\n.state{background:#ecf1ff;color:#47518e}\n.reviewing{background:#e8edff;color:#3e4095}\n.approved{background:#e6f4ed;color:#336f52}\n.completed{background:#e8edf5;color:#536787}\n.panelbottom{border-top-color:#d8e5f5;color:#62718f}\na:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #8393da;outline-offset:3px}\n.mobilebrand{display:none;align-items:center;gap:8px;margin-bottom:16px;color:#3e4095;font-weight:850;letter-spacing:.1em}\n.mobilebrand img{width:37px;height:33px}\n@media(max-width:650px){.mobilebrand{display:flex}.top{margin-bottom:30px}.cards{gap:8px}.metric{min-width:0}.metriclabel{font-size:10px}.number{font-size:29px}.panelbottom{flex-wrap:wrap;gap:5px}}\n@media(max-width:360px){main{padding:21px 11px}.metric{padding:10px}.number{font-size:26px}}\n"
-].join('');
+function weekStrip(rows:StaffBooking[],now:Date):string{
+  const approved=rows.filter(row=>row.status==='approved'&&!row.isSynthetic);
+  const midnight=Date.parse(dateKey.format(now)+'T00:00:00+05:00');
+  const days=Array.from({length:7},(_,offset)=>{
+    const day=new Date(midnight+offset*86_400_000);
+    const key=dateKey.format(day);
+    const arriving=approved.filter(row=>row.startDate===key&&!checkedIn(row));
+    const departing=approved.filter(row=>row.endDate===key);
+    const pins=arriving.filter(row=>row.transportService==='pickup'||row.transportService==='both').length
+      +departing.filter(row=>row.transportService==='dropoff'||row.transportService==='both').length;
+    return '<div class="day"><b>'+dayFormat.format(day)+'</b><span>'+arriving.length+' arrivals</span><span>'
+      +departing.length+' departures</span>'+(pins?'<span>'+pins+' gate requests</span>':'')+'</div>';
+  }).join('');
+  return '<section class="week"><h2>Coming week</h2><div class="week-grid">'+days+'</div></section>';
+}
 
-export function renderStaffConsoleHtml(rows:StaffBooking[], page:StaffPage):string {
-  const base = page.demo ? '/demo/staff' : '/staff';
-  const q = page.filter.query.toLowerCase();
-  const visible = page.demo
-    ? rows.filter(row => (page.filter.status === 'all' || row.status === page.filter.status)
-      && (!q || (row.customerName + ' ' + row.petNames).toLowerCase().includes(q)))
-    : rows;
-  const statuses = ['all',...BOOKING_STATUSES].map(status =>
-    '<option value="' + status + '"' + (status===page.filter.status?' selected':'') + '>'
-      + title(status) + '</option>').join('');
-  const tr = visible.map(row=>'<tr><td><div class="strong">'+escapeHtml(row.customerName)+(row.isSynthetic?'<span class="testmark">TEST RECORD</span>':'')+'</div><div class="secondary">'+escapeHtml(row.id.slice(0,8))+'</div></td>'
-    + '<td><div class="strong">'+escapeHtml(row.petNames)+'</div><div class="secondary">'+escapeHtml(row.accommodationType||'Not assigned')+'</div></td>'
-    + '<td><div>'+escapeHtml(row.startDate)+'</div><div class="secondary">to '+escapeHtml(row.endDate)+'</div></td>'
-    + '<td><span class="state '+row.status+'">'+title(row.status)+'</span></td>'
-    + '<td><div class="secondary">'+escapeHtml(row.email||row.phone||(page.demo?'Demo record':'No contact'))+'</div></td>'
-    + '<td>'
-    + '<a class="action" href="'+(page.demo?'/demo/draft':'/staff/booking?id='+encodeURIComponent(row.id))+'">'+(page.demo?'View example':'Review booking')+'</a></td></tr>').join('');
-  const c = (status:string)=>visible.filter(row=>row.status===status).length;
-  const metric=(label:string,value:number,note:string)=>'<article class="metric"><div class="metriclabel">'+label+'</div><div class="number">'+value+'</div><div class="fine">'+note+'</div></article>';
+export function renderStaffConsoleHtml(rows:StaffBooking[],page:StaffPage):string {
+  const base=page.demo?'/demo/staff':'/staff';
+  const now=page.now??new Date();
+  const q=page.filter.query.toLowerCase();
+  const visible=page.demo?rows.filter(row=>(page.filter.status==='all'||page.filter.status===row.status)
+    &&(!q||(row.customerName+' '+row.petNames).toLowerCase().includes(q))):rows;
+  const selected=visible.find(row=>row.id===page.selectedId);
+  const href=(row:StaffBooking)=>page.demo?'/demo/draft':staffDetailHref(row.id,page.filter);
+  const status=(row:StaffBooking)=>checkedIn(row)?'Checked in':title(row.status);
+  const card=(row:StaffBooking)=>{
+    const query=new URLSearchParams({status:page.filter.status,q:page.filter.query,stay:row.id});
+    const target=page.demo?href(row):base+'?'+query.toString()+'#selected-stay';
+    return '<a class="stay" href="'+esc(target)+'"'+(selected?.id===row.id?' aria-current="true"':'')+'>'
+      +'<span class="chip '+(checkedIn(row)?'in':row.status==='reviewing'?'review':'')+'">'+status(row)+'</span>'
+      +(row.isSynthetic?' <span class="chip test">TEST RECORD</span>':'')
+      +'<h3>'+esc(row.petNames||'Dog name missing')+'</h3><p>'+esc(row.customerName)+'</p>'
+      +'<p class="meta">'+esc(row.startDate)+' → '+esc(row.endDate)+'</p></a>';
+  };
+  const review=visible.filter(row=>row.status==='requested'||row.status==='reviewing');
+  const approved=visible.filter(row=>row.status==='approved');
+  const closed=visible.filter(row=>['cancelled','declined','completed'].includes(row.status));
+  const lane=(label:string,items:StaffBooking[])=>'<section class="lane"><header><h2>'+label+'</h2><span class="lane-count">'
+    +items.length+(items.length===1?' stay':' stays')+'</span></header>'
+    +(items.length?items.map(card).join(''):'<p class="muted empty">No matching stays.</p>')+'</section>';
+  const option=(value:string)=>'<option value="'+value+'"'+(value===page.filter.status?' selected':'')+'>'+title(value)+'</option>';
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-    + '<meta name="robots" content="noindex,nofollow"><title>Apex Kennels | Booking operations</title><style>'+styles+'</style></head><body>'
-    + '<div class="shell"><aside class="sidebar"><a href="'+base+'" class="brand-wrap"><img class="brand-mark" src="/book/apex-dog-mark.svg" alt="" width="45" height="42"><div><div class="brand">APEX</div><div class="under">KENNELS</div></div></a>'
-    + '<div class="navlabel">Workspace</div><a class="nav" href="'+base+'">▦ &nbsp; Bookings</a>'
-    + '<div class="sidebarfoot">Staff bookings</div></aside>'
-    + '<main><div class="mobilebrand"><img src="/book/apex-dog-mark.svg" alt="" width="37" height="33">APEX KENNELS</div><div class="top"><span>Apex Kennels &nbsp; / &nbsp; Operations &nbsp; / &nbsp; Bookings</span><span class="tag">'+(page.demo?'SYNTHETIC DEMO':'STAFF · READ ONLY')+'</span></div>'
-    + (page.demo?'<div class="notice"><strong>DEMO ONLY.</strong> All bookings and names below are synthetic. This preview uses no customer records, database, or automated invoicing.</div>':'')
-    + '<div class="kicker">BOOKINGS</div><div class="heading"><div><h1>Booking requests</h1><p class="sub">Open a request to review the dog’s details and care needs.</p></div>'
-    + '<div class="hint">'+(page.demo?'Illustrative preview':'Signed in: '+escapeHtml(page.email||'Staff'))+'</div></div>'
-    + '<section class="cards">'+metric('Visible bookings',visible.length,'Latest 50 maximum')+metric('New requests',c('requested'),'Awaiting review')+metric('Under review',c('reviewing'),'Staff decision pending')+'</section>'
-    + '<section class="panel"><div class="panelhead"><div><h2>Recent requests</h2></div>'
-    + '<form action="'+base+'" method="get"><input aria-label="Search by customer or pet" name="q" type="search" maxlength="80" placeholder="Search owner or pet" value="'+escapeHtml(page.filter.query)+'">'
-    + '<select aria-label="Filter booking status" name="status">'+statuses+'</select><button type="submit">Filter</button></form></div>'
-    + '<div class="overflow"><table><thead><tr><th>Owner / reference</th><th>Dog / space</th><th>Boarding dates</th><th>Status</th><th>Contact</th><th>Action</th></tr></thead><tbody>'
-    + (tr || '<tr><td colspan="6" style="padding:45px;text-align:center;color:#8d9d91">No matching bookings.</td></tr>')
-    + '</tbody></table></div><div class="panelbottom"><span>'+visible.length+' requests · newest first</span></div></section>'
-    + '<p class="foot">Estimates are for staff review, not payment. '+(page.demo?'':'<a href="/staff/location">Check a location from the old Google Form</a> � <a href="/staff/owner-alerts">Owner alert status</a>')+'</p></main></div></body></html>';
+    +'<meta name="robots" content="noindex,nofollow"><title>Apex Kennels | Run sheet</title><style>'+styles+'</style></head><body><div class="shell">'
+    +'<nav aria-label="Staff sections"><a class="brand" href="'+base+'"><img src="/book/apex-dog-mark.svg" alt="" width="34" height="34">APEX KENNELS</a>'
+    +'<a aria-current="page" href="'+base+'">Run sheet</a>'
+    +(page.demo?'':'<a href="/staff/owner-alerts">Owner alerts</a><span class="who">Signed in: '+esc(page.email||'Staff')+'</span>')+'</nav>'
+    +'<main>'+(page.demo?'<p class="notice"><strong>SYNTHETIC DEMO.</strong> All bookings and names are fictional.</p>':'')
+    +'<div class="top"><div><h1>'+review.length+(review.length===1?' request':' requests')+' to review<span>.</span></h1>'
+    +'<p class="subtitle">'+fullDate.format(now)+' · front desk</p></div>'
+    +'<form action="'+base+'" method="get"><input aria-label="Search dog or owner" name="q" type="search" maxlength="80" placeholder="Search dog or owner" value="'+esc(page.filter.query)+'">'
+    +'<select aria-label="Filter booking status" name="status">'+['all',...BOOKING_STATUSES].map(option).join('')+'</select><button type="submit">Filter</button></form></div>'
+    +weekStrip(visible,now)+'<div class="run"><div class="lanes">'+lane('To review',review)+lane('Approved stays',approved)+lane('Closed',closed)
+    +'</div><aside class="selected" id="selected-stay" aria-label="Selected stay">'
+    +(selected?'<span class="chip">'+status(selected)+'</span><h2>'+esc(selected.petNames||'Dog name missing')+'</h2><p>'+esc(selected.customerName)
+      +'<br>'+esc(selected.startDate)+' → '+esc(selected.endDate)+'</p>'
+      +(selected.isSynthetic?'<p class="chip test">TEST RECORD · DO NOT CONTACT</p>':'')
+      +'<p><a class="action" href="'+esc(href(selected))+'">View details</a></p>'
+      :'<h2>Selected stay</h2><p class="muted">Select a stay to see its details.</p>')
+    +'</aside></div><p class="foot">'+visible.length+' matching bookings shown · latest 50 maximum. Week counts cover the bookings shown.</p></main></div></body></html>';
 }

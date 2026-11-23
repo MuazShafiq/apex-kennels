@@ -12,7 +12,7 @@ export class InvoiceApprovalError extends Error {
 }
 export type ApprovalConfig={enabled?:string;issuanceEnabled?:string;deliveryEnabled?:string;ownerEmail?:string;bankDetailsJson?:string;manualNumberFloor?:string};
 export type InvoiceConsent={phone:string;purpose:'invoice_pdf';consentedAt:string;evidence:string;recordedBy:string};
-export type ApprovalInput={bookingId:string;revision:number;invoiceNumber:string;confirmed:true;transportVerified:boolean;fuelVerified:boolean;deliveryRequested?:boolean;consent?:Omit<InvoiceConsent,'recordedBy'>};
+export type ApprovalInput={bookingId:string;revision:number;invoiceNumber:string;confirmed:true;transportVerified:boolean;fuelVerified:boolean;deliveryRequested?:boolean;issueRequested?:boolean;consent?:Omit<InvoiceConsent,'recordedBy'>};
 export type ApprovalSnapshot={version:1;review:ReviewSnapshot;reviewRevision:number;invoiceNumber:string;approvedBy:string;approvedAt:string;payment:{bank:'HBL';accountTitle:string;accountNumber:string;iban:string};transportVerified:boolean;fuelVerified:boolean;deliveryRequested:boolean;consent?:InvoiceConsent};
 export type ApprovedInvoice={id:string;snapshot:ApprovalSnapshot;status:'approved'|'issued';issuedAt?:string;pdfSha256?:string};
 export const INVOICE_UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
@@ -37,11 +37,14 @@ function bank(config:ApprovalConfig):ApprovalSnapshot['payment'] {
 /** Reconstruct confirmed pricing for validation only; never replace the saved monetary snapshot. */
 export function validateApprovalPricing(input:unknown):ReviewSnapshot {
   const review=validateSnapshot(input);
-  const q=review.ownerOverride?.sourceQuote??review.quote,boarding=q.lines[0];
-  if(!boarding||!['Standard boarding','Camera cage boarding'].includes(boarding.label)||!Number.isSafeInteger(q.billedDays)||q.billedDays<1)fail('Unsupported boarding snapshot');
-  const pets=boarding.quantity/q.billedDays;
-  if(!Number.isSafeInteger(pets)||pets<1||pets>100||q.startDate!==review.booking.startDate||q.endDate!==review.booking.endDate||review.rateVersion!=='fatima-confirmed-2026-11-06')fail('Draft pricing needs fresh review');
-  const expected=buildApexInvoiceDraft({startDate:q.startDate,endDate:q.endDate,cage:boarding.label==='Camera cage boarding'?'camera':'normal',petCount:pets,fullMonthPackageSelected:review.packageChoice==='monthly',groomingRequested:q.lines.some(l=>l.label==='Grooming (complimentary)'),transport:review.transport?{requested:true,totalDrivenKm:review.transport.route.totalDrivenKm,fuelRate:review.transport.fuelRate}:undefined}).quote;
+  const q=review.ownerOverride?.sourceQuote??review.quote;
+  const boarding=q.lines.filter(line=>line.label==='Standard boarding'||line.label==='Camera cage boarding');
+  if(!boarding.length||!Number.isSafeInteger(q.billedDays)||q.billedDays<1)fail('Unsupported boarding snapshot');
+  const counts=boarding.map(line=>line.quantity/q.billedDays);
+  const pets=counts.reduce((sum,count)=>sum+count,0);
+  if(counts.some(count=>!Number.isSafeInteger(count)||count<1)||pets>100||q.startDate!==review.booking.startDate||q.endDate!==review.booking.endDate||review.rateVersion!=='fatima-confirmed-2026-11-06')fail('Draft pricing needs fresh review');
+  const cameraPetCount=(boarding.find(line=>line.label==='Camera cage boarding')?.quantity??0)/q.billedDays;
+  const expected=buildApexInvoiceDraft({startDate:q.startDate,endDate:q.endDate,cage:'normal',petCount:pets,cameraPetCount,fullMonthPackageSelected:review.packageChoice==='monthly',groomingRequested:q.lines.some(l=>l.label==='Grooming (complimentary)'),transport:review.transport?{requested:true,totalDrivenKm:review.transport.route.totalDrivenKm,fuelRate:review.transport.fuelRate}:undefined}).quote;
   if(review.ownerOverride)validateOwnerQuote(review.quote,q);
   if(canonical(q)!==canonical(expected))fail('Saved pricing is incomplete or differs from confirmed rules');
   if(review.transport){
@@ -87,6 +90,10 @@ export function prepareApproval(saved:SavedReview,input:ApprovalInput,actor:stri
     consent={phone:normalizePakistanWhatsappPhone(c.phone),purpose:'invoice_pdf',consentedAt:new Date(at).toISOString(),evidence:c.evidence,recordedBy:actor};
   }
   const deliveryRequested=input.deliveryRequested===true;
+  if(input.issueRequested){
+    if(config.issuanceEnabled!=='true')fail('Invoice issuance is disabled',503);
+    if(review.booking.synthetic)fail('Synthetic approvals cannot be issued');
+  }
   if(deliveryRequested){
     if(config.issuanceEnabled!=='true'||config.deliveryEnabled!=='true')fail('Invoice issuance and WhatsApp delivery must both be enabled',503);
     if(review.booking.synthetic||!consent)fail('Customer delivery requires a real booking and explicit invoice PDF consent');

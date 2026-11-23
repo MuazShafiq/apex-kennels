@@ -13,6 +13,7 @@ export type StaffInvoiceSource={
   petNames:string;
   petBreeds?:string;
   petCount:number;
+  cameraPetCount?:number;
   startDate:string;
   endDate:string;
   status:string;
@@ -47,7 +48,7 @@ export function parseStaffDraftRequest(url:URL):{bookingId:string;packageChoice:
   return {bookingId,packageChoice:choice};
 }
 type Row={
-  id:string;customer_name:string;pet_names:string;pet_breeds:string|null;pet_count:number|string;
+  id:string;customer_name:string;pet_names:string;pet_breeds:string|null;pet_count:number|string;camera_pet_count:number|string;
   start_date:string;end_date:string;status:string;
   camera_cage_requested:boolean|null;pickup_dropoff_requested:boolean|null;
   external_submission_id:string|null;
@@ -68,6 +69,9 @@ export async function readStaffInvoiceSource(databaseUrl:string,bookingId:string
       +"COALESCE(STRING_AGG(p.name, ', ' ORDER BY p.name),'') AS pet_names,"
       +"COALESCE(STRING_AGG(DISTINCT p.breed, ', ' ORDER BY p.breed),'') AS pet_breeds,"
       +"COUNT(bp.pet_id)::integer AS pet_count,"
+      +"COUNT(bp.pet_id) FILTER (WHERE COALESCE("
+      +"(to_jsonb(bp)->'care_details'->>'cameraCageRequested')::boolean,d.camera_cage_requested)"
+      +")::integer AS camera_pet_count,"
       +"b.external_submission_id "
       +"FROM public.booking_requests b "
       +"JOIN public.customers c ON c.id=b.customer_id "
@@ -103,6 +107,7 @@ export async function readStaffInvoiceSource(databaseUrl:string,bookingId:string
       petNames:row.pet_names,
       petBreeds:row.pet_breeds||undefined,
       petCount:Number(row.pet_count),
+      cameraPetCount:Number(row.camera_pet_count),
       startDate:row.start_date,
       endDate:row.end_date,
       status:row.status,
@@ -125,9 +130,7 @@ export function prepareStaffDraftReview(
   selection:StaffPackageSelection
 ):StaffDraftReview{
   source={...source,synthetic:source.synthetic||isSyntheticBooking({customerName:source.customerName,petName:source.petNames})};
-  const packageChoice:StaffPackageChoice=selection==='auto'
-    ?countBilledDays(source.startDate,source.endDate,'inclusive_days')===30?'monthly':'daily'
-    :selection;
+  const packageChoice:StaffPackageChoice=selection==='auto'?'daily':selection;
   const issues:string[]=[];
   if(source.status!=='approved')issues.push('Booking is not approved for boarding.');
   if(source.cameraCageRequested===null){
@@ -149,14 +152,14 @@ export function prepareStaffDraftReview(
     return {booking:source,packageChoice,draft:null,issues,previewOnly:true,canSend:false,canApprove:false};
   }
   if(monthly)issues.push('30-day discount: confirm dates before approving the invoice.');
-  if(source.cameraCageRequested)issues.push('Camera cage REQUESTED: check availability.');
+  if((source.cameraPetCount??Number(source.cameraCageRequested))>0)issues.push('Camera cage REQUESTED: check availability.');
   if(source.transportRequested)issues.push(
     'Transport amount excluded. Check pickup location and driving route before quoting.'
   );
   const draft=buildApexInvoiceDraft({
     startDate:source.startDate,endDate:source.endDate,
     cage:source.cameraCageRequested?'camera':'normal',
-    petCount:source.petCount,fullMonthPackageSelected:monthly,
+    petCount:source.petCount,cameraPetCount:source.cameraPetCount,fullMonthPackageSelected:monthly,
     transport:{requested:source.transportRequested},
   });
   return {booking:source,packageChoice,draft,issues,previewOnly:true,canSend:false,canApprove:false};
@@ -243,7 +246,7 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
         +(site==='staff'&&!source.transportRequested
           ?'<p><a href="/staff/draft?id='+encodeURIComponent(source.bookingId)
             +'&amp;package='+encodeURIComponent(review.packageChoice)
-            +'&amp;format=print">Preview Canva invoice (PDF)</a></p>':'')
+            +'&amp;format=print">Preview invoice (PDF)</a></p>':'')
         +(site==='staff'&&options.enableSaving&&!source.transportRequested
           &&['requested','reviewing','approved'].includes(source.status)
           ?'<form method="post" action="/staff/draft/save">'

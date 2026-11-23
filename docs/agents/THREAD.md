@@ -324,3 +324,111 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 - Founder reported the visible Pickup and drop-off separately confirmed summary before submitting once in a standalone Pages browser. Protected Neon readback found one booking for the staged marker, transport requested=true, one confirmed both-service row and exact matches for both submitted coordinate pairs. Prior booking preserved. This closes outstanding Stage 1 transport acceptance alongside the earlier live booking and v2 consent proof.
 - Booking-only deployment edf8c308-52ab-4900-b5fa-24a5dd41904e used a separate five-minute watchdog. On positive readback, immediate rollback restored baseline d30cb893-b3c5-4458-8d6a-84a6783d3e66 at 100% via 11ab6b68-6085-4119-a964-38e1be66c0c5. Watchdog and independent Worker/Pages checks confirmed enabled:false and POST 503. Full closed production smoke passed and all five flags were absent. No changes to customer links, Form, schema, widget, messaging or financial settings.
 - Published sanitized evidence through PR #117. Next owner is cdx-18 if separately authorized for persistent cutover after remaining launch prerequisites. Public booking remains closed.
+
+### 2026-11-23 | cdx-18 | Approved release baseline and booking consent
+
+- Started isolated worktree apex-approved-release, branch feat/apex-approved-release, at fetched origin/main bbbff16. Preserved shared main and prior design branches. Inspected the final Apex export inventory, implementation notes and booking canvas. Read the founder launch authorization on #84 and issue scopes #28, #39, #120, #121 and #122. Public booking cutover is authorized after acceptance. Staff Pages remains separate.
+- Removed the mandatory WhatsApp agreement and messaging promise from native booking, retaining required phone contact, booking terms, and legacy consent parsing and storage. Updated public parser, booking UI, and Node and browser checks. New native submissions omit the consent field. Invoice-specific consent remains separate. No migration, provider action, production deployment or configuration change.
+- Node 24 cf:check passed 343 tests, typecheck and Worker dry-run. Synthetic booking browser suite passed across transport choices. Fresh production smoke passed and direct probes confirmed config HTTP 200 enabled:false and booking POST 503 on both Worker and Pages. No new production submission.
+- Next owner cdx-18: continue multi-dog intake, grouped invoicing and real stay decisions, then integrate final staff and invoice canvases and verify launch prerequisites.
+- The mobile visual suite also passed all 42 page layouts. Updated docs/release-acceptance.md with the new founder decision and no-consent canary evidence requirement.
+
+### 2026-11-23 | cdx-18 | Multi-dog intake and storage foundation
+
+- Extended website-only intake, request limits, fingerprints, transactional booking/pet links, and synthetic marker checks. Additive migration 009 stores additional per-dog care and cage choice on booking_pets. Primary and historical dog details retain their existing representation. Initial intake limit is four dogs sharing dates, owner, transport and terms.
+- Node 24 cf:check passed all 344 tests, typecheck and Worker dry-run. Disposable loopback PostgreSQL verified migration 009, mixed cage and care readback, two concurrent identical saves yielding one booking, and altered replay yielding 409. No production migration, deployment, or gate change.
+- Next owner cdx-18: connect the booking UI, protected staff readback and grouped invoice pricing to the validated intake model. This checkpoint is internal backend support.
+
+### 2026-11-23 | cdx-18 | Mixed-cage invoice pricing
+
+- Staff draft and transport quote paths now use stored cage counts, and approval reconstructs grouped prices and checks current counts under the existing locks. Historical bookings retain their booking-level cage choice. Daily pricing is the default. Staff must explicitly select the exactly-30-day package.
+- Current PDF renderer can display both boarding rows using its existing variable-row table. The final branded PDF remains pending. Node 24 cf:check passed 345 tests, typecheck and Worker dry-run. Focused follow-up verified mixed-cage PDF generation and rollback on changed cage count. All eight synthetic invoice browser groups and 42 mobile layouts passed.
+- No migration, deployment or gate changes. Next owner cdx-18: complete native multi-dog UI and staff per-dog care display, then staff decisions and approved design integration.
+
+### 2026-11-23 | cdx-18 | Customer multi-dog booking
+
+- Added up to three additional dogs in the existing dog and care steps, with separate identity, cage, health and care answers. The daily subtotal reflects all chosen cages. An exactly 30-day package is shown as conditional on staff confirmation. Submission and receipt include all dogs.
+- Node 24 cf:check passed 345 tests, typecheck and Worker dry-run. Synthetic booking browser tests covered add/remove, required validation, mixed-cage summary and per-dog care readback at the Worker boundary. The 42-layout mobile suite passed. No live Turnstile, Neon write, deployment or gate change.
+- Next owner cdx-18: show per-dog care in staff detail and implement the audited booking decision workflow.
+
+### 2026-11-23 | cdx-18 | Protected per-dog care review
+
+- Staff booking detail reads linked per-dog care and separates cage, vaccination, health and care answers from the primary dog. Missing or incomplete vaccination records flag staff review. Legacy records remain readable, and staff authorization and no-store response handling are preserved.
+- Disposable loopback PostgreSQL read back the primary and separate second-dog cage/vaccination fields from migration 009 fixtures. Node 24 cf:check passed 346 tests, typecheck and Worker dry-run. Synthetic booking browser and 42 mobile layouts passed. The protected detail regression covers escaped names and instructions and vaccination warnings.
+- No production changes. Next owner cdx-18: audited stay actions and verification, then staff run sheet and invoice design.
+
+### 2026-11-23 | cdx-18 | Audited stay decisions
+
+- Migration 010 and protected staff detail POST implement explicit start-review, approval with vaccination review attestation, decline with reason, and recorded check-in/out. History records authenticated actor, prior/new state and database timestamp. Check-in is an explicit event on an approved booking. Check-out completes the stay. Booking row locks and expected status/revision guard competing forms and identical replays.
+- Disposable loopback PostgreSQL passed migration, concurrent replay, conflicting actors, stale decline, checkout-before-arrival refusal, attestation and completion. Node 24 cf:check passed 347 tests, typecheck and Worker dry-run. Booking browser tests and 42 mobile layouts passed, including a staff detail fixture with decision forms rendered. Route regression covers same-origin, staff identity and required attestation.
+- No production migration, deployment, issuance, messaging or gate changes. Next owner cdx-18: integrate live arrival state into the approved run sheet and redesign staff detail/invoice surfaces.
+
+### 2026-11-23 | cdx-18 | Staff run sheet
+
+- Replaced the staff queue table with the approved export's three workflow lanes, responsive header, coming-week strip and selected-stay panel. Search and selection use GET links. Arrival indicators use recorded check-in events. Week totals cover the visible result set, limited to 50. Retired the legacy location checker navigation link while preserving the protected route and intake fallback.
+- Disposable loopback PostgreSQL verified that matching one dog does not strip the other dog from the booking and that arrival history joins the same result. Node 24 cf:check passed 348 tests, typecheck and Worker dry-run. Synthetic booking browser and 42 mobile layouts passed. No production changes.
+- Next owner cdx-18: complete the approved booking-detail and invoice surfaces and the branded PDF, then integrate and verify production prerequisites.
+
+### 2026-11-23 | cdx-18 | Branded invoice PDFs and issue-only action
+
+- Worker preview, saved review, approved preview and new issuance use the branded A4 renderer. It draws the approved dog mark, raven header, review pills and powder stay/total panels, with paginated item rows and a separate payment block for payable invoices. The legacy Canva asset supplies existing bundled Inter fonts. Previously issued bytes continue to load from storage.
+- Added an explicit Approve & issue intent with no delivery. A conflicting retry cannot convert a frozen delivery intent. The current approval-only action remains available. No change to invoice number allocation, immutable issue storage, provider gates or callback recovery.
+- Node 24 cf:check passed 348 tests, typecheck and Worker dry-run. Nine synthetic invoice browser groups passed, including issue-only with zero additional outbox/provider effects and matching immutable downloaded and provider bytes. PyMuPDF rendered the actual review bytes and extracted review markings without payment fields. No real invoice or provider call.
+- The PDF currently draws a solid raven header. The approved header texture and remaining staff screen fidelity, integration and production acceptance are pending. No production changes.
+
+### 2026-11-23 | cdx-18 | Approved PDF header artwork
+
+- Active PDF routes now load public/invoice/branded-artwork.pdf. Its first page carries the approved header texture from Apex export asset dae6b25f40fd7ea41e91f33f395c6169.webp, cropped at the right and bottom and converted to JPEG for PDF embedding. The file bundles the existing two Inter OTF subsets. The legacy Canva template is preserved for historical design provenance and tests.
+- Rendered and visually inspected the actual synthetic A4 review with PyMuPDF. Verified an embedded header image, nonpayable text and absence of payment fields. Node 24 cf:check passed all 348 tests, typecheck and Worker dry-run. Nine invoice browser groups passed. Updated the disposable integration suite to use the active renderer and passed 21 PostgreSQL groups in apex_invoice_test_1795393860003_01fbeab5 with fake providers.
+- No production mutations. Next owner cdx-18: complete approved staff detail/invoice interaction and release integration.
+
+### 2026-11-23 | cdx-18 | Staff booking detail layout
+
+- Added a dog-name plate, recorded status and latest event, billed-day strip, run-sheet return and accessible section navigation for overview, transport, estimate/invoice and history. The estimate card routes to protected real pricing. Section navigation uses anchors and retains all stay forms and per-dog health data behind Access.
+- Node 24 cf:check passed all 348 tests, typecheck and Worker dry-run. Synthetic booking browser tests passed. Production smoke confirmed the existing closed preview, anonymous staff denial and intake auth. No production mutation.
+- Next owner cdx-18: finish invoice screen fidelity and review integration CI and outstanding launch prerequisites.
+
+### 2026-11-23 | cdx-18 | Repeatable release database proof
+
+- Added native booking and stay coverage to the existing loopback-only CLI integration check run by Node 22/24 CI. Migrations 009/010 are exercised in its fresh database. Checked two distinct dog-care records, concurrent idempotency, changed payload refusal, competing staff approvals, explicit check-in/out ordering, vaccination attestation and absence of an invoice from stay approval.
+- The complete local check passed in disposable PostgreSQL database apex_invoice_test_1795394455802_496819c4, including the existing 21 invoice groups with fake providers. Draft PR #123 is the integration branch. No remote schema, gate or deployment changes.
+
+### 2026-11-23 | cdx-18 | Mobile invoice retry
+
+- Issued invoice view shows the official number in one nameplate and keeps one state summary. Eligible failed delivery now has a single fixed mobile retry button associated with the existing checked retry form. Ambiguous and terminal states retain their existing recovery behavior.
+- Node 24 cf:check passed 348 tests, typecheck and Worker dry-run. Nine invoice browser groups passed, verifying one mobile fixed retry button and its real form target with synthetic provider effects. All 42 responsive layouts passed. Previous PR #123 head 858a0c1 passed Node 22/24 and Workers preview build. No live sends or production changes.
+
+### 2026-11-23 | cdx-18 | Reusable fixed transport verification
+
+- The protected quote form can use an operational inspection reference instead of repeating the two fixed-point checks for each request. The optional Worker binding APEX_FIXED_ROUTE_VERIFICATION accepts JSON with kennel and bawli objects containing exact numeric lat/lon pairs, verifiedOn (YYYY-MM-DD UTC) and reference (opaque internal evidence ID). Configure only after the actual kennel entrance and Bawli vehicle approach are confirmed. A coordinate change invalidates the reference. Clear the binding when access conditions materially change and verify again before reinstating it.
+- Quote and save independently read the server-side binding. The quote does not replay configuration-derived confirmations in browser hidden fields. Customer gate confirmation, separate drop-off confirmation, fresh route/fuel and invoice-level review still apply. No production binding changes or physical verification were performed.
+- Node 24 cf:check passed 349 tests, typecheck and Worker dry-run. The synthetic booking browser suite passed. Mobile verification passed all 42 layouts on a sequential rerun after an initial map-fallback click timeout.
+
+### 2026-11-23 | cdx-18 | Approved-release cutover checklist
+
+- Recorded the current proposed release sequence in docs/release-acceptance.md with separate exact-head CI, production schema checks, closed deployment, bounded real Pages/Neon canary, reclosure and persistent cutover. Documented independent invoice, alerts and fixed-route evidence.
+- At observed PR #123 head 0ab8f81, GitGuardian passed and Node/browser/Workers checks were pending. Fresh production smoke passed with booking closed, unauthenticated staff denied and intake auth enforced. No production mutation.
+
+### 2026-11-23 | cdx-18 | Production Neon preflight
+
+- Authenticated read-only catalog query against project holy-bar-96685960, branch br-dry-lab-azyb3ewl, compute ep-bold-mud-azjqt3cx, database neondb. The validated migration 008 constraint allows v1/v2 consent. booking_pets.care_details and booking_stay_history are absent. Production 009/010 remain required. The query read catalog metadata only and made no changes.
+- Exact PR #123 head 141489e passed all Node 22/24 jobs, mobile browser CI, GitGuardian and Workers preview build cfe32028-58a4-4601-a9f6-63f7e7e32f71.
+
+### 2026-11-23 | cdx-18 | Append-only stay audit
+
+- Hardened still-pending migration 010 with valid transition and vaccination attestation constraints and a statement-level guard against updates, deletes and truncation. Disposable PostgreSQL apex_invoice_test_1795431656376_1db358d6 verified all three rewrites fail, the history stays intact, and native stay and 21 invoice groups pass. No production changes.
+
+### 2026-11-23 | cdx-18 | Both-host rollback verification
+
+- Closed-state production monitor now checks canonical Pages booking configuration for disabled without a site key, empty POST rejection and 404 on private routes with anonymous and forged-assertion requests. Custom non-production Worker origins keep Worker-only verification.
+- Fresh read-only Wrangler inspection found deployment 04304f45-9b43-4d66-a487-c3f26ac5137d, version d30cb893-b3c5-4458-8d6a-84a6783d3e66 at 100%, and all five activation flags absent from the serving version. Extended live smoke passed. No production writes.
+
+### 2026-11-23 | cdx-18 | Filtered stay navigation
+
+- Staff run-sheet selections now open a booking with the active search and status filters. The protected detail page reads the same bounded queue to show the lane position and previous/next links within that lane. Stay-action redirects keep the filter context. Direct detail links need no queue read.
+- Node 24 cf:check passed 350 tests, typecheck and Worker dry-run. The protected route regression proves navigation stays within the filtered lane. The 42-layout mobile suite passed. No production changes.
+
+### 2026-11-23 | cdx-18 | Invoice variant metadata
+
+- Branded PDFs now put the review reference or issued number in one status/reference band and show one Date field. Review variants keep their nonpayable marks on every page. The printed stay uses readable dates.
+- Independently rendered a mixed-cage 30-day review and issued fixture with PyMuPDF. Both retained separate boarding rows and PKR 145,000 total. Verified one date and one reference, and payment fields only on the issued variant. All 350 Node tests, typecheck, Worker dry-run, and nine synthetic invoice browser groups passed. No production changes.

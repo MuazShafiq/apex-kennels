@@ -1,5 +1,5 @@
 /** Browser proof over actual Worker routes, synthetic signed Access identity,
- * immutable Canva renderer, and injected in-memory persistence/provider fakes.
+ * branded PDF renderer, and injected in-memory persistence/provider fakes.
  * No live Access, Neon, Meta or customer calls; no production configuration.
  */
 import assert from 'node:assert/strict';
@@ -21,11 +21,11 @@ const encode=x=>Buffer.from(JSON.stringify(x)).toString('base64url');
 const now=Math.floor(Date.now()/1000);
 const data=encode({alg:'RS256',kid:jwk.kid})+'.'+encode({iss:issuer,aud:audience,email:owner,iat:now-1,exp:now+3600});
 const token=data+'.'+sign('sha256',Buffer.from(data),privateKey).toString('base64url');
-const template=new Uint8Array(await readFile(new URL('../public/invoice/canva-blank.pdf',import.meta.url)));
+const template=new Uint8Array(await readFile(new URL('../public/invoice/branded-artwork.pdf',import.meta.url)));
 const editorScript=await readFile(new URL('../public/book/owner-invoice-editor.js',import.meta.url));
 const mark=await readFile(new URL('../public/book/apex-dog-mark.svg',import.meta.url));
 const bank={bank:'HBL',accountTitle:'SYNTHETIC BROWSER TEST ONLY',accountNumber:'00000000000000',iban:'PK00HABB0000000000000000'};
-const env={DATABASE_URL:'synthetic://no-database',APEX_INVOICE_APPROVAL_ENABLED:'true',APEX_INVOICE_ISSUANCE_ENABLED:'true',APEX_INVOICE_WHATSAPP_ENABLED:'true',APEX_INVOICE_OWNER_EMAIL:owner,APEX_INVOICE_BANK_JSON:JSON.stringify(bank),APEX_INVOICE_MANUAL_NUMBER_FLOOR:'0100',STAFF_ACCESS_AUD:audience,STAFF_ACCESS_ISSUER:issuer,STAFF_ALLOWED_EMAILS:owner,WHATSAPP_ACCESS_TOKEN:'synthetic-browser-token-'.repeat(3),WHATSAPP_PHONE_NUMBER_ID:'123456789012',WHATSAPP_GRAPH_VERSION:'v24.0',APEX_INVOICE_WHATSAPP_TEMPLATE:'synthetic_invoice_pdf',ASSETS:{fetch:async request=>new URL(request.url).pathname==='/invoice/canva-blank.pdf'?new Response(template,{headers:{'Content-Type':'application/pdf'}}):new Response('Not found',{status:404})}};
+const env={DATABASE_URL:'synthetic://no-database',APEX_INVOICE_APPROVAL_ENABLED:'true',APEX_INVOICE_ISSUANCE_ENABLED:'true',APEX_INVOICE_WHATSAPP_ENABLED:'true',APEX_INVOICE_OWNER_EMAIL:owner,APEX_INVOICE_BANK_JSON:JSON.stringify(bank),APEX_INVOICE_MANUAL_NUMBER_FLOOR:'0100',STAFF_ACCESS_AUD:audience,STAFF_ACCESS_ISSUER:issuer,STAFF_ALLOWED_EMAILS:owner,WHATSAPP_ACCESS_TOKEN:'synthetic-browser-token-'.repeat(3),WHATSAPP_PHONE_NUMBER_ID:'123456789012',WHATSAPP_GRAPH_VERSION:'v24.0',APEX_INVOICE_WHATSAPP_TEMPLATE:'synthetic_invoice_pdf',ASSETS:{fetch:async request=>new URL(request.url).pathname==='/invoice/branded-artwork.pdf'?new Response(template,{headers:{'Content-Type':'application/pdf'}}):new Response('Not found',{status:404})}};
 const originalFetch=globalThis.fetch;
 let jwksRequests=0;
 globalThis.fetch=async target=>{
@@ -171,12 +171,24 @@ try{
   const downloaded=await downloadPromise;const bytes=new Uint8Array(await readFile(await downloaded.path()));
   assert.deepEqual(bytes,pdf);assert.deepEqual(bytes,deliveredPdf);
   assert.equal(createHash('sha256').update(bytes).digest('hex'),invoice.pdfSha256);
-  pass('browser download and fake provider use identical immutable Canva PDF bytes');
+  pass('browser download and fake provider use identical immutable branded PDF bytes');
 
   const post=async action=>context.request.post(origin+'/staff/invoices/'+action,{headers:{Origin:origin},form:{id:invoice.id,confirmed:'true'},maxRedirects:0});
   for(const action of ['issue','send','send'])assert.equal((await post(action)).status(),303);
   assert.equal(effects.issues,1);assert.equal(effects.queued,1);assert.equal(effects.provider,1);
   pass('duplicate issue/send POSTs preserve one PDF and one provider action');
+
+  const beforeIssueOnly={...effects};
+  reset();
+  await page.goto(origin+'/staff/invoices/review?id='+fixture.snapshot.booking.id);
+  await page.getByLabel('Four-digit invoice number').fill('0103');
+  await confirm();
+  await submit('Approve & issue');
+  assert.equal(invoice.status,'issued');
+  assert.equal(invoice.snapshot.deliveryRequested,false);
+  assert.equal(effects.provider,beforeIssueOnly.provider);
+  assert.equal(effects.queued,beforeIssueOnly.queued);
+  pass('Approve & issue persists the PDF without queuing or calling WhatsApp');
 
   // Simulate interruption AFTER approval but BEFORE issuance, then exercise
   // the actual recovery form against the frozen intent and recorded consent.
@@ -189,7 +201,11 @@ try{
   pass('interrupted combined approval resumes through Continue approved delivery');
 
   delivery={state:'failed',attempts:1,updatedAt:new Date().toISOString(),providerMessageId:null,errorKind:'failed'};
-  await page.reload();assert.equal(await page.getByRole('button',{name:'Retry failed delivery'}).count(),1);
+  await page.reload();
+  const retryButton=page.getByRole('button',{name:'Retry failed delivery'});
+  assert.equal(await retryButton.count(),1);
+  assert.equal(await retryButton.evaluate(button=>getComputedStyle(button).position),'fixed');
+  assert.equal(await retryButton.evaluate(button=>button.form.action.endsWith('/staff/invoices/retry')),true);
   const beforeRetry=effects.provider;await confirm();await submit('Retry failed delivery');
   assert.equal(effects.retries,1);assert.equal(effects.provider,beforeRetry+1);assert.equal(delivery.state,'provider_accepted');
   delivery={state:'ambiguous',attempts:2,updatedAt:new Date().toISOString(),providerMessageId:null,errorKind:'ambiguous'};

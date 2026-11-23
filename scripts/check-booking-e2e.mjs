@@ -79,7 +79,6 @@ const origin=site+':'+port;
 const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
 async function submitRequest(page){
   await fillBookingCareAndContact(page);
-  await page.locator('[name="whatsappServiceOptIn"]').check();
   await page.locator('#submit').click();
 }
 const newPage=async({map='synthetic',viewport={width:390,height:844},atTransport=true}={})=>{
@@ -101,7 +100,7 @@ const newPage=async({map='synthetic',viewport={width:390,height:844},atTransport
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(origin+'/book',{waitUntil:'domcontentloaded'});
   await page.locator('#preview').waitFor({state:'attached'});
-  await page.waitForFunction(()=>document.querySelector('#submit')?.disabled===false);
+  await waitForBrowser(page,()=>document.querySelector('#submit')?.disabled===false);
   if(atTransport)await fillBookingThroughDog(page);
   return {page,errors};
 };
@@ -116,21 +115,37 @@ try{
   await first.page.locator('[data-step-h="1"]').click();
   assert.equal(await first.page.locator('[data-tk-tot]').textContent(),'Rs 7,500');
   await first.page.locator('[name="endDate"]').fill(futureBookingDate(39));
-  assert.equal(await first.page.locator('[data-tk-tot]').textContent(),'Rs 65,000');
-  const packageCopy='30-day rate applied. You save Rs 10,000.';
+  assert.equal(await first.page.locator('[data-tk-tot]').textContent(),'Rs 75,000');
+  const packageCopy='30-day package: Rs 65,000 if confirmed by staff.';
   assert.equal(await first.page.locator('[data-tk-pkg] [data-package-copy]').textContent(),packageCopy);
   assert.equal(await first.page.locator('[data-pkg] [data-package-copy]').textContent(),packageCopy);
   await first.page.locator('label.card:has([name="cameraCageRequested"][value="yes"])').click();
-  assert.equal(await first.page.locator('[data-tk-tot]').textContent(),'Rs 80,000');
+  assert.equal(await first.page.locator('[data-tk-tot]').textContent(),'Rs 90,000');
   await first.page.locator('[data-sum-open]').click();
-  assert.equal(await first.page.locator('#mobile-summary [data-tk-tot]').innerText(),'Rs 80,000');
-  assert.equal(await first.page.locator('#mobile-summary [data-package-copy]').textContent(),packageCopy);
+  assert.equal(await first.page.locator('#mobile-summary [data-tk-tot]').innerText(),'Rs 90,000');
+  assert.equal(await first.page.locator('#mobile-summary [data-package-copy]').textContent(),'30-day package: Rs 80,000 if confirmed by staff.');
   await first.page.keyboard.press('Escape');
   await first.page.locator('#mobile-summary').waitFor({state:'hidden'});
   await first.page.waitForFunction(()=>document.activeElement.hasAttribute('data-sum-open'));
   await first.page.locator('[name="endDate"]').fill(futureBookingDate(12));
   await first.page.locator('label.card:has([name="cameraCageRequested"][value="no"])').click();
-  await first.page.locator('[data-step-h="3"]').click();
+  await first.page.locator('[data-step-h="2"]').click();
+  await first.page.getByRole('button',{name:'Add another dog'}).click();
+  await first.page.locator('[data-next="2"]').click();
+  assert.equal(await first.page.locator('[name="dog1-petName"]').getAttribute('aria-invalid'),'true');
+  await first.page.getByRole('button',{name:'Remove dog'}).click();
+  assert.equal(await first.page.locator('[name="dog1-petName"]').count(),0);
+  await first.page.getByRole('button',{name:'Add another dog'}).click();
+  const dog=first.page.locator('#booking-step-2 .extra-dog');
+  for(const [field,value] of [['petName','Synthetic Dog Two'],['breed','Mixed'],['age','3 years']]){
+    await dog.locator('[name="dog2-'+field+'"]').fill(value);
+  }
+  for(const [field,value] of [['gender','Male'],['vaccinationStatus','None'],['distemperHistory','No'],['cameraCageRequested','yes']]){
+    await dog.locator('label:has([name="dog2-'+field+'"][value="'+value+'"])').click();
+  }
+  assert.equal(await first.page.locator('[data-tk-tot]').textContent(),'Rs 16,500');
+  assert.equal(await first.page.locator('[data-tk-space]').textContent(),'1 standard + 1 camera');
+  await first.page.locator('[data-next="2"]').click();
   await first.page.locator('#transport-pickup').check();
   await first.page.locator('#transport-dropoff').check();
   assert.equal(await first.page.locator('[data-tk-trans]').textContent(),'To be quoted');
@@ -140,15 +155,8 @@ try{
   assert.match(await first.page.locator('[data-f="pickupLink"] .f-err').innerText(),/confirm the pickup gate/i);
   assert.equal(saved.length,0);
   await confirmExactPin(first.page,'33.700000, 73.080000');
-  await fillBookingCareAndContact(first.page);
-  const consent=first.page.locator('[name="whatsappServiceOptIn"]');
-  assert.equal(await consent.isChecked(),false);
-  assert.equal(await consent.getAttribute('required'),'');
-  await first.page.locator('#submit').click();
-  assert.equal(saved.length,0,'Unchecked service consent must stop before persistence');
-  assert.equal(challengeChecks,0,'Unchecked service consent must stop before challenge verification');
-  assert.match(await first.page.locator('[data-f="whatsappServiceOptIn"] .f-err').innerText(),/please agree/i);
-  await consent.check();
+  await fillBookingCareAndContact(first.page,'dog2-');
+  assert.equal(await first.page.locator('[name="whatsappServiceOptIn"]').count(),0);
   await first.page.locator('#submit').click();
   await first.page.locator('#complete').waitFor({state:'visible'});
   assert.equal(await first.page.evaluate(()=>document.activeElement.id),'complete');
@@ -156,8 +164,11 @@ try{
   assert.deepEqual(saved[0].transportLocation,{
     latitude:33.7,longitude:73.08,service:'both',customerConfirmed:true});
   assert.equal(saved[0].transportDropoffLocation,undefined);
-  assert.equal(saved[0].details.whatsappServiceOptIn,true);
-  assert.equal(await first.page.locator('#complete [data-np-name]').innerText(),'APEX SYNTHETIC CANARY DOG');
+  assert.equal(saved[0].details.whatsappServiceOptIn,undefined);
+  assert.equal(await first.page.locator('#complete [data-np-name]').innerText(),'APEX SYNTHETIC CANARY DOG, SYNTHETIC DOG TWO');
+  assert.equal(saved[0].additionalDogs[0].petName,'Synthetic Dog Two');
+  assert.equal(saved[0].additionalDogs[0].details.cameraCageRequested,true);
+  assert.equal(saved[0].additionalDogs[0].details.personalityTraits.allergies,true);
   assert.equal(await first.page.locator('#complete [contenteditable]').count(),0);
   assert.equal(Object.keys(saved[0].details.personalityTraits).length,8);
   assert.deepEqual(first.errors,[]);

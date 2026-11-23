@@ -1,7 +1,10 @@
+import type {staffDetailNavigation} from './staff-console.ts';
+import {availableStayActions,readStayHistory,type StayAction,type StayEvent} from './staff-stay.ts';
+import {countBilledDays} from './pricing.ts';
 import {APEX_STAFF_THEME_CSS,APEX_STAFF_BRAND} from './apex-brand.ts';
 import {Client} from '@neondatabase/serverless';
 import {isSyntheticBooking} from './synthetic-booking.ts';
-import type {PersonalityTrait} from './boarding-details.ts';
+import type {BoardingDetails,PersonalityTrait} from './boarding-details.ts';
 
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 export function parseStaffBookingId(url:URL):string {
@@ -9,10 +12,11 @@ export function parseStaffBookingId(url:URL):string {
   if(!UUID.test(id))throw new Error('Invalid booking ID');
   return id;
 }
-export type StaffPet={name:string;breed:string|null};
+export type StaffPet={name:string;breed:string|null;care_details?:BoardingDetails|null};
 export type StaffBookingDetail={
   id:string;status:string;createdAt:string;startDate:string;endDate:string;
   customerName:string;email:string|null;phone:string|null;accommodationType:string|null;
+  stayHistory?:StayEvent[];
   pets:StaffPet[];isSynthetic:boolean;hasFormDetails:boolean;
   transportLocation?:{latitude:number;longitude:number;service:string;customerConfirmed:boolean;
     dropoffLatitude?:number|null;dropoffLongitude?:number|null}|null;
@@ -57,11 +61,11 @@ export async function readStaffBookingDetail(databaseUrl:string,id:string):Promi
     const row=booking.rows[0];
     if(!row)return null;
     const petRows=await db.query<StaffPet>(`
-      SELECT p.name,p.breed
+      SELECT p.name,p.breed,to_jsonb(bp)->'care_details' AS care_details
       FROM public.booking_pets bp
       JOIN public.pets p ON p.id=bp.pet_id
       WHERE bp.booking_id=$1
-      ORDER BY p.name
+      ORDER BY (to_jsonb(bp)->>'care_details' IS NOT NULL),p.name,p.id
       LIMIT 100`,[id]);
     let transportLocation:StaffBookingDetail['transportLocation']=null;
     try{
@@ -83,7 +87,13 @@ export async function readStaffBookingDetail(databaseUrl:string,id:string):Promi
       // additive table is migrated. An absent table is not a failed booking.
       if(!error||typeof error!=='object'||!('code' in error)||error.code!=='42P01')throw error;
     }
+    let stayHistory:StayEvent[]|undefined;
+    try{stayHistory=await readStayHistory(db,id);}
+    catch(error){
+      if(!error||typeof error!=='object'||!('code' in error)||error.code!=='42P01')throw error;
+    }
     return {
+      stayHistory,
       id:row.id,status:row.status,createdAt:row.created_at,
       startDate:row.start_date,endDate:row.end_date,
       customerName:row.customer_name,email:row.email,phone:row.phone,
@@ -116,33 +126,81 @@ function section(title:string,contents:string):string{
   return '<section class="panel"><h2>'+esc(title)+'</h2><dl class="detail-grid">'+contents+'</dl></section>';
 }
 
+const cage=(choice:boolean|null|undefined)=>typeof choice==='boolean'
+  ?choice?'Camera cage':'Standard cage'
+  :present(null);
+const vaccination=(status:string|null|undefined)=>!status||status==='None'||status==='Partially vaccinated'
+  ?present(status)+'<br><strong>Staff vaccination review required</strong>'
+  :present(status);
+function careTraits(traits:BoardingDetails['personalityTraits']|null):string{
+  return Object.entries(traitLabels).map(([key,label])=>'<div class="trait">'+esc(label)
+    +': <strong>'+yesNo(traits?.[key as PersonalityTrait]??null)+'</strong></div>').join('');
+}
+function renderAdditionalDog(pet:StaffPet,care:BoardingDetails):string{
+  return section(pet.name,
+    value('Breed',present(pet.breed))
+    +value('Requested cage',cage(care.cameraCageRequested))
+    +value('Vaccination status',vaccination(care.vaccinationStatus))
+    +value('Canine distemper history',present(care.distemperHistory))
+    +value('Vet phone number',present(care.veterinarianPhone))
+    +value('Pet gender',present(care.gender))
+    +value('Pet age',present(care.age))
+    +value('Medication and feeding',present(care.medicationFeedingInstructions))
+    +value('Special instructions',present(care.specialInstructions))
+    +value('Owner-reported traits and health',careTraits(care.personalityTraits)));
+}
+
+const stayLabels:Record<StayAction,string>={
+  start_review:'Start review',approve:'Approve stay',decline:'Decline stay',
+  check_in:'Record check-in',check_out:'Record check-out'
+};
+function renderStayControls(b:StaffBookingDetail,actionQuery:string):string{
+  if(!b.stayHistory)return '';
+  const history=b.stayHistory;
+  const revision=history.at(-1)?.revision??0;
+  const forms=availableStayActions(b.status,history).map(action=>
+    '<form method="post" action="/staff/booking/action?'+esc(actionQuery)+'">'
+    +'<input type="hidden" name="action" value="'+action+'">'
+    +'<input type="hidden" name="revision" value="'+revision+'">'
+    +'<input type="hidden" name="expectedStatus" value="'+esc(b.status)+'">'
+    +(action==='approve'?'<label><input type="checkbox" name="vaccinationAttested" value="yes" required> I reviewed the vaccination status for each dog.</label>':'')
+    +(action==='decline'?'<label for="decline-reason">Decline reason</label><textarea id="decline-reason" name="reason" maxlength="250" required></textarea>':'')
+    +'<button class="action" type="submit">'+stayLabels[action]+'</button></form>').join('');
+  const events=history.map(event=>'<li><strong>'+stayLabels[event.action]+'</strong> '
+    +esc(event.recorded_at)+' · '+esc(event.actor)
+    +'<br>'+esc(event.prior_status)+' → '+esc(event.new_status)
+    +(event.vaccination_attested?' · Vaccination reviewed':'')
+    +(event.reason?'<br>'+esc(event.reason):'')+'</li>').join('');
+  return (forms?'<section class="panel stay"><h2>Stay decisions</h2>'+forms+'</section>':'')
+    +'<section class="panel stay" id="history"><h2>Stay history</h2>'
+    +(events?'<ol>'+events+'</ol>':'<p>No stay actions recorded.</p>')+'</section>';
+}
+
 /** Staff-only HTML. All customer-controlled content is HTML-escaped; no data leaves the server. */
-export function renderStaffBookingDetail(b:StaffBookingDetail):string {
+export function renderStaffBookingDetail(b:StaffBookingDetail,navigation?:ReturnType<typeof staffDetailNavigation>):string {
   const petText=b.pets.length
     ? b.pets.map(p=>esc(p.name)+(p.breed?' ('+esc(p.breed)+')':'')).join(', ')
     : '<span class="missing">No linked pets</span>';
+  const extraPets=b.pets.filter(pet=>pet.care_details);
+  const primary=extraPets.length?b.pets.find(pet=>!pet.care_details)?.name:undefined;
   const form=b.hasFormDetails
     ? section('Boarding & transport',
-        value('Requested cage',b.cameraCageRequested===null?'<span class="missing">Not recorded</span>':b.cameraCageRequested?'Camera cage':'Standard cage')
-        +value('Pickup / drop-off requested',yesNo(b.pickupDropoffRequested))
+        value('Pickup / drop-off requested',yesNo(b.pickupDropoffRequested))
         +value('Owner address',present(b.ownerAddress))
         +value('Boarding terms accepted',yesNo(b.termsAccepted)))
-      +section('Health & emergency',
-        value('Vaccination status',present(b.vaccinationStatus))
+      +section(primary?primary+' · Health & emergency':'Health & emergency',
+        value('Requested cage',cage(b.cameraCageRequested))
+        +value('Vaccination status',vaccination(b.vaccinationStatus))
         +value('Canine distemper history',present(b.distemperHistory))
         +value('Emergency contact number',present(b.emergencyContactPhone))
         +value('Vet phone number',present(b.veterinarianPhone))
         +value('Pet gender',present(b.petGender))
         +value('Pet age',present(b.petAgeDescription)))
-      +section('Care instructions',
+      +section(primary?primary+' · Care instructions':'Care instructions',
         value('Medication and feeding',present(b.medicationFeedingInstructions))
         +value('Special instructions',present(b.specialInstructions))
-        +value('Owner-reported traits and health',
-          Object.entries(traitLabels).map(([key,label])=>'<div class="trait">'+esc(label)
-          +': <strong>'+(b.personalityTraits?.[key as PersonalityTrait]===true?'Yes':
-            b.personalityTraits?.[key as PersonalityTrait]===false?'No':'Not recorded')
-          +'</strong></div>').join('')
-          ))
+        +value('Owner-reported traits and health',careTraits(b.personalityTraits)))
+      +extraPets.map(pet=>renderAdditionalDog(pet,pet.care_details!)).join('')
     : '<section class="notice">Full boarding details are missing. Check the original Google Form before confirming this stay.</section>';
   const location=b.transportLocation;
   const transport=location&&Number.isFinite(location.latitude)&&Number.isFinite(location.longitude)
@@ -162,6 +220,16 @@ export function renderStaffBookingDetail(b:StaffBookingDetail):string {
           :location.service==='both'?value('Drop-off location','Same as pickup'): '')
       )+'<p class="fine">Check road access before confirming the transport price.</p>'
     : '';
+  const bookingHref=encodeURIComponent(b.id);
+  const status=b.status==='approved'&&b.stayHistory?.some(event=>event.action==='check_in')?'Checked in':
+    b.status==='reviewing'?'In review':b.status.charAt(0).toUpperCase()+b.status.slice(1);
+  const latest=b.stayHistory?.at(-1);
+  let days:number|undefined;
+  try{days=countBilledDays(b.startDate,b.endDate,'inclusive_days');}
+  catch{/* Show the stored dates even when a historical record is invalid. */}
+  const estimate='<aside class="panel estimate" id="estimate"><h2>Estimate &amp; invoice</h2>'
+    +'<p>Review boarding rates and saved pricing for this stay.</p>'
+    +'<a class="action" href="/staff/draft?id='+bookingHref+'">Review price estimate</a></aside>';
   return '<!doctype html><html lang="en"><head><meta charset="utf-8">'
    +'<meta name="viewport" content="width=device-width,initial-scale=1">'
    +'<meta name="robots" content="noindex,nofollow"><title>Apex | Booking details</title>'
@@ -175,24 +243,34 @@ export function renderStaffBookingDetail(b:StaffBookingDetail):string {
    +'.missing,.fine{color:#8b9991;font-weight:400}.fine{font-size:12px;line-height:1.6}.trait{padding:5px 0;font-size:12px;font-weight:400}.trait strong{font-weight:700}'
    +'.banner,.notice{border-radius:10px;padding:14px 18px;margin:18px 0;border:1px solid #edd2a0;background:#fff1d8;color:#7c5623;font-size:12px;font-weight:700}'
    +'.actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.action{background:#1e4937;color:white;border-radius:8px;text-decoration:none;padding:12px 16px;font-size:12px;font-weight:700}'
-   +'@media(max-width:620px){.detail-grid{grid-template-columns:1fr}.panel{padding:18px}}'+APEX_STAFF_THEME_CSS+'</style></head><body>'
-   +'<main class="wrap">'+APEX_STAFF_BRAND+'<a href="/staff">← Booking queue</a>'
-   +'<p class="tag" style="margin-top:30px">Apex Kennels / Staff</p>'
-   +'<h1>Booking details</h1>'
+   +'.stay form{display:grid;justify-items:start;gap:10px;margin:12px 0}.stay textarea{width:min(100%,420px);min-height:65px}.stay button{cursor:pointer;border:0;min-height:44px}.stay li{overflow-wrap:anywhere;margin:8px 0}'
+   +'@media(max-width:620px){.detail-grid{grid-template-columns:1fr}.panel{padding:18px}}'+APEX_STAFF_THEME_CSS
+   +'.detail-hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(230px,300px);gap:16px;margin-top:20px}.detail-hero .panel{margin:0}.nameplate{border-radius:16px;background:#120709;color:#fff;padding:clamp(20px,4vw,38px);overflow-wrap:anywhere}.nameplate h1{color:#fff;margin:8px 0}.nameplate .tag{color:#bfe3f4}.nameplate .chip{display:inline-block;background:#bfe3f4;color:#120709;border-radius:8px;padding:4px 9px;font-weight:750}.nameplate p{margin:9px 0 0}.estimate p{margin:0 0 12px}.detail-nav{display:flex;flex-wrap:wrap;gap:8px;margin:15px 0}.detail-nav a{display:inline-flex;align-items:center;min-height:44px;padding:6px 11px;border-radius:8px;background:#eef6fa;color:#120709}.stay-dates{border-bottom:2px solid #fd6e6e;padding-bottom:10px}.detail-hero .action,.actions .action{display:inline-flex;align-items:center;min-height:44px;background:#120709;color:#fff}section[id],aside[id]{scroll-margin-top:12px}@media(max-width:700px){.detail-hero{grid-template-columns:1fr}}'
+   +'</style></head><body>'
+   +'<main class="wrap">'+APEX_STAFF_BRAND+'<nav class="detail-nav" aria-label="Run sheet navigation">'
+   +'<a href="'+esc(navigation?.back??('/staff?stay='+bookingHref+'#selected-stay'))+'">← Run sheet</a>'
+   +(navigation?.position?'<span>'+esc(navigation.position)+'</span>':'')
+   +(navigation?.previous?'<a href="'+esc(navigation.previous.href)+'">Previous: '+esc(navigation.previous.name)+'</a>':'')
+   +(navigation?.next?'<a href="'+esc(navigation.next.href)+'">Next: '+esc(navigation.next.name)+'</a>':'')+'</nav>'
+   +'<div class="detail-hero"><header class="nameplate"><span class="tag">Booking details · '+esc(b.id.slice(0,8))+'</span>'
+   +'<h1>'+petText+'</h1><p><span class="chip">'+esc(status)+'</span>'
+   +(latest?' '+esc(stayLabels[latest.action])+' · '+esc(latest.recorded_at):'')+'</p>'
+   +'<p>Owner '+esc(b.customerName)+'</p></header>'+estimate+'</div>'
    +(b.isSynthetic?'<div class="banner">TEST RECORD · DO NOT CONTACT</div>':'')
-   +'<section class="panel"><h2>'+esc(b.customerName)+'</h2><dl class="detail-grid">'
-   +value('Booking ID',esc(b.id))+value('Booking status',esc(b.status))
-   +value('Requested dates',esc(b.startDate)+' → '+esc(b.endDate))
+   +'<p class="stay-dates">'+esc(b.startDate)+' → '+esc(b.endDate)+(days?' · '+days+(days===1?' billed day':' billed days'):'')+'</p>'
+   +'<nav class="detail-nav" aria-label="Booking sections"><a href="#overview">Overview</a><a href="#transport">Transport</a>'
+   +'<a href="#estimate">Estimate &amp; invoice</a>'+(b.stayHistory?'<a href="#history">History</a>':'')+'</nav>'
+   +'<section class="panel" id="overview"><h2>Owner &amp; booking</h2><dl class="detail-grid">'
+   +value('Booking ID',esc(b.id))
    +value('Received',esc(b.createdAt))
    +value('Pets',petText)
    +value('Assigned accommodation',present(b.accommodationType))
    +value('Owner phone',present(b.phone))
    +value('Owner email',present(b.email))
-   +'</dl></section>'+transport+form
-   +'<div class="actions"><a class="action" href="/staff/draft?id='+encodeURIComponent(b.id)+'">Review price estimate</a>'
+   +'</dl></section>'+form+renderStayControls(b,navigation?.actionQuery??new URLSearchParams({id:b.id}).toString())
+   +'<div id="transport">'+(transport||section('Transport',value('Requested transport',yesNo(b.pickupDropoffRequested))))
    +(b.pickupDropoffRequested===true||b.transportLocation
-     ?'<a class="action" href="/staff/transport?id='+encodeURIComponent(b.id)+'">Price pickup / drop-off</a>':'')
-   +'<a href="/staff">Back to bookings</a></div>'
+     ?'<div class="actions"><a class="action" href="/staff/transport?id='+bookingHref+'">Price pickup / drop-off</a></div>':'')+'</div>'
    +'<p class="fine">Health and care details came from the owner. Confirm anything unclear before accepting the booking.</p>'
    +'</main></body></html>';
 }

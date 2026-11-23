@@ -140,3 +140,63 @@ test('customer-confirmed pickup pin appears only in staff booking details, not i
   const noPin=renderStaffBookingDetail({...detail,transportLocation:null});
   assert.doesNotMatch(noPin,/Open in Google Maps/);
 });
+
+test('protected booking detail separates dogs and flags missing vaccination evidence',async()=>{
+  const mixed:StaffBookingDetail={...detail,vaccinationStatus:null,pets:[...detail.pets,{
+    name:'Camera Dog <script>',breed:'Mixed',care_details:{
+      cameraCageRequested:true,vaccinationStatus:'None',personalityTraits:{allergies:true},
+      medicationFeedingInstructions:'Separate meal & medication'
+    }
+  }]};
+  const response=await handleWorkerRequest(new Request(url),env,undefined,{context:staff,detail:async()=>mixed});
+  assert.equal(response.status,200);
+  const html=await response.text();
+  assert.match(html,/Rover &amp; &lt;script&gt;alert\(2\)&lt;\/script&gt; · Health &amp; emergency/);
+  assert.match(html,/Camera Dog &lt;script&gt;<\/h2>.*Camera cage.*Separate meal &amp; medication.*Allergies: <strong>Yes/);
+  assert.equal((html.match(/Staff vaccination review required/g)??[]).length,2);
+  assert.doesNotMatch(html,/<script>/);
+});
+
+test('stay mutation requires signed staff, same origin, and explicit attestation',async()=>{
+  const target=origin+'/staff/booking/action?id='+id;
+  const post=(form:string,from=origin)=>new Request(target,{
+    method:'POST',headers:{origin:from,'content-type':'application/x-www-form-urlencoded'},body:form
+  });
+  const body='action=approve&expectedStatus=reviewing&revision=1';
+  let writes=0;
+  const stayDecision=async(_database:string,bookingId:string,actor:string)=>{
+    assert.equal(bookingId,id);
+    assert.equal(actor,'staff@example.test');
+    writes++;
+  };
+  assert.equal((await handleWorkerRequest(post(body),env,undefined,{stayDecision})).status,403);
+  assert.equal((await handleWorkerRequest(post(body,'https://other.example'),env,undefined,{context:staff,stayDecision})).status,403);
+  assert.equal((await handleWorkerRequest(post(body),env,undefined,{context:staff,stayDecision})).status,400);
+  assert.equal(writes,0);
+  const response=await handleWorkerRequest(post(body+'&vaccinationAttested=yes'),env,undefined,{context:staff,stayDecision});
+  assert.equal(response.status,303);
+  assert.equal(response.headers.get('location'),'/staff/booking?id='+id);
+  assert.equal(writes,1);
+});
+
+test('detail navigation stays within the filtered lane',async()=>{
+  const nextId='123e4567-e89b-42d3-a456-426614174002';
+  const upcomingId='123e4567-e89b-42d3-a456-426614174003';
+  const target=url+'&from=run&status=all&q=Rover';
+  const list=async(_database:string,filter:{query:string})=>{
+    assert.equal(filter.query,'Rover');
+    const row={id,status:'requested' as const,customerName:'Fixture',petNames:'Rover',email:null,phone:null,
+      startDate:detail.startDate,endDate:detail.endDate,accommodationType:null,createdAt:detail.createdAt};
+    return [row,{...row,id:nextId,status:'reviewing' as const,petNames:'Rover Two'},
+      {...row,id:upcomingId,status:'approved' as const,petNames:'Rover Three'}];
+  };
+  const response=await handleWorkerRequest(new Request(target),env,undefined,{
+    context:staff,detail:async()=>({...detail,stayHistory:[]}),list
+  });
+  assert.equal(response.status,200);
+  const html=await response.text();
+  assert.match(html,/To review · 1 of 2/);
+  assert.match(html,/Next: Rover Two/);
+  assert.doesNotMatch(html,/Rover Three|Previous:/);
+  assert.match(html,/staff\/booking\/action\?id=[^"]+&amp;from=run&amp;status=all&amp;q=Rover/);
+});

@@ -1,11 +1,13 @@
+import {staffDetailHref,staffDetailNavigation} from './staff-console.ts';
+import {parseStayDecision,recordStayDecision,StayError} from './staff-stay.ts';
 export {LocationSearchBudget} from './location-search-budget.ts';
-import {renderCanvaStaffPdf} from './canva-invoice-pdf.ts';
+import {renderBrandedStaffPdf} from './branded-invoice-pdf.ts';
 import {invoiceStaffRoute,invoiceWebhookRoute,type InvoiceWorkflowDeps} from './invoice-workflow-routes.ts';
 import {whatsappWebhookRoute} from './whatsapp-webhook.ts';
 import {renderStaffTransportForm,renderStaffTransportResult,
   parseStaffTransportSelection} from './staff-transport-review.ts';
 import {preparePinnedTransportDraft} from './transport-quote-from-pins.ts';
-import {APEX_KENNEL_LOCATION,APEX_KENNEL_ACCESS} from './apex-location-config.ts';
+import {APEX_KENNEL_LOCATION,APEX_KENNEL_ACCESS,readFixedRouteVerification} from './apex-location-config.ts';
 import type {RouteResult} from './transport-route.ts';
 import type {PetrolRateResult} from './islamabad-petrol-rate.ts';
 import { timingSafeEqual } from 'node:crypto';
@@ -45,6 +47,7 @@ export type WorkerEnv = {
   APEX_PUBLIC_BOOKING_ENABLED?: string;
   APEX_STAFF_DRAFTS_ENABLED?: string;
   GEOAPIFY_API_KEY?:string;
+  APEX_FIXED_ROUTE_VERIFICATION?:string;
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
   ASSETS?: {fetch(request:Request):Promise<Response>};
@@ -68,7 +71,7 @@ export type StaffList = (databaseUrl: string, filter: StaffFilter) => Promise<St
 export type StaffContext = {access?: {aud: string; getIdentity(): Promise<{email?:string}|null>}; waitUntil?:(task:Promise<unknown>)=>void};
 export type StaffDraftReader=(databaseUrl:string,bookingId:string)=>Promise<StaffInvoiceSource|null>;
 export type StaffDetailReader=(databaseUrl:string,bookingId:string)=>Promise<StaffBookingDetail|null>;
-export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; ownerAlerts?:OwnerAlertDeps; saveReview?:(url:string,snapshot:ReviewSnapshot,revision:number,email:string)=>Promise<SaveReviewResult>; loadReview?:(url:string,bookingId:string)=>Promise<SavedReview|null>;
+export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; stayDecision?:typeof recordStayDecision; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; ownerAlerts?:OwnerAlertDeps; saveReview?:(url:string,snapshot:ReviewSnapshot,revision:number,email:string)=>Promise<SaveReviewResult>; loadReview?:(url:string,bookingId:string)=>Promise<SavedReview|null>;
   transportRoute?:()=>Promise<RouteResult>; transportFuel?:()=>Promise<PetrolRateResult>;
   invoiceWorkflow?:InvoiceWorkflowDeps;
 };
@@ -128,21 +131,21 @@ function json(body: unknown, status = 200, extraHeaders: Record<string, string> 
   });
 }
 
-/** All invoice viewing and downloads use Fatima's original Canva PDF. Never fall back to legacy HTML. */
-async function canvaInvoiceResponse(
+/** Render the branded review copy from the saved estimate. */
+async function brandedInvoiceResponse(
   env:WorkerEnv,request:Request,snapshot:ReviewSnapshot,reviewDate:string,download=false
 ):Promise<Response>{
-  if(!env.ASSETS)return json({error:'Canva invoice template unavailable'},503);
-  const url=new URL('/invoice/canva-blank.pdf',request.url);
+  if(!env.ASSETS)return json({error:'Invoice font assets unavailable'},503);
+  const url=new URL('/invoice/branded-artwork.pdf',request.url);
   const template=await env.ASSETS.fetch(new Request(url));
-  if(!template.ok)return json({error:'Canva invoice template unavailable'},503);
-  const bytes=await renderCanvaStaffPdf(snapshot,reviewDate,
+  if(!template.ok)return json({error:'Invoice font assets unavailable'},503);
+  const bytes=await renderBrandedStaffPdf(snapshot,reviewDate,
     new Uint8Array(await template.arrayBuffer()));
   return new Response(new Blob([new Uint8Array(bytes)],{type:'application/pdf'}),{
     headers:{
       'Content-Type':'application/pdf',
       'Content-Disposition':(download?'attachment':'inline')+
-        '; filename="apex-canva-invoice-preview.pdf"',
+        '; filename="apex-invoice-review.pdf"',
       'Cache-Control':'private, no-store',
       'X-Content-Type-Options':'nosniff',
       'X-Robots-Tag':'noindex, nofollow'
@@ -180,8 +183,7 @@ function bearerAuthorized(header: string | null, configuredSecret: string): bool
     timingSafeEqual(provided, expected);
 }
 
-async function limitedJson(request: Request): Promise<unknown> {
-  const limit = 16_384;
+async function limitedJson(request: Request, limit = 16_384): Promise<unknown> {
   const contentLength = request.headers.get('content-length');
   if (contentLength && Number(contentLength) > limit) {
     throw new IntakeError('Request too large', 413);
@@ -326,7 +328,7 @@ export async function handleWorkerRequest(
     if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json'))
       return json({error:'JSON required'},415);
     let parsed:ReturnType<typeof parsePublicBookingEnvelope>;
-    try{parsed=parsePublicBookingEnvelope(await limitedJson(request));}
+    try{parsed=parsePublicBookingEnvelope(await limitedJson(request, 96 * 1024));}
     catch(error){
       if(error instanceof IntakeError)return json({error:error.message},error.status);
       return json({error:'Check the booking form and try again'},400);
@@ -353,7 +355,7 @@ export async function handleWorkerRequest(
         status:'requested',cameraCageRequested:false,transportRequested:false,synthetic:true
       };
       const snapshot=makeReviewSnapshot(prepareStaffDraftReview(demo,'daily'));
-      return await canvaInvoiceResponse(env,request,snapshot,'2026-11-07');
+      return await brandedInvoiceResponse(env,request,snapshot,'2026-11-07');
     }catch{return json({error:'Canva demo invoice unavailable'},503);}
   }
   if (path === '/demo/staff') {
@@ -398,6 +400,39 @@ export async function handleWorkerRequest(
       return html(renderStaffPinChecker(result));
     }catch{return json({error:'Location lookup failed'},502);}
   }
+  if(path==='/staff/booking/action'){
+    if(request.method!=='POST')return json({error:'Method not allowed'},405,{Allow:'POST'});
+    if(!env.STAFF_ACCESS_AUD||!env.STAFF_ALLOWED_EMAILS||!env.DATABASE_URL)
+      return json({error:'Staff access not configured'},503);
+    const email=await authorizedStaff(env,staff.context,request);
+    const url=new URL(request.url);
+    if(!email||request.headers.get('origin')!==url.origin)return json({error:'Forbidden'},403);
+    if(request.headers.get('content-type')?.split(';')[0]?.trim()!=='application/x-www-form-urlencoded')
+      return json({error:'Invalid form type'},415);
+    let id:string;
+    try{id=parseStaffBookingId(url);}
+    catch{return json({error:'Invalid booking ID'},400);}
+    let redirect='/staff/booking?id='+encodeURIComponent(id);
+    if(url.searchParams.get('from')==='run'){
+      try{redirect=staffDetailHref(id,parseStaffFilter(url));}
+      catch{return json({error:'Invalid run sheet filter'},400);}
+    }
+    let decision:ReturnType<typeof parseStayDecision>;
+    try{decision=parseStayDecision(await boundedForm(request));}
+    catch(error){
+      return error instanceof StayError||error instanceof DraftSaveError
+        ?json({error:error.message},error.status):json({error:'Invalid stay action form'},400);
+    }
+    try{
+      await (staff.stayDecision??recordStayDecision)(env.DATABASE_URL,id,email,decision);
+      return new Response(null,{status:303,headers:{
+        Location:redirect,'Cache-Control':'private, no-store'
+      }});
+    }catch(error){
+      if(error instanceof StayError)return json({error:error.message},error.status);
+      return json({error:'Could not record the stay action'},500);
+    }
+  }
   if (path === '/staff/booking') {
     if(request.method!=='GET')return json({error:'Method not allowed'},405,{Allow:'GET'});
     if(!env.STAFF_ACCESS_AUD||!env.STAFF_ALLOWED_EMAILS||!env.DATABASE_URL){
@@ -411,7 +446,16 @@ export async function handleWorkerRequest(
     try{
       const detail=await (staff.detail??readStaffBookingDetail)(env.DATABASE_URL,id);
       if(!detail)return json({error:'Booking not found'},404);
-      return html(renderStaffBookingDetail(detail));
+      const url=new URL(request.url);
+      let navigation:ReturnType<typeof staffDetailNavigation>|undefined;
+      if(url.searchParams.get('from')==='run'){
+        let filter:StaffFilter;
+        try{filter=parseStaffFilter(url);}
+        catch{return json({error:'Invalid run sheet filter'},400);}
+        const rows=await (staff.list??listStaffBookings)(env.DATABASE_URL,filter);
+        navigation=staffDetailNavigation(rows,id,filter);
+      }
+      return html(renderStaffBookingDetail(detail,navigation));
     }catch{return json({error:'Internal server error'},500);}
   }
   if(path==='/staff/transport'){
@@ -423,6 +467,7 @@ export async function handleWorkerRequest(
       return json({error:'Staff access not configured'},503);
     const email=await authorizedStaff(env,staff.context,request);
     if(!email)return json({error:'Forbidden'},403);
+    const fixedRoute=readFixedRouteVerification(env.APEX_FIXED_ROUTE_VERIFICATION);
     try{
       if(request.method==='GET'){
         const url=new URL(request.url);
@@ -441,7 +486,7 @@ export async function handleWorkerRequest(
           return json({error:'This booking did not request transport'},409);
         const review=prepareStaffDraftReview(source,'auto');
         const saved=await (staff.loadReview??loadSavedReview)(env.DATABASE_URL,id);
-        return html(renderStaffTransportForm(source,review.packageChoice,saved?.revision??0));
+        return html(renderStaffTransportForm(source,review.packageChoice,saved?.revision??0,fixedRoute));
       }
       // The only mutation is a signed-in staff member explicitly saving a review.
       if(request.headers.get('origin')!==new URL(request.url).origin||
@@ -464,15 +509,15 @@ export async function handleWorkerRequest(
       const result=await preparePinnedTransportDraft({
         startDate:source.startDate,endDate:source.endDate,
         cage:source.cameraCageRequested?'camera':'normal',
-        petCount:source.petCount,fullMonthPackageSelected:selected.packageChoice==='monthly',
+        petCount:source.petCount,cameraPetCount:source.cameraPetCount,fullMonthPackageSelected:selected.packageChoice==='monthly',
         transport:{requested:true}
       },{
         kennelPin:APEX_KENNEL_LOCATION.pin,
         kennelAccessWaypoint:APEX_KENNEL_ACCESS.pin,
         customerPin:selected.customerPin,
         dropoffPin:selected.dropoffPin,dropoffPinConfirmed:selected.dropoffConfirmed,
-        kennelPinConfirmed:selected.kennelConfirmed,
-        kennelAccessWaypointConfirmed:selected.accessConfirmed,
+        kennelPinConfirmed:!!fixedRoute||selected.kennelConfirmed,
+        kennelAccessWaypointConfirmed:!!fixedRoute||selected.accessConfirmed,
         customerPinConfirmed:selected.customerConfirmed,
         visit:selected.visit==='both'?'pickup_and_dropoff':selected.visit
       },{
@@ -482,7 +527,7 @@ export async function handleWorkerRequest(
       const priced=result.route.ok&&result.fuelLookup==='CURRENT_NOTIFIED_RATE'&&
         !!result.draft.fuelRateSnapshot&&
         result.draft.quote.lines.some(l=>l.label==='Pet transport'&&l.totalPkr>0)&&
-        selected.customerConfirmed&&selected.kennelConfirmed&&selected.accessConfirmed&&
+        selected.customerConfirmed&&(!!fixedRoute||selected.kennelConfirmed&&selected.accessConfirmed)&&
         (!selected.dropoffPin||selected.dropoffConfirmed);
       if(selected.action==='save'){
         if(!priced||!result.route.ok||!result.draft.fuelRateSnapshot)
@@ -501,7 +546,7 @@ export async function handleWorkerRequest(
           'Cache-Control':'private, no-store'
         }});
       }
-      return html(renderStaffTransportResult(source,selected,result));
+      return html(renderStaffTransportResult(source,selected,result,!!fixedRoute));
     }catch(error){
       if(error instanceof DraftSaveError)return json({error:error.message},error.status);
       return json({error:'Unable to prepare transport estimate'},500);
@@ -575,7 +620,7 @@ export async function handleWorkerRequest(
           'Cache-Control':'private, no-store'
         }});
       }
-      return await canvaInvoiceResponse(env,request,saved.snapshot,
+      return await brandedInvoiceResponse(env,request,saved.snapshot,
         saved.updatedAt.slice(0,10),download);
     }catch(error){
       if(error instanceof DraftSaveError)return json({error:error.message},error.status);
@@ -605,7 +650,7 @@ export async function handleWorkerRequest(
         if(!review.draft||source.transportRequested!==false)
           return json({error:'Complete boarding estimate required for printing'},409);
         const snapshot=makeReviewSnapshot(review);
-        return await canvaInvoiceResponse(env,request,snapshot,
+        return await brandedInvoiceResponse(env,request,snapshot,
           new Date().toISOString().slice(0,10));
       }
       if(env.APEX_STAFF_DRAFTS_ENABLED==='true'){
@@ -633,7 +678,7 @@ export async function handleWorkerRequest(
     catch { return json({error:'Invalid filter'},400); }
     try {
       const rows=await (staff.list??listStaffBookings)(env.DATABASE_URL,filter);
-      return path==='/staff' ? html(renderStaffConsoleHtml(rows,{demo:false,filter,email}))
+      return path==='/staff' ? html(renderStaffConsoleHtml(rows,{demo:false,filter,email,selectedId:new URL(request.url).searchParams.get('stay')??undefined}))
         : json({items:rows,limit:50,readOnly:true});
     } catch { return json({error:'Internal server error'},500); }
   }

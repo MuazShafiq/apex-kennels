@@ -95,7 +95,7 @@ const layout=(title:string,body:string):string=>
 const hidden=(k:string,v:string|number|boolean):string=>'<input type="hidden" name="'+k+'" value="'+esc(String(v))+'">';
 
 export function renderStaffTransportForm(source:StaffInvoiceSource,
-  packageChoice:StaffPackageChoice,revision:number):string{
+  packageChoice:StaffPackageChoice,revision:number,fixedRoute?:{verifiedOn:string;reference:string}):string{
   const location=source.transportLocation;
   const visit=location?.service??'';
   const option=(value:string,label:string)=>'<option value="'+value+'"'+
@@ -132,8 +132,9 @@ export function renderStaffTransportForm(source:StaffInvoiceSource,
       (location?.dropoffLongitude!=null?esc(String(location.dropoffLongitude)):'')+'"></label></div>'+
     '<label class="check"><input type="checkbox" name="dropoffConfirmed" value="yes">I verified the separate drop-off gate and vehicle access</label></details>'+
     '<label class="check"><input type="checkbox" name="customerConfirmed" value="yes">I verified the customer gate and vehicle access</label>'+
+    (fixedRoute?'<p>Fixed kennel entrance and Bawli approach verified '+esc(fixedRoute.verifiedOn)+' ('+esc(fixedRoute.reference)+').</p>':
     '<label class="check"><input type="checkbox" name="kennelConfirmed" value="yes">I verified the kennel entrance pin</label>'+
-    '<label class="check"><input type="checkbox" name="accessConfirmed" value="yes">I verified the Bawli road-access waypoint</label>'+
+    '<label class="check"><input type="checkbox" name="accessConfirmed" value="yes">I verified the Bawli road-access waypoint</label>')+
     '<p class="muted">Each selected service requires kennel → customer → kennel. Two services = two complete loops, possibly to different gates. '+
     'The road approach must be checked before the number is used.</p>'+
     '<button type="submit">Calculate transport</button></form></section>'
@@ -141,12 +142,12 @@ export function renderStaffTransportForm(source:StaffInvoiceSource,
 }
 
 export function renderStaffTransportResult(
-  source:StaffInvoiceSource,input:StaffTransportSelection,result:CoordinatedDraft
+  source:StaffInvoiceSource,input:StaffTransportSelection,result:CoordinatedDraft,fixedRouteVerified=false
 ):string {
   const line=result.draft.quote.lines.find(l=>l.label==='Pet transport');
   const ready=result.route.ok&&result.fuelLookup==='CURRENT_NOTIFIED_RATE'&&!!line&&
     !!result.draft.fuelRateSnapshot&&
-    input.customerConfirmed&&input.kennelConfirmed&&input.accessConfirmed&&
+    input.customerConfirmed&&(fixedRouteVerified||input.kennelConfirmed&&input.accessConfirmed)&&
     (!input.dropoffPin||input.dropoffConfirmed);
   const route=result.route.ok?result.route.estimate:null;
   const warnings=[...result.draft.unresolved];

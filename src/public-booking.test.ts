@@ -149,26 +149,17 @@ test('invalid website payload and unconfirmed gate blocked before verification',
   assert.equal(checks,0);
 });
 
-test('new website request requires explicit V10.6 service consent before challenge or persistence',async()=>{
+test('website booking accepts omitted or declined WhatsApp consent',()=>{
   const {whatsappServiceOptIn:_checked,...withoutConsent}=booking.details;
-  const persist=async()=>{throw new Error('Unexpected persistence');};
-  let checks=0;
-  const opts={verifyChallenge:async()=>{checks++;return true;}};
-  for(const details of [
-    withoutConsent,
-    {...withoutConsent,whatsappInvoiceOptIn:true},
-    {...withoutConsent,whatsappServiceOptIn:false},
-    {...withoutConsent,whatsappServiceOptIn:null},
-    {...withoutConsent,whatsappServiceOptIn:'true'},
-  ]){
-    const response=await handleWorkerRequest(request({...good,booking:{...booking,details}}),env,persist,opts);
-    assert.equal(response.status,400);
+  for(const consent of [undefined,false]){
+    const details={...withoutConsent,whatsappServiceOptIn:consent};
+    const parsed=parsePublicBookingEnvelope({...good,booking:{...booking,details}});
+    assert.equal(parsed.booking.details?.whatsappServiceOptIn,consent);
   }
-  const invalidPhone=await handleWorkerRequest(
-    request({...good,booking:{...booking,phone:'not a number'}}),env,persist,opts);
-  assert.equal(invalidPhone.status,400);
-  assert.deepEqual(await invalidPhone.json(),{error:'Enter a valid WhatsApp number.'});
-  assert.equal(checks,0);
+  assert.throws(()=>parsePublicBookingEnvelope({...good,booking:{...booking,
+    details:{...withoutConsent,whatsappServiceOptIn:'true'}}}),/whatsappServiceOptIn/);
+  assert.throws(()=>parsePublicBookingEnvelope({...good,booking:{...booking,phone:'not a number'}}),
+    /Enter a valid phone number/);
 });
 
 test('siteverify requires matching hostname and action; fake or reused challenge rejected',async()=>{
@@ -272,4 +263,33 @@ test('booking and selected location are written in the same database transaction
   assert.deepEqual(location.params,['booking',33.7,73.1,'both',true,null,null]);
   assert.equal(queries.filter(x=>x.sql==='BEGIN').length,1);
   assert.equal(queries.filter(x=>x.sql==='COMMIT').length,1);
+});
+
+test('website additional dogs have separate care, cage choice and immutable intake identity',async()=>{
+  const {ownerAddress,pickupDropoffRequested,emergencyContactPhone,termsAccepted,whatsappServiceOptIn,...care}=booking.details;
+  const second={petName:'APEX SYNTHETIC CANARY SECOND DOG',details:{...care,cameraCageRequested:true}};
+  const parse=(additionalDogs:unknown)=>parsePublicBookingEnvelope({...good,booking:{...booking,additionalDogs}}).booking;
+  const input=parse([second]);
+  assert.deepEqual(input.additionalDogs,[second]);
+  assert.equal(fingerprintIntake(parse([])),fingerprintIntake(parse(undefined)));
+  assert.notEqual(fingerprintIntake(input),fingerprintIntake(parse([])));
+  assert.notEqual(fingerprintIntake(input),fingerprintIntake(parse([{...second,details:care}])));
+  assert.throws(()=>parse([{...second,details:{...second.details,termsAccepted}}]),/Unexpected details field/);
+  assert.throws(()=>parse([{...second,details:{...second.details,personalityTraits:{}}}]),/each dog/);
+  assert.throws(()=>parse(Array(4).fill(second)),/up to three/);
+  const calls:{sql:string;params?:unknown[]}[]=[];
+  const client:DbClient={
+    async query<T>(sql:string,params?:unknown[]):Promise<QueryResult<T>>{
+      calls.push({sql,params});
+      return {rows:[{id:String(calls.length)} as T],rowCount:1};
+    },
+    release(){}
+  };
+  await saveBooking({connect:async()=>client},input);
+  const links=calls.filter(({sql})=>sql.startsWith('INSERT INTO public.booking_pets'));
+  assert.equal(links.length,2);
+  assert.equal(links[0].params?.[0],links[1].params?.[0]);
+  assert.notEqual(links[0].params?.[1],links[1].params?.[1]);
+  assert.deepEqual(JSON.parse(String(links[1].params?.[2])),second.details);
+  assert.equal(calls.at(-1)?.sql,'COMMIT');
 });

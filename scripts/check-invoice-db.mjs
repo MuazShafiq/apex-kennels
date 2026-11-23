@@ -9,13 +9,16 @@
 import assert from 'node:assert/strict';
 import {randomUUID,createHash,createHmac} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
-import {Client} from 'pg';
+import {Client,Pool} from 'pg';
+import {parseIntake} from '../src/intake.ts';
+import {saveBooking} from '../src/booking-store.ts';
+import {applyStayDecision,parseStayDecision,readStayHistory} from '../src/staff-stay.ts';
 import {pathToFileURL} from 'node:url';
 import {prepareStaffDraftReview} from '../src/staff-invoice-draft.ts';
 import {saveOwnerInvoiceEdit} from '../src/owner-invoice-edit.ts';
 import {makeReviewSnapshot,saveReviewDraft} from '../src/staff-saved-review.ts';
 import {approveInvoice,issueInvoice,loadApprovedInvoice,loadIssuedInvoicePdf} from '../src/invoice-approval-store.ts';
-import {renderCanvaApprovedPdf} from '../src/canva-invoice-pdf.ts';
+import {renderBrandedApprovedPdf} from '../src/branded-invoice-pdf.ts';
 import {enqueueInvoiceDelivery,dispatchInvoiceDelivery,loadInvoiceDelivery,retryInvoiceDelivery,reconcileInvoiceDelivery,applyInvoiceWebhook} from '../src/invoice-delivery-store.ts';
 import {verifyInvoiceWebhook,parseInvoiceWebhook} from '../src/invoice-delivery.ts';
 
@@ -28,7 +31,7 @@ const config={enabled:'true',issuanceEnabled:'true',deliveryEnabled:'true',owner
 const deliveryConfig={enabled:'true',accessToken:'synthetic-test-token-'.repeat(3),phoneNumberId:'123456789012',apiVersion:'v24.0',template:'synthetic_invoice_pdf',language:'en_US'};
 const secret='synthetic-webhook-signing-secret-only';
 const recipient='923000000000';
-const template=new Uint8Array(await readFile(new URL('../public/invoice/canva-blank.pdf',import.meta.url)));
+const template=new Uint8Array(await readFile(new URL('../public/invoice/branded-artwork.pdf',import.meta.url)));
 let checks=0;let nextNumber=101;
 const pass=name=>{checks++;console.log('PASS '+name);};
 const freshNumber=()=>String(nextNumber++).padStart(4,'0');
@@ -51,7 +54,7 @@ async function fixture({consent=true,synthetic=false,deliveryRequested=consent&&
 const approve=input=>approveInvoice(dbUrl,input,owner,config,factory);
 async function issued(options){
   const input=await fixture(options),invoice=await approve(input);
-  const pdf=await renderCanvaApprovedPdf(invoice.snapshot,template);
+  const pdf=await renderBrandedApprovedPdf(invoice.snapshot,template);
   await issueInvoice(dbUrl,invoice.id,owner,config,pdf,factory);
   return {input,invoice,pdf};
 }
@@ -95,7 +98,7 @@ try{
   assert.equal(edited.rows[0].snapshot.quote.totalPkr,1900);assert.equal(edited.rows[0].snapshot.ownerOverride.sourceQuote.totalPkr,7500);
   const frozenEdited=await approve({...editInput,revision:2});
   await assert.rejects(saveOwnerInvoiceEdit(dbUrl,editInput.bookingId,2,manualRows,'reset',owner,config,factory),/frozen/);
-  const editPdf=await renderCanvaApprovedPdf(frozenEdited.snapshot,template);
+  const editPdf=await renderBrandedApprovedPdf(frozenEdited.snapshot,template);
   await issueInvoice(dbUrl,frozenEdited.id,owner,config,editPdf,factory);
   const readEdited=await loadApprovedInvoice(dbUrl,frozenEdited.id,factory);assert.equal(readEdited.snapshot.review.quote.totalPkr,1900);
   assert.deepEqual(await loadIssuedInvoicePdf(dbUrl,frozenEdited.id,factory),editPdf);
@@ -142,14 +145,14 @@ try{
   await issueInvoice(dbUrl,realPdf.invoice.id,owner,config,replacement,factory);
   assert.deepEqual(await loadIssuedInvoicePdf(dbUrl,realPdf.invoice.id,factory),realPdf.pdf);
   await assert.rejects(db.query("UPDATE public.approved_invoices SET snapshot=snapshot||'{\"changed\":true}' WHERE id=$1",[realPdf.invoice.id]),/transition/);
-  pass('Canva PDF persisted once; duplicate issuance and download preserve exact bytes/digest');
+  pass('Branded PDF persisted once; duplicate issuance and download preserve exact bytes/digest');
   assert.equal(read.snapshot.deliveryRequested,true);
   assert.equal((await state(realPdf.invoice.id)).state,'queued');
   assert.equal((await db.query("SELECT count(*)::integer AS n FROM public.invoice_delivery_audit WHERE invoice_id=$1 AND action='queued'",[realPdf.invoice.id])).rows[0].n,1);
   pass('combined approval intent issues exact PDF and atomically queues one delivery/audit');
 
   const rollbackInput=await fixture(),rollbackInvoice=await approve(rollbackInput);
-  const rollbackPdf=await renderCanvaApprovedPdf(rollbackInvoice.snapshot,template);
+  const rollbackPdf=await renderBrandedApprovedPdf(rollbackInvoice.snapshot,template);
   // This trigger exists only in the NEW disposable database and forces the
   // final queued-audit write to fail after PDF/status/outbox writes occurred.
   await db.query("CREATE FUNCTION public.synthetic_fail_queued_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='queued' THEN RAISE EXCEPTION 'synthetic queued audit fault'; END IF; RETURN NEW; END $$");
@@ -337,6 +340,63 @@ try{
 
 }
 
+async function checkNativeStay(dbUrl){
+  const pool=new Pool({connectionString:dbUrl});
+  try{
+    for(const migration of ['009_additional_dog_care','010_booking_stay_history']){
+      await pool.query(await readFile(new URL('../db/migrations/'+migration+'.sql',import.meta.url),'utf8'));
+    }
+    const traits={friendly:true,fears:false,climber:false,foodSensitivities:false,barksExcessively:false,
+      allergies:false,biteHistory:false,medicalConditions:false};
+    const care={breed:'Mixed',gender:'Female',age:'Adult',vaccinationStatus:'None',
+      distemperHistory:'No',personalityTraits:traits,cameraCageRequested:false};
+    const input=parseIntake({source:'website',externalResponseId:randomUUID(),customerName:'SYNTHETIC STAY',
+      phone:'03000000000',petName:'Standard Dog',startDate:'2026-12-01',endDate:'2026-12-30',
+      details:{...care,ownerAddress:'Synthetic address',emergencyContactPhone:'03000000001',
+        termsAccepted:true,pickupDropoffRequested:false},
+      additionalDogs:[{petName:'Camera Dog',details:{...care,cameraCageRequested:true}}]},'website');
+    const [first,retry]=await Promise.all([saveBooking(pool,input),saveBooking(pool,input)]);
+    assert.equal(first.bookingId,retry.bookingId);
+    assert.equal(Number(first.created)+Number(retry.created),1);
+    const id=first.bookingId;
+    const pets=await pool.query('SELECT p.name,bp.care_details FROM public.booking_pets bp JOIN public.pets p ON p.id=bp.pet_id WHERE bp.booking_id=$1 ORDER BY p.name',[id]);
+    assert.deepEqual(pets.rows,[{name:'Camera Dog',care_details:input.additionalDogs[0].details},{name:'Standard Dog',care_details:null}]);
+    await assert.rejects(saveBooking(pool,{...input,additionalDogs:[]}),{status:409});
+    const decision=async(action,status,revision,extra={},actor='staff@example.test')=>{
+      const form=new URLSearchParams({action,expectedStatus:status,revision:String(revision),...extra});
+      const db=await pool.connect();
+      try{
+        await db.query('BEGIN');
+        await applyStayDecision(db,id,actor,parseStayDecision(form));
+        await db.query('COMMIT');
+      }catch(error){await db.query('ROLLBACK');throw error;}
+      finally{db.release();}
+    };
+    await Promise.all([decision('start_review','requested',0),decision('start_review','requested',0)]);
+    const approval={vaccinationAttested:'yes'};
+    const race=await Promise.allSettled([decision('approve','reviewing',1,approval),
+      decision('approve','reviewing',1,approval,'second@example.test')]);
+    assert.equal(race.filter(result=>result.status==='fulfilled').length,1);
+    assert.equal(race.find(result=>result.status==='rejected').reason.status,409);
+    await assert.rejects(decision('check_out','approved',2),{status:409});
+    await decision('check_in','approved',2);
+    await decision('check_out','approved',3);
+    const history=await readStayHistory(pool,id);
+    assert.deepEqual(history.map(event=>event.action),['start_review','approve','check_in','check_out']);
+    assert.equal(history[1].vaccination_attested,true);
+    assert.ok(Date.parse(history[3].recorded_at)>=Date.parse(history[2].recorded_at));
+    assert.equal((await pool.query('SELECT status FROM public.booking_requests WHERE id=$1',[id])).rows[0].status,'completed');
+    assert.equal((await pool.query('SELECT id FROM public.approved_invoices WHERE booking_id=$1',[id])).rowCount,0);
+    for(const sql of [
+      'UPDATE public.booking_stay_history SET reason=NULL WHERE booking_id=$1',
+      'DELETE FROM public.booking_stay_history WHERE booking_id=$1',
+    ])await assert.rejects(pool.query(sql,[id]),/append-only/);
+    await assert.rejects(pool.query('TRUNCATE public.booking_stay_history'),/append-only/);
+    assert.deepEqual(await readStayHistory(pool,id),history);
+    console.log('PASS native multi-dog storage, stable retry, competing decisions and audited stay without invoice effects');
+  }finally{await pool.end();}
+}
+
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
 const adminRaw=process.env.INVOICE_TEST_POSTGRES_URL;
 if(!adminRaw)throw new Error('Set INVOICE_TEST_POSTGRES_URL to an explicit loopback PostgreSQL /postgres admin database.');
@@ -352,4 +412,5 @@ const admin=new Client({connectionString:adminRaw});await admin.connect();
 try{await admin.query('CREATE DATABASE '+database);}finally{await admin.end();}
 console.log('Synthetic LOCAL database: '+database+' (retained; no Neon branch used)');
 await runInvoiceDbChecks({dbUrl,database});
+await checkNativeStay(dbUrl);
 }

@@ -437,3 +437,9 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 
 - PR #123 exact head b0ef85a passed Node 22/24, mobile browser CI, GitGuardian and Workers preview build 77dad616-673f-4427-9659-c59d286ae9d2. The feature preview serves the multi-dog booking asset, returns disabled config and 503 on empty booking POST, denies a forged stay mutation and renders a nonpayable review PDF with no bank details.
 - Moved PR #123 out of draft for release review. No merge or production changes. Production 009/010 and live release acceptance remain pending.
+
+### 2026-11-23 | cdx-18 | Closed production deployment
+
+- PR #123 merged as 2b51507ad8961b6888fb14aefe855744a8b96f59. Exact main Node 22/24 CI run 45164884792, production smoke run 45164884973 and Workers build 83e59a97-843e-42b7-9c2c-159dd942030f succeeded. Wrangler deployment lists are unordered. Sorting by created_on confirmed 7af39538-8940-4035-b035-1932832ca36d serves d3d16cab-d698-4696-8f0b-62e51152af00 at 100%.
+- The serving version has public booking explicitly false and all four invoice/WhatsApp activation flags absent. Both hosts serve the multi-dog asset, report disabled and reject empty POST. Private Pages routes return 404, anonymous stay mutation on Worker returned 302 and unauthenticated Form intake is denied. Production review PDF rendered with nonpayable markers and no payment fields.
+- No production DDL, canary, customer contact, invoice issuance or provider send. Pending 009/010, authorized staff and Form continuity, physical device/network and bounded Pages/Neon acceptance before opening the gate. Older versions and Form fallback retained.

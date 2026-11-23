@@ -432,3 +432,8 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 
 - Branded PDFs now put the review reference or issued number in one status/reference band and show one Date field. Review variants keep their nonpayable marks on every page. The printed stay uses readable dates.
 - Independently rendered a mixed-cage 30-day review and issued fixture with PyMuPDF. Both retained separate boarding rows and PKR 145,000 total. Verified one date and one reference, and payment fields only on the issued variant. All 350 Node tests, typecheck, Worker dry-run, and nine synthetic invoice browser groups passed. No production changes.
+
+### 2026-11-23 | cdx-18 | Release PR ready for review
+
+- PR #123 exact head b0ef85a passed Node 22/24, mobile browser CI, GitGuardian and Workers preview build 77dad616-673f-4427-9659-c59d286ae9d2. The feature preview serves the multi-dog booking asset, returns disabled config and 503 on empty booking POST, denies a forged stay mutation and renders a nonpayable review PDF with no bank details.
+- Moved PR #123 out of draft for release review. No merge or production changes. Production 009/010 and live release acceptance remain pending.

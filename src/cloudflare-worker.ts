@@ -1,6 +1,6 @@
 import {parseStayDecision,recordStayDecision,StayError} from './staff-stay.ts';
 export {LocationSearchBudget} from './location-search-budget.ts';
-import {renderCanvaStaffPdf} from './canva-invoice-pdf.ts';
+import {renderBrandedStaffPdf} from './branded-invoice-pdf.ts';
 import {invoiceStaffRoute,invoiceWebhookRoute,type InvoiceWorkflowDeps} from './invoice-workflow-routes.ts';
 import {whatsappWebhookRoute} from './whatsapp-webhook.ts';
 import {renderStaffTransportForm,renderStaffTransportResult,
@@ -129,21 +129,21 @@ function json(body: unknown, status = 200, extraHeaders: Record<string, string> 
   });
 }
 
-/** All invoice viewing and downloads use Fatima's original Canva PDF. Never fall back to legacy HTML. */
-async function canvaInvoiceResponse(
+/** Render the branded review copy from the saved estimate. */
+async function brandedInvoiceResponse(
   env:WorkerEnv,request:Request,snapshot:ReviewSnapshot,reviewDate:string,download=false
 ):Promise<Response>{
-  if(!env.ASSETS)return json({error:'Canva invoice template unavailable'},503);
+  if(!env.ASSETS)return json({error:'Invoice font assets unavailable'},503);
   const url=new URL('/invoice/canva-blank.pdf',request.url);
   const template=await env.ASSETS.fetch(new Request(url));
-  if(!template.ok)return json({error:'Canva invoice template unavailable'},503);
-  const bytes=await renderCanvaStaffPdf(snapshot,reviewDate,
+  if(!template.ok)return json({error:'Invoice font assets unavailable'},503);
+  const bytes=await renderBrandedStaffPdf(snapshot,reviewDate,
     new Uint8Array(await template.arrayBuffer()));
   return new Response(new Blob([new Uint8Array(bytes)],{type:'application/pdf'}),{
     headers:{
       'Content-Type':'application/pdf',
       'Content-Disposition':(download?'attachment':'inline')+
-        '; filename="apex-canva-invoice-preview.pdf"',
+        '; filename="apex-invoice-review.pdf"',
       'Cache-Control':'private, no-store',
       'X-Content-Type-Options':'nosniff',
       'X-Robots-Tag':'noindex, nofollow'
@@ -353,7 +353,7 @@ export async function handleWorkerRequest(
         status:'requested',cameraCageRequested:false,transportRequested:false,synthetic:true
       };
       const snapshot=makeReviewSnapshot(prepareStaffDraftReview(demo,'daily'));
-      return await canvaInvoiceResponse(env,request,snapshot,'2026-11-07');
+      return await brandedInvoiceResponse(env,request,snapshot,'2026-11-07');
     }catch{return json({error:'Canva demo invoice unavailable'},503);}
   }
   if (path === '/demo/staff') {
@@ -603,7 +603,7 @@ export async function handleWorkerRequest(
           'Cache-Control':'private, no-store'
         }});
       }
-      return await canvaInvoiceResponse(env,request,saved.snapshot,
+      return await brandedInvoiceResponse(env,request,saved.snapshot,
         saved.updatedAt.slice(0,10),download);
     }catch(error){
       if(error instanceof DraftSaveError)return json({error:error.message},error.status);
@@ -633,7 +633,7 @@ export async function handleWorkerRequest(
         if(!review.draft||source.transportRequested!==false)
           return json({error:'Complete boarding estimate required for printing'},409);
         const snapshot=makeReviewSnapshot(review);
-        return await canvaInvoiceResponse(env,request,snapshot,
+        return await brandedInvoiceResponse(env,request,snapshot,
           new Date().toISOString().slice(0,10));
       }
       if(env.APEX_STAFF_DRAFTS_ENABLED==='true'){

@@ -246,7 +246,7 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
         +(site==='staff'&&!source.transportRequested
           ?'<p><a href="/staff/draft?id='+encodeURIComponent(source.bookingId)
             +'&amp;package='+encodeURIComponent(review.packageChoice)
-            +'&amp;format=print">Preview Canva invoice (PDF)</a></p>':'')
+            +'&amp;format=print">Preview invoice (PDF)</a></p>':'')
         +(site==='staff'&&options.enableSaving&&!source.transportRequested
           &&['requested','reviewing','approved'].includes(source.status)
           ?'<form method="post" action="/staff/draft/save">'

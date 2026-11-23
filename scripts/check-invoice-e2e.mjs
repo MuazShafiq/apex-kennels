@@ -1,5 +1,5 @@
 /** Browser proof over actual Worker routes, synthetic signed Access identity,
- * immutable Canva renderer, and injected in-memory persistence/provider fakes.
+ * branded PDF renderer, and injected in-memory persistence/provider fakes.
  * No live Access, Neon, Meta or customer calls; no production configuration.
  */
 import assert from 'node:assert/strict';
@@ -171,12 +171,24 @@ try{
   const downloaded=await downloadPromise;const bytes=new Uint8Array(await readFile(await downloaded.path()));
   assert.deepEqual(bytes,pdf);assert.deepEqual(bytes,deliveredPdf);
   assert.equal(createHash('sha256').update(bytes).digest('hex'),invoice.pdfSha256);
-  pass('browser download and fake provider use identical immutable Canva PDF bytes');
+  pass('browser download and fake provider use identical immutable branded PDF bytes');
 
   const post=async action=>context.request.post(origin+'/staff/invoices/'+action,{headers:{Origin:origin},form:{id:invoice.id,confirmed:'true'},maxRedirects:0});
   for(const action of ['issue','send','send'])assert.equal((await post(action)).status(),303);
   assert.equal(effects.issues,1);assert.equal(effects.queued,1);assert.equal(effects.provider,1);
   pass('duplicate issue/send POSTs preserve one PDF and one provider action');
+
+  const beforeIssueOnly={...effects};
+  reset();
+  await page.goto(origin+'/staff/invoices/review?id='+fixture.snapshot.booking.id);
+  await page.getByLabel('Four-digit invoice number').fill('0103');
+  await confirm();
+  await submit('Approve & issue');
+  assert.equal(invoice.status,'issued');
+  assert.equal(invoice.snapshot.deliveryRequested,false);
+  assert.equal(effects.provider,beforeIssueOnly.provider);
+  assert.equal(effects.queued,beforeIssueOnly.queued);
+  pass('Approve & issue persists the PDF without queuing or calling WhatsApp');
 
   // Simulate interruption AFTER approval but BEFORE issuance, then exercise
   // the actual recovery form against the frozen intent and recorded consent.

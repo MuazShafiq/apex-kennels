@@ -24,7 +24,7 @@ const sample:ReviewSnapshot={
     discounts:[],subtotalPkr:7500,totalPkr:7500}
 };
 
-test('public synthetic invoice route serves one-page Canva PDF, not HTML',async()=>{
+test('public synthetic invoice route serves one-page branded review PDF',async()=>{
   const response=await handleWorkerRequest(
     new Request('https://example.workers.dev/demo/invoice'),
     {ASSETS:{fetch:async()=>new Response(blank,{headers:{'Content-Type':'application/pdf'}})}}

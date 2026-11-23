@@ -44,7 +44,8 @@ export function renderInvoiceApprovalPage(data:{saved?:SavedReview;invoice?:Appr
       field('consentedAt','Consent time (UTC ISO timestamp)','placeholder="2026-11-15T09:00:00Z" maxlength="30"')+
       field('evidence','Consent evidence reference','maxlength="200" autocomplete="off"')+'</fieldset>'+
       check('confirmed','I reviewed this exact saved revision, number and payment recipient configuration. If I choose issue and send, I authorize sending the immutable PDF to the explicitly consenting recipient.',true),'Approve snapshot',
-      data.issuanceEnabled&&data.sendEnabled&&!review.booking.synthetic?'<button type="submit" name="intent" value="issue_and_send">Approve, issue &amp; send</button><p>Issue and send requires all consent fields. Approval and issuance are saved before contacting Meta; interrupted work can be resumed.</p>':'');
+      (data.issuanceEnabled&&!review.booking.synthetic?'<button type="submit" name="intent" value="issue_only">Approve &amp; issue</button>':'')+
+      (data.issuanceEnabled&&data.sendEnabled&&!review.booking.synthetic?'<button type="submit" name="intent" value="issue_and_send">Approve, issue &amp; send</button><p>Issue and send requires all consent fields. Approval and issuance are saved before contacting Meta; interrupted work can be resumed.</p>':''));
   }else{
     content+='<p>Approved data and issued PDF are immutable. For a correction, retain this invoice and its number, stop pending delivery, and follow the controlled correction procedure with the owner; never overwrite or resend a corrected file under this number.</p>';
     content+=`<h2>Invoice ${esc(invoice.snapshot.invoiceNumber)}</h2><p role="status">Invoice status: ${esc(invoice.status)}. Delivery: ${esc(deliveryStatus??'not queued')}.</p>`;

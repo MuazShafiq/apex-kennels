@@ -494,3 +494,9 @@ This is the **cross-agent project thread** read by `cc-muaz`, `cc-umer`, `cdx-18
 - The live cutover monitor now checks canonical Pages as well as the Worker: enabled config, same-origin empty POST rejection, foreign-origin rejection and private Pages routes returning 404. Custom Worker targets stay isolated. The monitor requests contain no booking data or credentials.
 - Added regression cases for closed Pages, incorrect rejection and exposed private routes even with a healthy Worker. All 38 focused monitor and gateway tests passed with synthetic responses. Separate production smoke passed with the shared gate closed. The live monitor was not run against production.
 - Documented the Stage 1 watchdog sequence for the next bounded canary, using the then-serving closed baseline and the reviewed temporary version. No approval, schema, deployment or gate changed. cdx-18 retains release ownership.
+
+### 2026-11-29 | cdx-18 | Booking receipt consistency
+
+- A rate refresh could change the estimate displayed on the receipt while the booking POST was in flight. The receipt now uses the submitted stay, transport label and displayed estimate captured before the POST. The receipt still acknowledges a request and uses the reference returned by the Worker.
+- Synthetic browser-to-Worker regression held the booking request open while a new rate arrived. The live summary moved to PKR 8,100 and the confirmed receipt kept the submitted three days and PKR 7,500 estimate. The complete synthetic booking suite and all 48 mobile layouts passed. No production booking, deployment or gate change.
+- cdx-18 retains ownership. Existing scoped schema authorization and live release acceptance requirements still apply.

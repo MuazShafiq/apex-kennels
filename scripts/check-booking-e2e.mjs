@@ -138,6 +138,28 @@ try{
     if(unavailable===null)await fallback.page.screenshot({path:'mobile-booking-confirmation-small.png',fullPage:true});
     await fallback.page.close();
   }
+  const receipt=await newPage();
+  await receipt.page.locator('#transport-none').check();
+  const releaseResponse=Promise.withResolvers();
+  await receipt.page.route('**/api/book',async route=>{
+    await releaseResponse.promise;
+    await route.continue();
+  });
+  const bookingSent=receipt.page.waitForRequest(origin+'/api/book');
+  try{
+    await submitRequest(receipt.page);
+    await bookingSent;
+    await receipt.page.route('**/api/rate-card/current',route=>route.fulfill({
+      json:{...syntheticRates,version:2,stdDaily:2700}
+    }));
+    await receipt.page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
+    await waitForBrowser(receipt.page,()=>document.querySelector('[data-tk-tot]')?.textContent==='Rs 8,100');
+  }finally{releaseResponse.resolve();}
+  await receipt.page.locator('#complete').waitFor({state:'visible'});
+  assert.equal(await receipt.page.locator('[data-d-days]').textContent(),'3 billed days');
+  assert.equal(await receipt.page.locator('[data-d-r4]').textContent(),'Rs 7,500');
+  assert.equal(saved.at(-1).endDate,futureBookingDate(12));
+  await receipt.page.close();
   saved.length=0;
   challengeChecks=0;
   // Both selected: reuse the pickup gate unless the customer explicitly

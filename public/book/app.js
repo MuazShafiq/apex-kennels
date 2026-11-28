@@ -399,8 +399,7 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
     };
   }
 
-  function payload(){
-    const data=new FormData(form);
+  function payload(data){
     const choice=transportChoice();
     const needsTransport=choice!=='none';
     if(!needsTransport&&!noTransport.checked){
@@ -753,13 +752,12 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
   });
   summaryViewport.addEventListener('change',()=>{if(mobileSummary.open)mobileSummary.close();});
 
-  function showConfirmation(booking,reference){
-    const s=stay(new FormData(form));
+  function showConfirmation(booking,reference,s,transport){
     const space=s.spaceSummary;
     const receipt={
       '[data-d-r1]':s.dates,
       '[data-d-r2]':space,
-      '[data-d-r3]':transportLabel(),
+      '[data-d-r3]':transport,
       '[data-d-r4]':rupees(s.total),
       '[data-d-space]':space,
       '[data-d-sub]':s.space==='yes'?'24/7 CCTV':'Dog boarding',
@@ -811,7 +809,10 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
       }
     }
     message.hidden=true;
-    const booking=payload();
+    const booking=payload(data);
+    // A rate refresh can finish while the booking POST is in flight.
+    const submittedStay=stay(data);
+    const submittedTransport=transportLabel();
     sending=true;
     submit.disabled=true;
     submit.setAttribute('aria-busy','true');
@@ -824,7 +825,7 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
       });
       const body=await response.json();
       if(!response.ok)throw new Error(body?.error||'The request could not be sent.');
-      showConfirmation(booking,body.reference||'');
+      showConfirmation(booking,body.reference||'',submittedStay,submittedTransport);
     }catch(error){
       const outcomeUnknown=error instanceof TypeError||error instanceof SyntaxError;
       showMessage(outcomeUnknown

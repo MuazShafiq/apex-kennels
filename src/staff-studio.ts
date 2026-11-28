@@ -13,21 +13,24 @@ export type StudioDependencies = {
   rates(url: string): Promise<StudioRates | null>;
   record(url: string, actor: string, meta: StudioAudit): Promise<boolean>;
 };
+type StudioAuditQuery = (statement: string, params: (string | number | null)[]) => Promise<boolean>;
+
+export async function recordStudioExport(url: string, actor: string, meta: StudioAudit,
+  execute: StudioAuditQuery = async (statement, params) => (await neon(url).query(statement, params)).length > 0
+): Promise<boolean> {
+  // A card can be superseded while a fact card is being rendered.
+  return execute(`INSERT INTO public.business_audit(kind, actor, payload)
+    SELECT 'studio.export', $1, $2::jsonb WHERE $3::integer IS NULL OR EXISTS (
+      SELECT 1 FROM public.rate_cards WHERE version=$3 AND withdrawn_at IS NULL
+      AND effective_from <= statement_timestamp()) RETURNING id`, [actor, JSON.stringify(meta), meta.rateCard]);
+}
+
 const defaults: StudioDependencies = {
   async rates(url) {
     const card = await readEffectiveRateCard(url);
     return card ? {version: card.version, std: card.stdDaily, cam: card.cameraDaily, pkgDisc: card.packageDiscount} : null;
   },
-  async record(url, actor, meta) {
-    const query = neon(url);
-    // Keep the version captured before rendering, even if a newer card took effect during export.
-    // Never store client identity/time, filenames, dog names, text, photos or location metadata.
-    const rows = await query.query(`INSERT INTO public.business_audit(kind, actor, payload)
-      SELECT 'studio.export', $1, $2::jsonb WHERE $3::integer IS NULL OR EXISTS (
-        SELECT 1 FROM public.rate_cards WHERE version=$3 AND withdrawn_at IS NULL
-        AND effective_from <= statement_timestamp()) RETURNING id`, [actor, JSON.stringify(meta), meta.rateCard]);
-    return rows.length > 0;
-  },
+  record: recordStudioExport,
 };
 const security = {
   'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff',

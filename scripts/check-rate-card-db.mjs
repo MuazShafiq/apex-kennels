@@ -8,6 +8,7 @@ import {prepareStaffDraftReview} from '../src/staff-invoice-draft.ts';
 import {makeReviewSnapshot,saveReviewDraft} from '../src/staff-saved-review.ts';
 import {renderBrandedStaffPdf} from '../src/branded-invoice-pdf.ts';
 import {publishRateCard, withdrawRateCard} from '../src/rate-card-store.ts';
+import {handleStaffStudio, recordStudioExport} from '../src/staff-studio.ts';
 
 const raw = process.env.APEX_RATE_TEST_POSTGRES_URL;
 if (!raw) throw new Error('Explicit disposable loopback /postgres required');
@@ -135,6 +136,32 @@ try {
   assert.equal(await effective(fixed.effectiveFrom), 9);
   assert.deepEqual((await db.query('SELECT fixed_fuel_pkr, fixed_until::text FROM public.rate_cards WHERE version=9')).rows,
     [{fixed_fuel_pkr:'350.25', fixed_until:tomorrow}]);
+  const studioUrl = 'https://staff.example.test/staff/studio/audit';
+  const fact = {
+    rateCard:3, kind:'fact', format:'feed', width:1080, height:1350,
+    colourway:'Raven + Powder', material:'None', paw:'none', consent:null, verified:null,
+  };
+  const studioActor = 'fixture-staff@example.test';
+  const audit = body => handleStaffStudio(new Request(studioUrl, {
+    method:'POST',
+    headers:{origin:new URL(studioUrl).origin, 'content-type':'application/json', 'x-apex-studio':'export'},
+    body:JSON.stringify({...body, actor:'client identity', caption:'private text', filename:'private.png'}),
+  }), {DATABASE_URL:connection}, {email:studioActor}, {
+    rates:async () => { throw new Error('Audit must use the rate card captured at export'); },
+    record:(url, email, meta) => recordStudioExport(url, email, meta,
+      async (statement, params) => (await db.query(statement, params)).rowCount > 0),
+  });
+  const note = {...fact, kind:'note', rateCard:null, consent:true, verified:true};
+  assert.equal((await audit(fact)).status, 200, 'Previously effective card survives supersession');
+  assert.equal((await audit(note)).status, 200);
+  for (const unacceptedVersion of [4, fixed.version, 99]) {
+    assert.equal((await audit({...fact, rateCard:unacceptedVersion})).status, 409);
+  }
+  assert.deepEqual((await db.query("SELECT actor, payload FROM public.business_audit WHERE kind='studio.export' ORDER BY id")).rows,
+    [{actor:studioActor, payload:fact}, {actor:studioActor, payload:note}]);
+  await assert.rejects(db.query("UPDATE public.business_audit SET payload='{}' WHERE kind='studio.export'"));
+  console.log('PASS Studio audit persistence, privacy, immutable records and rate eligibility');
+
   await assert.rejects(db.query('UPDATE public.rate_cards SET std_daily=500 WHERE version=3'));
   await assert.rejects(db.query('TRUNCATE public.business_audit'));
   assert.deepEqual((await db.query(`SELECT relname,relrowsecurity FROM pg_class

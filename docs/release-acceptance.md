@@ -1,5 +1,13 @@
 # Remaining release acceptance
 
+## November 28 reconciliation
+
+Read-only Wrangler inspection found deployment `21f9bbac-2087-4f2b-8b54-ac02075ea018` serving Worker version `016e4346-6d56-41b8-aaf6-4288c3d41c7f` at 100%. The serving inventory had `APEX_PUBLIC_BOOKING_ENABLED=false` and no invoice approval, issuance, invoice WhatsApp, owner alert or rate-card activation bindings. Worker and Pages passed the closed-booking and exact-pin checks. The November 23 Neon observations below remain the latest production catalog and aggregate Form ledger evidence in this worktree.
+
+The approved design, Business Settings and Studio are on the local `feat/apex-business-settings` worktree. Booking submission has no dependency on migration 011 or rate availability. Keep the public cutover checklist on its existing path. Verify 009/010 and the exact booking release first. Review 011 separately with an authenticated development Neon branch, compare role grants and RLS, and confirm the Business Settings owner identity before enabling rate cards. The public rate endpoint revalidates each reuse against the database, including at a scheduled start. Legacy homepage prices apply only while the rate-card feature is intentionally disabled.
+
+Current production acceptance still requires the authenticated staff and Form/recovery checks, staff queue coverage, a real phone and affected network, and bounded standalone Pages/Turnstile submission with private Neon readback and independent reclosure. Financial and messaging acceptance remains separate and requires owner/payment verification, approved Meta sender/templates, purpose-specific consent, live delivery and recovery. Replacing the payment recipient requires its own re-verification and authorization.
+
 ## Founder launch decision (2026-11-23 PKT)
 
 The [latest founder authorization in #84](https://github.com/MuazShafiq/apex-kennels/issues/84) authorizes persistent public booking and customer-link cutover after the full approved implementation passes release acceptance. The earlier approval requirements below describe the previous release decision.

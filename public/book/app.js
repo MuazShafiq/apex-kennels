@@ -1,3 +1,4 @@
+import { validPublicCard } from '/site/v106/current-rates.js';
 import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
 
 (function(){
@@ -463,7 +464,8 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
     year:'numeric',month:'2-digit',day:'2-digit',timeZone:'Asia/Karachi'
   });
   const moneyFormat=new Intl.NumberFormat('en-PK');
-  const rates={no:{daily:2500,package:65000},yes:{daily:3000,package:80000}};
+  // A price outage must not prevent a booking request. Staff confirms pricing.
+  let rates=null;
   const stepNames=['Dates & space','Your dog','Transport','Care','Your details'];
   const stepDefaults=steps.map(step=>$('[data-step-sum]',step).textContent);
   const completed=new Set();
@@ -479,25 +481,27 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
     const end=dateMilliseconds(field(data,'endDate'));
     const days=end>=start?(end-start)/86400000+1:0;
     const space=field(data,'cameraCageRequested');
-    const rate=rates[space];
-    const selectedRates=[rate,...extraDogs.map(({prefix})=>rates[field(data,prefix+'cameraCageRequested')])];
+    const rate=rates?.[space];
+    const selections=[space,...extraDogs.map(({prefix})=>field(data,prefix+'cameraCageRequested'))];
+    const selectedRates=selections.map(selection=>rates?.[selection]);
+    const priced=selectedRates.every(Boolean);
     const dailyRate=selectedRates.reduce((sum,selected)=>sum+(selected?.daily??0),0);
     const hasPackageRate=days===30&&selectedRates.every(Boolean);
     const daily=days*dailyRate;
     const packageTotal=hasPackageRate?selectedRates.reduce((sum,selected)=>sum+selected.package,0):0;
     const spaceSummary=extraDogs.length
-      ? [rates.no,rates.yes].map((category,index)=>{
-          const count=selectedRates.filter(selected=>selected===category).length;
+      ? ['no','yes'].map((category,index)=>{
+          const count=selections.filter(selected=>selected===category).length;
           return count?count+' '+(index?'camera':'standard'):'';
         }).filter(Boolean).join(' + ')
       :spaceLabel(space);
     return {
       start,end,days,rate,hasPackageRate,dailyRate,space,spaceSummary,packageTotal,
-      total:daily,
+      total:priced?daily:null,
       dates:days?dateFormat.format(start)+' → '+dateFormat.format(end):''
     };
   }
-  function rupees(value){return 'Rs '+moneyFormat.format(value);}
+  function rupees(value){return value===null?'To be confirmed':'Rs '+moneyFormat.format(value);}
   function billedDays(days){return days+(days===1?' billed day':' billed days');}
   function spaceLabel(space){
     return space==='yes'?'Camera cage':space==='no'?'Standard boarding':'';
@@ -523,6 +527,11 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
     const s=stay(data);
     const name=bookingDogNames(data);
     refreshDogs(data);
+    for(const node of $$('[data-booking-rate]')){
+      const rate=rates?.[node.dataset.bookingRate];
+      node.textContent=rate?rupees(rate.daily)+' a day':'Rate to be confirmed';
+    }
+    $('[data-rate-note]').hidden=!!rates;
     const ticketName=$('[data-tk-name]');
     ticketName.classList.toggle('empty',!name);
     ticketName.firstChild.nodeValue=name||'Your dog';
@@ -532,6 +541,7 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
     summaryValue('[data-tk-board]',s.dailyRate?rupees(s.dailyRate)+' per billed day':'','—');
     summaryValue('[data-tk-trans]',transportChoice()==='none'?(noTransport.checked?'None':''):'To be quoted','Not chosen');
     $('[data-tk-tot]').textContent=rupees(s.total);
+    $('[data-tk-tot]').classList.toggle('price-pending',s.total===null);
     $('[data-mb-v]').textContent=rupees(s.total);
     $('[data-mb-t]').textContent=s.days?billedDays(s.days)+' · boarding subtotal':'Boarding subtotal';
     $('[data-pkg]').hidden=!s.hasPackageRate;
@@ -579,7 +589,7 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
       else if(field(data,'startDate')<pakistanDate.format(new Date()))errors.startDate='Arrival can’t be in the past.';
       if(!Number.isFinite(s.end))errors.endDate='Choose a collection date.';
       else if(s.end<s.start)errors.endDate='Collection must be on or after arrival.';
-      if(!s.rate)errors.cameraCageRequested='Choose standard boarding or a camera cage.';
+      if(!['yes','no'].includes(s.space))errors.cameraCageRequested='Choose standard boarding or a camera cage.';
       return errors;
     },
     data=>dogAnswers(data,{
@@ -754,6 +764,7 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
       '[data-d-space]':space,
       '[data-d-sub]':s.space==='yes'?'24/7 CCTV':'Dog boarding',
       '[data-np-date]':s.dates,
+      '[data-d-days]':billedDays(s.days),
       '#reference':reference
     };
     for(const [selector,value] of Object.entries(receipt))$(selector,complete).textContent=value;
@@ -832,6 +843,29 @@ import { mountPlaqueLighting, setPlaqueName } from '/site/v106/plaque.js';
   const turnstile=document.getElementById('turnstile');
   displayTransport();
   renderSteps();
+  let rateRead;
+  function refreshRates(){
+    if(rateRead)return rateRead;
+    rateRead=(async()=>{
+      try{
+        const response=await fetch('/api/rate-card/current',{
+          credentials:'omit',cache:'no-cache',signal:globalThis.AbortSignal?.timeout?.(8000)
+        });
+        if(!response.ok)throw new Error('Rates unavailable');
+        const card=await response.json();
+        if(!validPublicCard(card))throw new Error('Invalid rates');
+        rates={
+          no:{daily:card.stdDaily,package:card.stdDaily*card.packageDays-card.packageDiscount},
+          yes:{daily:card.cameraDaily,package:card.cameraDaily*card.packageDays-card.packageDiscount}
+        };
+      }catch{rates=null;}
+      finally{rateRead=null;updateSummary();}
+    })();
+    return rateRead;
+  }
+  refreshRates();
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshRates();});
+  setInterval(()=>{if(!document.hidden&&!formView.hidden)refreshRates();},60_000);
   fetch('/api/book/config',{credentials:'omit',cache:'no-store'}).then(response=>{
     if(!response.ok)throw new Error('Not available');
     return response.json();

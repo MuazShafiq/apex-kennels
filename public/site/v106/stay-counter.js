@@ -1,5 +1,4 @@
 const DAY = 86_400_000;
-const PACKAGES = { 2500: 65000, 3000: 80000 };
 const money = new Intl.NumberFormat("en-PK");
 const dateFormat = new Intl.DateTimeFormat("en-GB", {
   weekday: "short",
@@ -24,11 +23,13 @@ function dateValue(field) {
 }
 
 export function mountStayCounter(counter, plaqueDate) {
+  let currentRates = null;
   const part = (name) => counter.querySelector(`[data-c-${name}]`);
   const arrival = part("in");
   const collection = part("out");
   const error = part("err");
-  const duration = part("mid");
+  const duration = part("n");
+  const durationUnit = part("unit");
   const startLabel = part("a");
   const endLabel = part("b");
   const strip = part("strip");
@@ -84,21 +85,29 @@ export function mountStayCounter(counter, plaqueDate) {
     }
 
     const packageStay = days === 30;
-    const rate = +counter.querySelector('input[name="apx-c-space"]:checked')
-      .value;
+    const camera = counter.querySelector('input[name="apx-c-space"]:checked')?.value === 'camera';
+    const rate = currentRates ? (camera ? currentRates.cameraDaily : currentRates.stdDaily) : null;
     const billedDays = days + (days === 1 ? " billed day" : " billed days");
-    duration.textContent = billedDays;
+    duration.textContent = String(days);
+    durationUnit.textContent = days === 1 ? "billed day" : "billed days";
     startLabel.textContent = dateFormat.format(start).replace(",", "");
     endLabel.textContent = dateFormat.format(end).replace(",", "");
     strip.classList.toggle("dense", days > 40);
     strip.classList.toggle("p30", packageStay);
     strip.style.setProperty("--n", Math.min(days, 40));
     strip.style.setProperty("--g", days > 20 ? "2px" : "3px");
+    if (rate === null) {
+      calculation.textContent = billedDays + " · ask us for current rates";
+      total.textContent = "—";
+      savings.hidden = original.hidden = true;
+      return;
+    }
     calculation.textContent =
       billedDays + (packageStay ? "" : " × " + rupees(rate));
     original.textContent = rupees(days * rate);
-    total.textContent = rupees(packageStay ? PACKAGES[rate] : days * rate);
-    savings.hidden = original.hidden = !packageStay;
+    total.textContent = rupees(packageStay ? (days * rate - currentRates.packageDiscount) : days * rate);
+    savings.hidden = !packageStay;
+    original.hidden = !packageStay || currentRates.packageDiscount === 0;
     if (updatePlaque && plaqueDate) {
       plaqueDate.textContent = (
         stampFormat.format(start) +
@@ -131,4 +140,5 @@ export function mountStayCounter(counter, plaqueDate) {
       recalculate(true);
     });
   recalculate();
+  return (rates) => { currentRates = rates; recalculate(); };
 }

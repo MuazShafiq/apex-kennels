@@ -81,8 +81,10 @@ async function submitRequest(page){
   await fillBookingCareAndContact(page);
   await page.locator('#submit').click();
 }
-const newPage=async({map='synthetic',viewport={width:390,height:844},atTransport=true}={})=>{
+const syntheticRates={version:1,effectiveFrom:'2026-01-01T00:00:00Z',stdDaily:2500,cameraDaily:3000,packageDays:30,packageDiscount:10000};
+const newPage=async({map='synthetic',viewport={width:390,height:844},atTransport=true,rates=syntheticRates}={})=>{
   const page=await browser.newPage({viewport,hasTouch:true});
+  await page.route('**/api/rate-card/current',route=>route.fulfill({status:rates?200:503,contentType:'application/json',body:JSON.stringify(rates??{error:'Unavailable'})}));
   if(map==='synthetic')await stubMapLibrary(page);
   await page.addInitScript(()=>{
     // This is an isolated CI stub. No real Turnstile bypass is deployed.
@@ -105,6 +107,39 @@ const newPage=async({map='synthetic',viewport={width:390,height:844},atTransport
   return {page,errors};
 };
 try{
+  // An effective card supplies every customer price. An outage never blocks
+  // the request, and malformed/future cards never become fallback prices.
+  const changed=await newPage({atTransport:false,rates:{...syntheticRates,version:2,stdDaily:2700,cameraDaily:3200}});
+  await fillBookingThroughDog(changed.page);
+  assert.equal(await changed.page.locator('[data-tk-tot]').textContent(),'Rs 8,100');
+  assert.equal(await changed.page.locator('[data-booking-rate="no"]').textContent(),'Rs 2,700 a day');
+  await changed.page.locator('[data-step-h="1"]').click();
+  await changed.page.locator('[name="endDate"]').fill(futureBookingDate(39));
+  assert.equal(await changed.page.locator('[data-tk-tot]').textContent(),'Rs 81,000');
+  assert.equal(await changed.page.locator('[data-package-copy]').first().textContent(),'30-day package: Rs 71,000 if confirmed by staff.');
+  await changed.page.close();
+  for(const unavailable of [null,{...syntheticRates,packageDiscount:'10000'},{...syntheticRates,effectiveFrom:'2999-01-01T00:00:00Z'}]){
+    const fallback=await newPage({rates:unavailable,viewport:{width:320,height:568}});
+    assert.equal(await fallback.page.locator('[data-tk-tot]').textContent(),'To be confirmed');
+    assert.equal(await fallback.page.locator('[data-tk-pkg]').isHidden(),true);
+    await fallback.page.locator('[data-sum-open]').click();
+    const summarySize=await fallback.page.locator('#mobile-summary').boundingBox();
+    assert.equal(summarySize.height,568);
+    assert.equal(summarySize.width,320);
+    assert(await fallback.page.locator('#mobile-summary').evaluate(el=>el.scrollWidth<=el.clientWidth),'Unavailable rate must fit small summary');
+    await fallback.page.locator('[data-sum-close]').click();
+    await fallback.page.locator('#transport-none').check();
+    await submitRequest(fallback.page);
+    await fallback.page.locator('#complete').waitFor({state:'visible'});
+    assert.equal(await fallback.page.locator('[data-d-r4]').textContent(),'To be confirmed');
+    assert.equal(await fallback.page.locator('.bk-seal').getAttribute('aria-hidden'),'true');
+    assert.equal(await fallback.page.locator('[data-d-days]').textContent(),'3 billed days');
+    assert(await fallback.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Confirmation must fit small phone');
+    if(unavailable===null)await fallback.page.screenshot({path:'mobile-booking-confirmation-small.png',fullPage:true});
+    await fallback.page.close();
+  }
+  saved.length=0;
+  challengeChecks=0;
   // Both selected: reuse the pickup gate unless the customer explicitly
   // requests a different drop-off location.
   const first=await newPage({atTransport:false});
@@ -122,6 +157,7 @@ try{
   await first.page.locator('label.card:has([name="cameraCageRequested"][value="yes"])').click();
   assert.equal(await first.page.locator('[data-tk-tot]').textContent(),'Rs 90,000');
   await first.page.locator('[data-sum-open]').click();
+  assert.equal((await first.page.locator('#mobile-summary').boundingBox()).height,844);
   assert.equal(await first.page.locator('#mobile-summary [data-tk-tot]').innerText(),'Rs 90,000');
   assert.equal(await first.page.locator('#mobile-summary [data-package-copy]').textContent(),'30-day package: Rs 80,000 if confirmed by staff.');
   await first.page.keyboard.press('Escape');

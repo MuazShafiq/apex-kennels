@@ -56,7 +56,7 @@ export async function ownerAlertRoute(request:Request,env:WorkerEnv,email?:strin
       if([...url.searchParams.keys()].some(k=>k!=='page')||url.searchParams.getAll('page').length>1||!/^\d{1,5}$/.test(url.searchParams.get('page')??'0'))return response('Invalid page',400);
       const page=Number(url.searchParams.get('page')??'0');
       const rows=await api.listOwnerAlerts(env.DATABASE_URL,undefined,page*100);
-      return new Response(renderOwnerAlerts(rows,env.WHATSAPP_ALERTS_ENABLED==='true',page),{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"}});
+      return new Response(renderOwnerAlerts(rows,env.WHATSAPP_ALERTS_ENABLED==='true',page,{email,showTools:env.APEX_RATE_CARDS_ENABLED==='true'}),{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; script-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"}});
     }
     const id=values.get('id')??'';
     if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(id))return response('Invalid booking reference',400);
@@ -69,6 +69,6 @@ export async function ownerAlertRoute(request:Request,env:WorkerEnv,email?:strin
     }
     if([...values.keys()].some(k=>k!=='id')||values.getAll('id').length!==1)return response('Invalid request',400);
     const alert=await api.loadOwnerAlert(env.DATABASE_URL,id);
-    return new Response(renderOwnerAlerts(alert?[{bookingId:id,...alert}]:[],env.WHATSAPP_ALERTS_ENABLED==='true'),{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"}});
+    return new Response(renderOwnerAlerts(alert?[{bookingId:id,...alert}]:[],env.WHATSAPP_ALERTS_ENABLED==='true',0,{email,showTools:env.APEX_RATE_CARDS_ENABLED==='true'}),{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; script-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"}});
   }catch(error){return response(error instanceof AlertRouteError?error.message:'Alert operation unavailable; inspect configuration and reconciliation state',error instanceof AlertRouteError?error.status:503);}
 }

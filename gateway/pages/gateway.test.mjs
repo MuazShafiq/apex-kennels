@@ -19,8 +19,8 @@ function mock() {
   return {env, forwarded};
 }
 
-const publicAssets = ['/', '/book', '/book/', '/book/index.html', '/book/app.js',
-  '/book/styles.css', '/site/site.css', '/site/inter-tight.woff2', '/book/vendor/maplibre-gl-5.6.1.js'];
+const publicAssets = ['/api/rate-card/current', '/', '/book', '/book/', '/book/index.html', '/book/app.js',
+  '/book/styles.css', '/site/v106/home.css', '/site/inter-tight.woff2', '/book/vendor/maplibre-gl-5.6.1.js'];
 for (const path of publicAssets) {
   test('GET ' + path + ' forwards through binding', async () => {
     const {env, forwarded} = mock();
@@ -89,7 +89,7 @@ for (const path of ['/staff', '/staff/booking', '/api/ingest', '/api/health',
 }
 
 for (const [path, method] of [['/', 'POST'], ['/book/app.js', 'POST'],
-  ['/api/book/config', 'POST'], ['/api/book/location', 'GET'], ['/api/book', 'GET']]) {
+  ['/api/rate-card/current', 'POST'], ['/api/book/config', 'POST'], ['/api/book/location', 'GET'], ['/api/book', 'GET']]) {
   test('wrong method rejected: ' + method + ' ' + path, async () => {
     const {env, forwarded} = mock();
     const response = await gateway.fetch(new Request(base + path, {method}), env);

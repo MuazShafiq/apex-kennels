@@ -155,7 +155,7 @@ test('save recomputes route and fuel then freezes reviewed transport metadata',a
       assert.equal(snapshot.quote.totalPkr,8909);
       assert.equal(snapshot.quote.lines.find(l=>l.label==='Pet transport')?.totalPkr,1409);
       assert.equal(snapshot.transport?.route.plannedRoundTrips,2);
-      assert.equal(snapshot.transport?.fuelRate.pricePkrPerLitre,362);
+      assert.equal(snapshot.transport?.fuelRate?.pricePkrPerLitre,362);
       return {revision:1};
     }
   });

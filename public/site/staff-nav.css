@@ -1,0 +1,22 @@
+@font-face{font-family:Apex Inter Tight;src:url('/site/inter-tight.woff2') format('woff2');font-weight:100 900;font-display:swap}
+@font-face{font-family:Apex JetBrains;src:url('/site/jetbrains-mono.woff2') format('woff2');font-weight:100 800;font-display:swap}
+.ak-st-header{position:relative;z-index:5;min-height:64px;display:flex;align-items:center;gap:clamp(16px,3vw,46px);padding:8px clamp(18px,4vw,64px);background:#180c0f;color:#eef7ff;border-bottom:1px solid #7d6c73;font:600 14px/1.3 'Apex Inter Tight',system-ui,sans-serif}
+.ak-st-header .ak-st-logo{display:inline-flex;align-items:center;min-height:44px;gap:9px;color:inherit;text-decoration:none}
+.ak-st-badge{width:30px;height:38px;display:grid;place-items:center;border-radius:9px;background:linear-gradient(145deg,#4c3c42,#191015 60%);border:1px solid #7d6c73}
+.ak-st-badge::before{content:"";width:23px;height:28px;background:#bfe3f4;mask:url('/site/v106/open-shepherd.svg') center/contain no-repeat}
+.ak-st-wordmark{font:900 22px/.83 'Apex Inter Tight',system-ui,sans-serif;letter-spacing:-.045em;padding-right:13px;border-right:2px solid #ff4d55}
+.ak-st-wordmark span{display:block;margin-top:4px;font:700 7px/1 'Apex JetBrains',monospace;letter-spacing:.25em;color:#ff4d55}
+.ak-st-header nav{background:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:0;color:inherit;min-width:0}
+.ak-st-header nav a{display:flex;align-items:center;min-height:44px;padding:0 13px;border-radius:999px;color:inherit;text-decoration:none;border:0;white-space:nowrap}
+.ak-st-header nav a:hover{text-decoration:underline;text-decoration-color:#ff4d55;text-underline-offset:5px}
+.ak-st-header nav a[aria-current=page]{background:#bfe3f4;color:#120709;border:0}
+.ak-st-header .ak-st-who{margin-left:auto;color:#d1c6cd;overflow-wrap:anywhere;font-size:12px}
+.ak-st-header :is(a,summary):focus-visible{outline:2px solid #bfe3f4;outline-offset:3px;box-shadow:0 0 0 5px #705964}
+.ak-st-menu{display:none;margin-left:auto}
+.ak-st-menu summary{display:flex;align-items:center;min-height:44px;padding:0 15px;border:1px solid #978991;border-radius:10px;cursor:pointer;list-style:none}
+.ak-st-menu summary::-webkit-details-marker{display:none}
+.ak-st-menu summary::after{content:"";margin-left:9px;width:7px;height:7px;border:solid currentColor;border-width:0 1px 1px 0;transform:rotate(45deg) translateY(-2px)}
+.ak-st-menu[open] summary::after{transform:rotate(225deg) translateY(-2px)}
+.ak-st-header #ak-st-mobile{position:absolute;inset:100% 0 auto;padding:12px clamp(18px,4vw,64px) 20px;background:#180c0f;border-bottom:1px solid #7d6c73;flex-direction:column;align-items:stretch}
+.ak-st-header #ak-st-mobile .ak-st-who{margin:8px 13px 0}
+@media(max-width:899px){.ak-st-header>.ak-st-tabs,.ak-st-header>.ak-st-who{display:none}.ak-st-menu{display:block}}

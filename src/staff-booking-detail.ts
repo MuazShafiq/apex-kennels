@@ -1,3 +1,5 @@
+import type {SavedReview} from './staff-saved-review.ts';
+import {renderStaffNav,staffNavAssets} from './staff-navigation.ts';
 import type {staffDetailNavigation} from './staff-console.ts';
 import {availableStayActions,readStayHistory,type StayAction,type StayEvent} from './staff-stay.ts';
 import {countBilledDays} from './pricing.ts';
@@ -154,8 +156,8 @@ const stayLabels:Record<StayAction,string>={
   start_review:'Start review',approve:'Approve stay',decline:'Decline stay',
   check_in:'Record check-in',check_out:'Record check-out'
 };
-function renderStayControls(b:StaffBookingDetail,actionQuery:string):string{
-  if(!b.stayHistory)return '';
+function renderStayControls(b:StaffBookingDetail,actionQuery:string):{actions:string;history:string}{
+  if(!b.stayHistory)return {actions:'',history:''};
   const history=b.stayHistory;
   const revision=history.at(-1)?.revision??0;
   const forms=availableStayActions(b.status,history).map(action=>
@@ -171,13 +173,15 @@ function renderStayControls(b:StaffBookingDetail,actionQuery:string):string{
     +'<br>'+esc(event.prior_status)+' → '+esc(event.new_status)
     +(event.vaccination_attested?' · Vaccination reviewed':'')
     +(event.reason?'<br>'+esc(event.reason):'')+'</li>').join('');
-  return (forms?'<section class="panel stay"><h2>Stay decisions</h2>'+forms+'</section>':'')
-    +'<section class="panel stay" id="history"><h2>Stay history</h2>'
-    +(events?'<ol>'+events+'</ol>':'<p>No stay actions recorded.</p>')+'</section>';
+  return {
+    actions:forms?'<section class="panel stay" id="stay-decisions"><h2>Stay decisions</h2>'+forms+'</section>':'',
+    history:'<section class="panel stay" id="history"><h2>Stay history</h2>'
+      +(events?'<ol>'+events+'</ol>':'<p>No stay actions recorded.</p>')+'</section>',
+  };
 }
 
 /** Staff-only HTML. All customer-controlled content is HTML-escaped; no data leaves the server. */
-export function renderStaffBookingDetail(b:StaffBookingDetail,navigation?:ReturnType<typeof staffDetailNavigation>):string {
+export function renderStaffBookingDetail(b:StaffBookingDetail,navigation?:ReturnType<typeof staffDetailNavigation>,chrome?:{email:string;showTools:boolean;savedEstimate?:SavedReview|null;currentRateVersion?:number}):string {
   const petText=b.pets.length
     ? b.pets.map(p=>esc(p.name)+(p.breed?' ('+esc(p.breed)+')':'')).join(', ')
     : '<span class="missing">No linked pets</span>';
@@ -227,13 +231,21 @@ export function renderStaffBookingDetail(b:StaffBookingDetail,navigation?:Return
   let days:number|undefined;
   try{days=countBilledDays(b.startDate,b.endDate,'inclusive_days');}
   catch{/* Show the stored dates even when a historical record is invalid. */}
-  const estimate='<aside class="panel estimate" id="estimate"><h2>Estimate &amp; invoice</h2>'
-    +'<p>Review boarding rates and saved pricing for this stay.</p>'
-    +'<a class="action" href="/staff/draft?id='+bookingHref+'">Review price estimate</a></aside>';
+  const controls=renderStayControls(b,navigation?.actionQuery??new URLSearchParams({id:b.id}).toString());
+  const saved=chrome?.savedEstimate;
+  const savedVersion=saved?.snapshot.pricingSnapshot?.rateCardVersion;
+  const currentVersion=chrome?.currentRateVersion;
+  const estimate='<section class="panel estimate" id="estimate"><h2>Estimate &amp; invoice</h2>'
+    +(saved?'<p>Saved revision '+saved.revision+' · PKR '+saved.snapshot.quote.totalPkr.toLocaleString('en-PK')+'</p>'
+      +'<p>'+(savedVersion===undefined?'Saved before versioned rate cards.':'Saved on rate card version '+savedVersion+'.')
+      +(currentVersion===undefined?'':' Re-saving uses version '+currentVersion+' and creates a new revision.')+'</p>'
+      +'<p><a href="/staff/draft/saved.pdf?id='+bookingHref+'">Open saved estimate PDF</a></p>'
+      :'<p>Review boarding rates and saved pricing for this stay.</p>')
+    +'<a class="action" href="/staff/draft?id='+bookingHref+'">Review price estimate</a></section>';
   return '<!doctype html><html lang="en"><head><meta charset="utf-8">'
    +'<meta name="viewport" content="width=device-width,initial-scale=1">'
    +'<meta name="robots" content="noindex,nofollow"><title>Apex | Booking details</title>'
-   +'<style>:root{font:14px/1.55 Inter,ui-sans-serif,system-ui,sans-serif;color:#19362b;background:#f4f6f3}'
+   +(chrome?staffNavAssets:'')+'<style>:root{font:14px/1.55 Apex Inter Tight,Inter,ui-sans-serif,system-ui,sans-serif;color:#19362b;background:#f4f6f3}'
    +'*{box-sizing:border-box}body{margin:0}.wrap{max-width:1060px;margin:36px auto;padding:0 20px}'
    +'a{color:#23644a;text-decoration:underline;text-underline-offset:3px}h1{font-size:clamp(29px,5vw,46px);letter-spacing:-.055em;line-height:1.1;margin:14px 0}'
    +'.tag{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#6c8878;font-weight:800}'
@@ -245,9 +257,10 @@ export function renderStaffBookingDetail(b:StaffBookingDetail,navigation?:Return
    +'.actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.action{background:#1e4937;color:white;border-radius:8px;text-decoration:none;padding:12px 16px;font-size:12px;font-weight:700}'
    +'.stay form{display:grid;justify-items:start;gap:10px;margin:12px 0}.stay textarea{width:min(100%,420px);min-height:65px}.stay button{cursor:pointer;border:0;min-height:44px}.stay li{overflow-wrap:anywhere;margin:8px 0}'
    +'@media(max-width:620px){.detail-grid{grid-template-columns:1fr}.panel{padding:18px}}'+APEX_STAFF_THEME_CSS
-   +'.detail-hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(230px,300px);gap:16px;margin-top:20px}.detail-hero .panel{margin:0}.nameplate{border-radius:16px;background:#120709;color:#fff;padding:clamp(20px,4vw,38px);overflow-wrap:anywhere}.nameplate h1{color:#fff;margin:8px 0}.nameplate .tag{color:#bfe3f4}.nameplate .chip{display:inline-block;background:#bfe3f4;color:#120709;border-radius:8px;padding:4px 9px;font-weight:750}.nameplate p{margin:9px 0 0}.estimate p{margin:0 0 12px}.detail-nav{display:flex;flex-wrap:wrap;gap:8px;margin:15px 0}.detail-nav a{display:inline-flex;align-items:center;min-height:44px;padding:6px 11px;border-radius:8px;background:#eef6fa;color:#120709}.stay-dates{border-bottom:2px solid #fd6e6e;padding-bottom:10px}.detail-hero .action,.actions .action{display:inline-flex;align-items:center;min-height:44px;background:#120709;color:#fff}section[id],aside[id]{scroll-margin-top:12px}@media(max-width:700px){.detail-hero{grid-template-columns:1fr}}'
+   +'.detail-hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(230px,300px);gap:16px;margin-top:20px}.detail-hero .panel{margin:0}.nameplate{border-radius:16px;background:#120709 url(/site/v106/raven-plaque-texture.webp) center/cover;background-blend-mode:screen;color:#fff;padding:clamp(20px,4vw,38px);overflow-wrap:anywhere}.nameplate h1{color:#fff;margin:8px 0}.nameplate .tag{color:#bfe3f4}.nameplate .chip{display:inline-block;background:#bfe3f4;color:#120709;border-radius:8px;padding:4px 9px;font-weight:750}.nameplate p{margin:9px 0 0}.estimate p{margin:0 0 12px}.detail-nav{display:flex;flex-wrap:wrap;gap:8px;margin:15px 0}.detail-nav a{display:inline-flex;align-items:center;min-height:44px;padding:6px 11px;border-radius:8px;background:#eef6fa;color:#120709}.stay-dates{border-bottom:2px solid #fd6e6e;padding-bottom:10px}.detail-hero .action,.actions .action{display:inline-flex;align-items:center;min-height:44px;background:#120709;color:#fff}section[id],aside[id]{scroll-margin-top:12px}@media(max-width:700px){.detail-hero{grid-template-columns:1fr}}'
+   +'.detail-tabs a{border:1px solid #82797d;background:#fff;text-decoration:none;font-weight:750;padding:6px 13px}.detail-tabs a[aria-selected=true]{color:#fff;background:#120709;border-color:#120709}.detail-tabs [hidden],[role=tabpanel][hidden]{display:none}'
    +'</style></head><body>'
-   +'<main class="wrap">'+APEX_STAFF_BRAND+'<nav class="detail-nav" aria-label="Run sheet navigation">'
+   +(chrome?renderStaffNav('run',chrome.showTools,chrome.email):'')+'<main class="wrap">'+(chrome?'':APEX_STAFF_BRAND)+'<nav class="detail-nav" aria-label="Run sheet navigation">'
    +'<a href="'+esc(navigation?.back??('/staff?stay='+bookingHref+'#selected-stay'))+'">← Run sheet</a>'
    +(navigation?.position?'<span>'+esc(navigation.position)+'</span>':'')
    +(navigation?.previous?'<a href="'+esc(navigation.previous.href)+'">Previous: '+esc(navigation.previous.name)+'</a>':'')
@@ -255,22 +268,28 @@ export function renderStaffBookingDetail(b:StaffBookingDetail,navigation?:Return
    +'<div class="detail-hero"><header class="nameplate"><span class="tag">Booking details · '+esc(b.id.slice(0,8))+'</span>'
    +'<h1>'+petText+'</h1><p><span class="chip">'+esc(status)+'</span>'
    +(latest?' '+esc(stayLabels[latest.action])+' · '+esc(latest.recorded_at):'')+'</p>'
-   +'<p>Owner '+esc(b.customerName)+'</p></header>'+estimate+'</div>'
+   +'<p>Owner '+esc(b.customerName)+'</p></header>'
+   +'<aside class="panel estimate"><h2>Next step</h2><p>'+(
+     b.status==='requested'?'Start the stay review.':b.status==='reviewing'?'Review boarding details and vaccination for each dog.'
+     :(b.pickupDropoffRequested?'Check the confirmed gates before pricing transport.':'Review the estimate for this stay.')
+   )+'</p><a href="'+(b.status==='requested'||b.status==='reviewing'?'#overview':b.pickupDropoffRequested?'#transport':'#estimate')+'">'
+   +'Open next step</a></aside></div>'
    +(b.isSynthetic?'<div class="banner">TEST RECORD · DO NOT CONTACT</div>':'')
    +'<p class="stay-dates">'+esc(b.startDate)+' → '+esc(b.endDate)+(days?' · '+days+(days===1?' billed day':' billed days'):'')+'</p>'
-   +'<nav class="detail-nav" aria-label="Booking sections"><a href="#overview">Overview</a><a href="#transport">Transport</a>'
+   +'<nav class="detail-nav detail-tabs" data-detail-tabs aria-label="Booking sections"><a href="#overview">Overview</a><a href="#transport">Transport</a>'
    +'<a href="#estimate">Estimate &amp; invoice</a>'+(b.stayHistory?'<a href="#history">History</a>':'')+'</nav>'
-   +'<section class="panel" id="overview"><h2>Owner &amp; booking</h2><dl class="detail-grid">'
+   +'<div id="overview"><section class="panel"><h2>Owner &amp; booking</h2><dl class="detail-grid">'
    +value('Booking ID',esc(b.id))
    +value('Received',esc(b.createdAt))
    +value('Pets',petText)
    +value('Assigned accommodation',present(b.accommodationType))
    +value('Owner phone',present(b.phone))
    +value('Owner email',present(b.email))
-   +'</dl></section>'+form+renderStayControls(b,navigation?.actionQuery??new URLSearchParams({id:b.id}).toString())
+   +'</dl></section>'+form+controls.actions
+   +'<p class="fine">Health and care details came from the owner. Confirm anything unclear before accepting the booking.</p></div>'
    +'<div id="transport">'+(transport||section('Transport',value('Requested transport',yesNo(b.pickupDropoffRequested))))
    +(b.pickupDropoffRequested===true||b.transportLocation
      ?'<div class="actions"><a class="action" href="/staff/transport?id='+bookingHref+'">Price pickup / drop-off</a></div>':'')+'</div>'
-   +'<p class="fine">Health and care details came from the owner. Confirm anything unclear before accepting the booking.</p>'
+   +estimate+controls.history
    +'</main></body></html>';
 }

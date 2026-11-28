@@ -2,7 +2,7 @@ import {lockUncorrectedInvoice} from './invoice-correction.ts';
 import {Client} from '@neondatabase/serverless';
 import {isSyntheticBooking} from './synthetic-booking.ts';
 import {createHash} from 'node:crypto';
-import {InvoiceApprovalError,INVOICE_UUID,prepareApproval,requireInvoiceOwner,validateApprovalSnapshot,type ApprovalConfig,type ApprovalInput,type ApprovedInvoice} from './invoice-approval.ts';
+import {InvoiceApprovalError,INVOICE_UUID,prepareApproval,requireFreshTransportEvidence,requireInvoiceOwner,validateApprovalSnapshot,type ApprovalConfig,type ApprovalInput,type ApprovedInvoice} from './invoice-approval.ts';
 import type {SavedReview} from './staff-saved-review.ts';
 
 type Row={id:string;snapshot:unknown;status:'approved'|'issued';issued_at?:string;pdf_sha256?:string};
@@ -102,6 +102,7 @@ export async function issueInvoice(databaseUrl:string,id:string,actor:string,con
     if(invoice.snapshot.deliveryRequested&&config.deliveryEnabled!=='true')throw new InvoiceApprovalError('Customer WhatsApp sending is disabled',503);
     if(invoice.snapshot.approvedBy!==actor)throw new InvoiceApprovalError('Owner identity changed; manual review is required',403);
     if(invoice.status==='issued')return invoice; // Never overwrite bytes on a duplicate click.
+    if(invoice.snapshot.review.pricingSnapshot)requireFreshTransportEvidence(invoice.snapshot.review,new Date());
     const updated=await db.query("UPDATE public.approved_invoices SET status='issued',issued_at=now(),pdf_bytes=$2,pdf_sha256=$3 WHERE id=$1 AND status='approved' RETURNING "+columns,[id,Buffer.from(pdfBytes),hash]);
     if(!updated.rows[0])throw new InvoiceApprovalError('Invoice state changed');
     await db.query("INSERT INTO public.invoice_approval_audit(invoice_id,action,actor) VALUES($1,'issued',$2)",[id,actor]);

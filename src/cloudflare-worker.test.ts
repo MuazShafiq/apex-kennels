@@ -85,3 +85,35 @@ test('database errors do not reveal internal details',async()=>{
   assert.equal(response.status,500);
   assert.deepEqual(await response.json(),{error:'Internal server error'});
 });
+
+test('public rate card exposes only boarding rates and revalidates on a change',async()=>{
+  const url='https://example.workers.dev/api/rate-card/current';
+  const current={...env,APEX_RATE_CARDS_ENABLED:'true'};
+  let version=3;
+  const times:(string|null)[]=[];
+  const deps:Parameters<typeof handleWorkerRequest>[3]={readRateCard:async(_db,at=null)=>{
+    times.push(at);
+    return {version,effectiveFrom:'2026-11-01T00:00:00+05:00',stdDaily:2500,cameraDaily:3000,
+      packageDiscount:10000,packageDays:30,fuelMode:'fixed',fixedFuelPkr:350,fixedUntil:'2026-11-30',
+      fixedReason:'Internal fuel reason',kmPerLitre:12,markupPct:20,freshnessHours:24,
+      createdBy:'owner@example.test',createdAt:'2026-11-01T00:00:00+05:00',summary:'Internal summary'};
+  }};
+  const disabled=await handleWorkerRequest(new Request(url),env,undefined,deps);
+  assert.equal(disabled.status,503);
+  for(const query of ['?bad=1','?at=','?at=2026-02-30T00:00:00Z','?at=2026-11-28T24:00:00Z','?at=a&at=a']){
+    const invalid=await handleWorkerRequest(new Request(url+query),current,undefined,deps);
+    assert.equal(invalid.status,400);
+  }
+  assert.deepEqual(times,[]);
+  const request=new Request(url+'?at=2026-11-28T12:00:00%2B05:00');
+  const response=await handleWorkerRequest(request,current,undefined,deps);
+  assert.deepEqual(times,['2026-11-28T07:00:00.000Z']);
+  assert.deepEqual(await response.json(),{version:3,effectiveFrom:'2026-10-31T19:00:00.000Z',
+    stdDaily:2500,cameraDaily:3000,packageDays:30,packageDiscount:10000});
+  assert.equal(response.headers.get('Cache-Control'),'private, no-cache');
+  const revalidate=()=>handleWorkerRequest(new Request(url,{headers:{'If-None-Match':response.headers.get('ETag')!}}),current,undefined,deps);
+  assert.equal((await revalidate()).status,304);
+  version=4;
+  assert.equal((await revalidate()).status,200);
+  assert.deepEqual(times,['2026-11-28T07:00:00.000Z',null,null]);
+});

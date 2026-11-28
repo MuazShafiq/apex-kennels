@@ -1,0 +1,113 @@
+/* Approved final homepage: paw artwork and cinematic journey. */
+/* V11.1 paw refinement: the Apex track pressed into the Request band's Raven, beside "We confirm before anything is booked." Deboss, not wax: the band is a surface, nothing has been sent yet. */
+.site .req .next{position:relative}
+.site .req-seal{position:absolute;left:440px;bottom:-52px;width:clamp(116px,10cqw,148px);aspect-ratio:714/847;background:url(paw-deboss-raven.webp) 50% 50%/100% 100% no-repeat;transform:rotate(-6deg);pointer-events:none}
+@container site (max-width:699px){.site .req-seal{position:relative;left:auto;bottom:auto;display:block;width:104px;margin:20px 0 0 40px}}
+
+/* V11 paw refinement: one trace crosses from Boarding into Camera cage, Raven earth on Mist, Powder chalk on Raven. */
+.site .paw-trail{position:absolute;left:0;right:0;height:10.5cqw;pointer-events:none;z-index:0}
+.site .boarding .paw-trail{bottom:0}
+.site .cam .paw-trail{top:0}
+
+/* ===== Cinematic layer (approved). Reduced motion keeps the static page. ===== */
+.site.cine-on .cine-hero>.hero{position:sticky;top:0}
+.site.cine-on .boarding{z-index:6}
+.site .cine-cam{position:absolute;inset:0;z-index:0;will-change:transform}
+.site .shep{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity .7s ease;pointer-events:none}
+.site .shep.live{opacity:1}
+.site .cine-dim{display:none}
+.site.cine-on .cine-dim{display:block;position:absolute;inset:0;z-index:2;background:#050203;opacity:0;pointer-events:none}
+.site .cine-wash{display:none}
+.site.cine-on .cine-wash{display:block;position:absolute;left:0;right:0;top:1px;height:clamp(84px,8.4cqw,150px);transform:translateY(-100%);background:var(--mist);pointer-events:none;
+  -webkit-mask:url(hero-boarding-wash.webp) var(--drag,0px) 100%/max(1800px,125%) 100% repeat-x;mask:url(hero-boarding-wash.webp) var(--drag,0px) 100%/max(1800px,125%) 100% repeat-x}
+.site.cine-on .rates{perspective:900px}
+.site.cine-on .rate{transform-origin:50% 100%;will-change:transform,opacity}
+.site .cine-sweep,.site .cine-scan{display:none}
+.site.cine-on .cine-sweep{display:block;position:absolute;top:-20%;bottom:-20%;left:0;width:60%;z-index:4;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.5) 50%,rgba(255,255,255,0));mix-blend-mode:soft-light;pointer-events:none;transform:translate3d(-130%,0,0)}
+.site.cine-on .cine-scan{display:block;position:absolute;left:0;right:0;top:0;height:16%;z-index:4;background:linear-gradient(180deg,rgba(255,77,85,0),rgba(255,77,85,.14) 60%,rgba(255,77,85,.5) 97%,rgba(255,77,85,0));mix-blend-mode:screen;pointer-events:none;opacity:0}
+.site.cine-on .ct-card{background-position:right calc(var(--sk,0)*-262px) top calc(var(--sk,0)*-150px),left calc(var(--sk,0)*-232px) bottom calc(var(--sk,0)*-110px),0 0}
+.site.cine-on .plq-fig,.site.cine-on .van-fig svg.van,.site.cine-on .swell-win,.site.cine-on .req .cut,.site.cine-on .req-seal{will-change:transform}
+.site.cine-on .paw-trail span{opacity:0}
+.site.cine-on .van-fig{overflow:hidden}
+/* the claw: three painted rakes through the old price; the price stays legible underneath */
+.site s.claw{position:relative;display:inline-block;text-decoration:none;--claw:#9E122B}
+.site .facts dd s.claw{--claw:#FF4D55}
+.site s.claw::after{content:"";position:absolute;left:-9%;right:-11%;top:-8%;bottom:-8%;background:var(--claw);pointer-events:none;
+  -webkit-mask:url(claw-strike.webp) 0 0/100% 100% no-repeat;mask:url(claw-strike.webp) 0 0/100% 100% no-repeat}
+.site.cine-on s.claw:not(.was)::after{clip-path:inset(-40% 100% -40% 0);transition:clip-path .46s cubic-bezier(.3,.7,.15,1) .06s}
+.site.cine-on s.claw.clawed::after{clip-path:inset(-40% 0 -40% 0)}
+.site.cine-on s.was.claw:not([hidden])::after{animation:apx-claw .46s cubic-bezier(.3,.7,.15,1) .12s both}
+@keyframes apx-claw{from{clip-path:inset(-40% 100% -40% 0)}to{clip-path:inset(-40% 0 -40% 0)}}
+
+/* Final menu spacing, portrait material and light-surface controls. */
+
+.site .sheet{position:fixed;z-index:60;inset:0;background:#0E0809;color:#fff;display:flex;flex-direction:column;padding:20px var(--hpad) 28px;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
+.site .sheet[hidden]{display:none}
+.site .sheet::before{content:"";position:absolute;inset:0;background:url(menu-mosaic.webp) 0 0/420px auto;mix-blend-mode:screen;opacity:.5;-webkit-mask-image:radial-gradient(90% 60% at 100% 100%,#000,transparent 70%);mask-image:radial-gradient(90% 60% at 100% 100%,#000,transparent 70%);pointer-events:none}
+.site .sheet-top{position:relative;display:flex;align-items:center;justify-content:space-between}
+.site .sheet nav{position:relative;display:flex;flex-direction:column;margin-top:22px}
+.site .sheet nav a{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 4px;font-size:clamp(30px,10cqw,40px);font-weight:900;letter-spacing:-.045em;line-height:1.05;white-space:nowrap;border-bottom:1px solid rgba(191,227,244,.12);border-radius:6px}
+.site .sheet nav a span{flex:none;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.2em;color:var(--powder)}
+.site .sheet .cta-m{width:calc(100% - 12px);margin:0 6px}
+@container site (max-width:319px){.site .sheet nav a{flex-wrap:wrap;gap:2px 12px;white-space:normal;font-size:28px}.site .sheet nav a span{flex:1 0 100%}}
+.site .sheet-foot{position:relative;margin-top:auto;padding-top:24px;display:flex;flex-direction:column;gap:16px}
+.site .sheet-soc{display:flex;gap:10px}
+.site .sheet-soc a{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:12px;box-shadow:inset 0 0 0 1px rgba(191,227,244,.2);color:#DCE8EE}
+
+
+.site .grain-p{display:none;position:absolute;z-index:2;left:0;right:0;bottom:0;height:58%;background:url(raven-grain-corner.webp) 100% 100%/100% auto no-repeat;mix-blend-mode:screen;opacity:.64;pointer-events:none}
+@container hero (aspect-ratio < 1){.site .grain-p{display:block}}
+@container site (min-width:1100px){.site .hero{height:max(600px,min(100vh,70cqw));height:max(600px,min(100svh,70cqw))}}
+.site .fld input{border-color:rgba(18,7,9,.5)}
+.site .fld input:hover{border-color:rgba(18,7,9,.7)}
+.site .seg label:has(input:checked),.site .mode[aria-pressed="true"]{box-shadow:inset 0 0 0 1.5px rgba(18,7,9,.5),0 1px 2px rgba(18,7,9,.14),0 6px 14px -8px rgba(18,7,9,.35)}
+.site .try input::placeholder{color:rgba(238,246,250,.5)}
+.site .res .eq{font-size:16px;font-weight:600;color:#41373B;font-variant-numeric:tabular-nums}
+.site .req::after{width:min(820px,72cqw);background:url(raven-grain-corner.webp) 100% 100%/cover no-repeat;opacity:.76;mask-image:none;-webkit-mask-image:none}
+@media(prefers-reduced-motion:reduce){.site .shep{transition:none}.site s.claw::after{animation:none;transition:none}}
+
+.site .amt2{display:grid;gap:10px;margin-top:16px}
+.site .amt2 p{display:flex;justify-content:space-between;align-items:baseline;gap:16px;text-align:left}
+.site .rate .amt2 p>span:last-child{order:-1;margin-top:0;font-size:16px;font-weight:650;color:#2A2226}
+.site .amt2 p+p{padding-top:10px;border-top:1px solid var(--line)}
+.site .rate .amt2 span.pp{display:flex;align-items:baseline;gap:12px;margin-top:0;font-size:inherit;color:inherit}
+.site .amt2 s{font-size:19px;font-weight:600;color:#6C6266;text-decoration-color:rgba(158,18,43,.7);text-decoration-thickness:1.5px;white-space:nowrap}
+@container site (max-width:560px){.site .amt2 p{flex-direction:column;align-items:flex-start;gap:6px}}
+.site .rate-status{grid-column:1/-1;font-size:16px;line-height:1.5;padding:12px 0}
+
+/* Final stay-counter hierarchy, keeping the functional inclusive-day calculation. */
+.site .counter{container:ctr / inline-size}
+.site .c-h{margin-top:0}
+.site .st-top{margin-bottom:14px}
+.site .st-n{display:flex;align-items:baseline;gap:10px}
+.site .st-n b{font-size:clamp(44px,4.2cqw,56px);font-weight:900;letter-spacing:-.055em;line-height:.86;font-variant-numeric:tabular-nums}
+.site .st-n i{font-style:normal;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#41373B}
+.site .st-ends{margin-top:10px}
+.site .st-ends b{font-size:14px;font-weight:700;color:#2A2226}
+.site .seg{margin-top:18px}
+.site .res{margin-top:22px}
+@container ctr (max-width:420px){.site .c-dates{grid-template-columns:minmax(0,1fr)}.site .strip{padding:16px 14px 14px}}
+
+/* The approved transport van. */
+.site .van{overflow:visible}
+.site .van .van-grain{mix-blend-mode:screen;opacity:.58}
+.site .van .van-rear{opacity:.24}
+.site .van .van-fleck{mix-blend-mode:screen;opacity:.62}
+.site .van .van-drl{opacity:.85}
+.site .van .van-paws{opacity:.94}
+.site .van .van-veh,.site .van .van-body,.site .van .van-spin{transform-box:view-box}
+.site .van .van-smoke ellipse{transform-box:fill-box;transform-origin:50% 50%}
+.site .van .van-smoke [class^="s"]{opacity:0}
+.site .van .van-smoke .haze{opacity:.55}
+@keyframes apx-van-roll{to{transform:rotate(360deg)}}
+@keyframes apx-van-ride{0%,100%{transform:translateY(0)}25%{transform:translateY(-.7px)}50%{transform:translateY(.15px)}75%{transform:translateY(-.45px)}}
+@keyframes apx-van-smoke{0%{opacity:0;transform:translate(0,0) scale(.3,.25)}10%{opacity:1}50%{opacity:.72}100%{opacity:0;transform:translate(-170px,-26px) scale(2.6,1.9)}}
+@keyframes apx-van-haze{0%,100%{opacity:.45;transform:scale(1,1)}50%{opacity:.65;transform:scale(1.08,1.15)}}
+@media (prefers-reduced-motion:no-preference){
+ .site .van .van-spin{animation:apx-van-roll .9s linear infinite}
+ .site .van .van-body{animation:apx-van-ride 1.6s ease-in-out infinite}
+ .site .van .van-smoke .haze{animation:apx-van-haze 2.6s ease-in-out infinite}
+ .site .van .van-smoke [class^="s"]{animation:apx-van-smoke 2.6s cubic-bezier(.25,.6,.35,1) infinite}
+ .site .van .van-smoke .s2{animation-delay:-0.325s}.site .van .van-smoke .s3{animation-delay:-0.650s}.site .van .van-smoke .s4{animation-delay:-0.975s}.site .van .van-smoke .s5{animation-delay:-1.300s}.site .van .van-smoke .s6{animation-delay:-1.625s}.site .van .van-smoke .s7{animation-delay:-1.950s}.site .van .van-smoke .s8{animation-delay:-2.275s}
+ .site .van-fig.is-idle .van *{animation-play-state:paused}
+}

@@ -97,9 +97,13 @@ test('book page lazily loads one pinned local map and keeps private credentials 
 test('customer-facing booking retains service details, exact six terms and no redundant UI',()=>{
   const html=readFileSync('public/book/index.html','utf8').replace(/\s+/g,' ');
   const js=readFileSync('public/book/app.js','utf8');
-  for(const benefit of ['Two meals daily','weekly vet check-ups','Rs 2,500 a day']){
+  for(const benefit of ['Two meals daily','weekly vet check-ups']){
     assert.ok(html.includes(benefit),benefit);
   }
+  assert.match(html,/data-booking-rate="no"/);
+  assert.match(html,/data-booking-rate="yes"/);
+  assert.match(html,/Current rates are unavailable\. You can still request a stay/);
+  assert.doesNotMatch(html,/Rs [\d,]+ a day/);
   const terms=html.match(/<div class="terms"[\s\S]*?<\/div>/)?.[0]??'';
   assert.equal((terms.match(/<li>/g)||[]).length,6);
   assert.match(terms,/I hold Apex Kennels and staff completely harmless/);

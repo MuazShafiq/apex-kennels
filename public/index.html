@@ -9,20 +9,16 @@
       content="Apex Kennels dog boarding in Islamabad. Explore rates, camera cages, grooming and transport, or request a stay."
     />
     <title>Apex Kennels | Dog boarding in Islamabad</title>
-    <link
-      rel="icon"
-      href="/site/v106/favicon-powder.png"
-      type="image/png"
-      sizes="16x16"
-    />
-    <link
-      rel="icon"
-      href="/site/v106/favicon.svg"
-      type="image/svg+xml"
-      sizes="any"
-    />
+    <link rel="icon" type="image/png" sizes="16x16" href="/site/v106/favicon-raven-square-16.png" media="(prefers-color-scheme: light)" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/site/v106/favicon-raven-square-32.png" media="(prefers-color-scheme: light)" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/site/v106/favicon-raven-square-64.png" media="(prefers-color-scheme: light)" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/site/v106/favicon-powder-square-16.png" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/site/v106/favicon-powder-square-32.png" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/site/v106/favicon-powder-square-64.png" media="(prefers-color-scheme: dark)" />
+    <link rel="apple-touch-icon" href="/site/v106/favicon-powder-square-64.png" />
     <link rel="stylesheet" href="/site/v106/common.css" />
     <link rel="stylesheet" href="/site/v106/home.css" />
+    <link rel="stylesheet" href="/site/v106/cinematic.css" />
     <script type="module" src="/site/v106/home.js"></script>
   </head>
   <body>
@@ -218,7 +214,9 @@
       </div>
 
       <main id="main-content" tabindex="-1">
+        <div class="cine-hero" data-cine-hero="">
         <section class="hero" id="top" tabindex="-1" data-hero="">
+          <div class="cine-cam" data-cine-cam="">
           <div
             class="stage"
             data-stage=""
@@ -227,7 +225,7 @@
           >
             <img
               class="plate"
-              loading="lazy"
+              loading="eager"
               fetchpriority="high"
               src="/site/v106/hero-landscape.webp"
               alt=""
@@ -240,7 +238,7 @@
           </div>
           <img
             class="plate-p"
-            loading="lazy"
+            loading="eager"
             fetchpriority="high"
             src="/site/v106/hero-portrait.webp"
             alt=""
@@ -248,6 +246,9 @@
             width="780"
             height="1688"
           />
+          <span class="grain-p" aria-hidden="true"></span>
+          </div>
+          <span class="cine-dim" aria-hidden="true"></span>
           <div class="scrim" aria-hidden="true"></div>
           <header class="nav rv" style="background: transparent">
             <a class="logo" href="#top" aria-label="Apex Kennels, home"
@@ -420,13 +421,14 @@
             </ul>
           </div>
         </section>
+        </div>
 
         <section
           class="sec pw boarding"
           id="boarding"
           tabindex="-1"
           aria-labelledby="h-boarding"
-        >
+        ><span class="cine-wash" aria-hidden="true"></span><div class="paw-trail" aria-hidden="true"><span style="position:absolute;left:12.86%;top:2.927cqw;width:clamp(34px,3.6cqw,52px);aspect-ratio:980/1173;transform:translate(-50%,-50%) rotate(122.4deg) scaleX(-1);background:url(/site/v106/paw-trace-raven.webp) 50% 50%/100% 100% no-repeat;opacity:.9"></span><span style="position:absolute;left:15.17%;top:7.353cqw;width:clamp(34px,3.6cqw,52px);aspect-ratio:980/1173;transform:translate(-50%,-50%) rotate(129.0deg);background:url(/site/v106/paw-trace-raven.webp) 50% 50%/100% 100% no-repeat;opacity:.9"></span><span style="position:absolute;left:20.03%;top:8.488cqw;width:clamp(34px,3.6cqw,52px);aspect-ratio:980/1173;transform:translate(-50%,-50%) rotate(125.0deg) scaleX(-1);background:url(/site/v106/paw-trace-raven.webp) 50% 50%/100% 100% no-repeat;opacity:.9"></span></div>
           <div class="wrap">
             <div class="bh" data-rv="">
               <p class="lbl">Boarding</p>
@@ -440,6 +442,7 @@
               </p>
             </div>
             <div class="bd-grid">
+              <p class="rate-status" data-rate-status="" role="status" hidden></p>
               <div class="rates" data-rv="">
                 <div class="rate">
                   <div>
@@ -450,7 +453,7 @@
                     </p>
                   </div>
                   <p class="amt">
-                    <b>Rs 2,500</b><span>per dog, per billed day</span>
+                    <b data-rate="stdDaily">To be confirmed</b><span>per dog, per billed day</span>
                   </p>
                 </div>
                 <div class="rate">
@@ -459,7 +462,7 @@
                     <p class="d">The same everyday care, with 24/7 CCTV.</p>
                   </div>
                   <p class="amt">
-                    <b>Rs 3,000</b><span>per dog, per billed day</span>
+                    <b data-rate="cameraDaily">To be confirmed</b><span>per dog, per billed day</span>
                   </p>
                   <a class="txt-link rate-lk" href="#camera"
                     >Explore camera cage boarding<svg
@@ -479,13 +482,13 @@
                   <div>
                     <h3><span class="n">03</span>Exactly 30 days</h3>
                     <p class="d">
-                      Thirty billed days unlock a lower boarding rate. The price
-                      is fixed for that stay length.
+                      Available for exactly 30 billed days, when selected and
+                      confirmed by staff.
                     </p>
                   </div>
                   <div class="amt amt2">
-                    <p><b>Rs 65,000</b><span>standard</span></p>
-                    <p><b>Rs 80,000</b><span>camera cage</span></p>
+                    <p><span class="pp"><s class="claw" data-rate="stdOriginal"></s><b data-rate="stdPackage">To be confirmed</b></span><span>standard</span></p>
+                    <p><span class="pp"><s class="claw" data-rate="cameraOriginal"></s><b data-rate="cameraPackage">To be confirmed</b></span><span>camera cage</span></p>
                   </div>
                   <p class="save">
                     <svg
@@ -500,13 +503,12 @@
                       aria-hidden="true"
                     >
                       <path d="m5 12 5 5 9-10"></path></svg
-                    >Save Rs 10,000 compared with the daily rate.
+                    ><span data-rate="savings">Ask us about the 30-day package.</span>
                   </p>
                 </div>
               </div>
               <div class="counter frost" data-counter="" data-rv="">
-                <p class="lbl">Count a stay</p>
-                <h3 class="c-h">See what your stay costs.</h3>
+                <h3 class="c-h">Count a stay<span class="pt-c">.</span></h3>
                 <div class="c-dates">
                   <label class="fld"
                     >Arrival<input
@@ -553,7 +555,7 @@
                 </div>
                 <div class="strip" data-c-strip="" aria-hidden="true">
                   <div class="st-top">
-                    <span class="st-n" data-c-mid="">12 billed days</span>
+                    <span class="st-n"><b data-c-n="">12</b><i data-c-unit="">billed days</i></span>
                   </div>
                   <div class="st-wrap">
                     <span class="st-glow"></span>
@@ -569,22 +571,22 @@
                     ><input
                       type="radio"
                       name="apx-c-space"
-                      value="2500"
+                      value="standard"
                       checked=""
-                    />Standard<small>Rs 2,500 a day</small></label
+                    />Standard<small data-rate="stdLabel">Rate to be confirmed</small></label
                   >
                   <label
                     ><input
                       type="radio"
                       name="apx-c-space"
-                      value="3000"
-                    />Camera cage<small>Rs 3,000 a day</small></label
+                      value="camera"
+                    />Camera cage<small data-rate="cameraLabel">Rate to be confirmed</small></label
                   >
                 </div>
                 <div class="res" aria-live="polite" id="c-strip-say">
-                  <span class="eq" data-c-eq="">12 billed days × Rs 2,500</span
+                  <span class="eq" data-c-eq="">12 billed days</span
                   ><span class="tots"
-                    ><s class="was" data-c-was="" hidden="">Rs 75,000</s
+                    ><s class="was claw" data-c-was="" hidden=""></s
                     ><span class="tot" data-c-tot="">Rs 30,000</span></span
                   >
                 </div>
@@ -601,7 +603,7 @@
                     aria-hidden="true"
                   >
                     <path d="m5 12 5 5 9-10"></path></svg
-                  >30-day rate applied. You save Rs 10,000.
+                  ><span data-rate="counterSavings">30-day package estimate. Staff confirm the package before booking.</span>
                 </p>
                 <p class="c-err" data-c-err="" hidden="">
                   Collection must be on or after arrival.
@@ -677,7 +679,7 @@
           id="camera"
           tabindex="-1"
           aria-labelledby="h-camera"
-        >
+        ><div class="paw-trail" aria-hidden="true"><span style="position:absolute;left:22.50%;top:2.377cqw;width:clamp(34px,3.6cqw,52px);aspect-ratio:980/1173;transform:translate(-50%,-50%) rotate(125.2deg);background:url(/site/v106/paw-trace-powder.webp) 50% 50%/100% 100% no-repeat;opacity:.9"></span><span style="position:absolute;left:27.41%;top:3.235cqw;width:clamp(34px,3.6cqw,52px);aspect-ratio:980/1173;transform:translate(-50%,-50%) rotate(120.9deg) scaleX(-1);background:url(/site/v106/paw-trace-powder.webp) 50% 50%/100% 100% no-repeat;opacity:.9"></span><span style="position:absolute;left:29.96%;top:7.524cqw;width:clamp(34px,3.6cqw,52px);aspect-ratio:980/1173;transform:translate(-50%,-50%) rotate(127.5deg);background:url(/site/v106/paw-trace-powder.webp) 50% 50%/100% 100% no-repeat;opacity:.9"></span></div>
           <div class="wrap cam-grid">
             <div data-rv="">
               <p class="lbl">Camera cage</p>
@@ -690,7 +692,7 @@
               <dl class="facts">
                 <div>
                   <dt>Per day</dt>
-                  <dd>Rs 3,000</dd>
+                  <dd data-rate="cameraDaily">To be confirmed</dd>
                 </div>
                 <div>
                   <dt>CCTV</dt>
@@ -698,13 +700,13 @@
                 </div>
                 <div>
                   <dt>30 billed days</dt>
-                  <dd>Rs 80,000</dd>
+                  <dd data-rate="cameraPackage">To be confirmed</dd>
                 </div>
               </dl>
             </div>
             <figure class="plq-fig" data-rv="">
               <div class="pq-tilt">
-                <div class="pq" data-plaque="">
+                <div class="pq" data-plaque=""><span class="cine-sweep" aria-hidden="true"></span><span class="cine-scan" aria-hidden="true"></span>
                   <span class="lum" aria-hidden="true"></span
                   ><span class="spec" aria-hidden="true"></span>
                   <span class="screw s1" aria-hidden="true"><i></i></span
@@ -812,455 +814,67 @@
                 Islamabad–Rawalpindi service area.
               </p>
             </div>
-            <figure class="van-fig" data-rv="">
-              <svg
-                viewBox="0 0 880 330"
-                role="img"
-                aria-label="Apex Kennels van illustration, marked pickup and drop-off"
-              >
-                <defs>
-                  <filter id="v5pw" x="0" y="0" width="1" height="1">
-                    <feFlood flood-color="#BFE3F4"></feFlood>
-                    <feComposite in2="SourceAlpha" operator="in"></feComposite>
-                  </filter>
-                  <linearGradient id="v5b" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stop-color="#3A2A30"></stop>
-                    <stop offset=".07" stop-color="#22141A"></stop>
-                    <stop offset=".2" stop-color="#120709"></stop>
-                    <stop offset=".62" stop-color="#150A0D"></stop>
-                    <stop offset=".86" stop-color="#0D0608"></stop>
-                    <stop offset="1" stop-color="#060203"></stop>
-                  </linearGradient>
-                  <linearGradient id="v5s" x1="0" y1="0" x2="1" y2=".55">
-                    <stop offset="0" stop-color="#fff" stop-opacity="0"></stop>
-                    <stop
-                      offset=".34"
-                      stop-color="#fff"
-                      stop-opacity="0"
-                    ></stop>
-                    <stop
-                      offset=".47"
-                      stop-color="#fff"
-                      stop-opacity=".055"
-                    ></stop>
-                    <stop
-                      offset=".53"
-                      stop-color="#fff"
-                      stop-opacity=".02"
-                    ></stop>
-                    <stop offset=".7" stop-color="#fff" stop-opacity="0"></stop>
-                  </linearGradient>
-                  <linearGradient id="v5g" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0" stop-color="#4A5F6B"></stop>
-                    <stop offset=".45" stop-color="#1A262D"></stop>
-                    <stop offset="1" stop-color="#2C3D46"></stop>
-                  </linearGradient>
-                  <linearGradient id="v5gs" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0" stop-color="#5F7784"></stop>
-                    <stop offset="1" stop-color="#1D2A31"></stop>
-                  </linearGradient>
-                  <radialGradient id="v5at" cx=".5" cy=".5" r=".5">
-                    <stop offset=".6" stop-color="#1C1317"></stop>
-                    <stop offset=".64" stop-color="#0E0809"></stop>
-                    <stop offset="1" stop-color="#090405"></stop>
-                  </radialGradient>
-                  <radialGradient id="v5ar" cx=".42" cy=".36" r=".7">
-                    <stop offset="0" stop-color="#E3EDF3"></stop>
-                    <stop offset=".55" stop-color="#A7B2B9"></stop>
-                    <stop offset="1" stop-color="#6B747A"></stop>
-                  </radialGradient>
-                  <linearGradient id="v5l" x1="0" y1="0" x2="0" y2="1">
-                    <stop
-                      offset="0"
-                      stop-color="#BFE3F4"
-                      stop-opacity="0"
-                    ></stop>
-                    <stop
-                      offset="1"
-                      stop-color="#BFE3F4"
-                      stop-opacity=".07"
-                    ></stop>
-                  </linearGradient>
-                  <linearGradient id="v5ph" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0" stop-color="#fff" stop-opacity="0"></stop>
-                    <stop
-                      offset=".42"
-                      stop-color="#fff"
-                      stop-opacity="0"
-                    ></stop>
-                    <stop
-                      offset=".5"
-                      stop-color="#fff"
-                      stop-opacity=".1"
-                    ></stop>
-                    <stop offset=".6" stop-color="#fff" stop-opacity="0"></stop>
-                  </linearGradient>
-                  <linearGradient id="v5hz" x1="0" y1="0" x2="0" y2="1">
-                    <stop
-                      offset="0"
-                      stop-color="#fff"
-                      stop-opacity=".045"
-                    ></stop>
-                    <stop
-                      offset=".2"
-                      stop-color="#fff"
-                      stop-opacity=".02"
-                    ></stop>
-                    <stop
-                      offset=".33"
-                      stop-color="#fff"
-                      stop-opacity=".05"
-                    ></stop>
-                    <stop
-                      offset=".355"
-                      stop-color="#000"
-                      stop-opacity=".16"
-                    ></stop>
-                    <stop
-                      offset=".5"
-                      stop-color="#000"
-                      stop-opacity=".05"
-                    ></stop>
-                    <stop offset="1" stop-color="#000" stop-opacity="0"></stop>
-                  </linearGradient>
-                  <clipPath id="v5c">
-                    <path
-                      d="M36 62 Q36 40 58 40 H598 C634 40 655 47 671 64 L742 144 C798 147 828 154 840 170 C846 179 848 192 848 208 V242 Q848 256 834 256 H768 A52 52 0 0 0 664 256 H238 A52 52 0 0 0 134 256 H50 Q36 256 36 242 Z"
-                    ></path>
-                  </clipPath>
-                </defs>
-                <ellipse
-                  cx="442"
-                  cy="304"
-                  rx="404"
-                  ry="9"
-                  fill="rgba(18,7,9,.2)"
-                ></ellipse>
-                <path
-                  d="M126 256 A60 60 0 0 1 246 256 Z M656 256 A60 60 0 0 1 776 256 Z"
-                  fill="#050203"
-                ></path>
-                <path
-                  d="M36 62 Q36 40 58 40 H598 C634 40 655 47 671 64 L742 144 C798 147 828 154 840 170 C846 179 848 192 848 208 V242 Q848 256 834 256 H768 A52 52 0 0 0 664 256 H238 A52 52 0 0 0 134 256 H50 Q36 256 36 242 Z"
-                  fill="url(#v5b)"
-                ></path>
-                <g clip-path="url(#v5c)">
-                  <image
-                    href="/site/v106/van-rear.webp"
-                    x="30"
-                    y="34"
-                    width="128"
-                    height="230"
-                    preserveAspectRatio="none"
-                  ></image>
-                  <rect
-                    x="30"
-                    y="34"
-                    width="128"
-                    height="200"
-                    fill="url(#v5ph)"
-                  ></rect>
-                  <path
-                    d="M158 40 V256"
-                    stroke="#070304"
-                    stroke-width="2"
-                  ></path>
-                  <path
-                    d="M160.2 40 V256"
-                    stroke="rgba(255,255,255,.07)"
-                    stroke-width="1"
-                  ></path>
-                  <path
-                    d="M506 44 V244"
-                    stroke="#050203"
-                    stroke-width="1.6"
-                  ></path>
-                  <path
-                    d="M507.6 44 V244"
-                    stroke="rgba(255,255,255,.05)"
-                    stroke-width="1"
-                  ></path>
-                  <path
-                    d="M648 60 V246"
-                    stroke="#050203"
-                    stroke-width="1.6"
-                  ></path>
-                  <path
-                    d="M649.6 60 V246"
-                    stroke="rgba(255,255,255,.05)"
-                    stroke-width="1"
-                  ></path>
-                  <path
-                    d="M30 51 H684"
-                    stroke="rgba(255,255,255,.06)"
-                    stroke-width="1"
-                  ></path>
-                  <path
-                    d="M30 52.5 H684"
-                    stroke="rgba(0,0,0,.35)"
-                    stroke-width="1"
-                  ></path>
-                  <path
-                    d="M30 226 H848"
-                    stroke="rgba(0,0,0,.4)"
-                    stroke-width="1"
-                  ></path>
-                  <path
-                    d="M30 227.5 H848"
-                    stroke="rgba(255,255,255,.045)"
-                    stroke-width="1"
-                  ></path>
-                  <rect
-                    x="30"
-                    y="200"
-                    width="830"
-                    height="42"
-                    fill="url(#v5l)"
-                  ></rect>
-                  <rect
-                    x="30"
-                    y="242"
-                    width="830"
-                    height="20"
-                    fill="#080405"
-                  ></rect>
-                  <rect
-                    x="30"
-                    y="34"
-                    width="830"
-                    height="230"
-                    fill="url(#v5s)"
-                  ></rect>
-                  <rect
-                    x="158"
-                    y="34"
-                    width="702"
-                    height="230"
-                    fill="url(#v5hz)"
-                  ></rect>
-                  <rect
-                    x="518"
-                    y="140"
-                    width="22"
-                    height="5"
-                    rx="2.5"
-                    fill="#2E2227"
-                  ></rect>
-                  <rect
-                    x="662"
-                    y="150"
-                    width="20"
-                    height="5"
-                    rx="2.5"
-                    fill="#2E2227"
-                  ></rect>
-                  <path
-                    d="M30 236 H134 M768 236 H860"
-                    stroke="#030102"
-                    stroke-width="12"
-                  ></path>
-                </g>
-                <path
-                  d="M134 256 A52 52 0 0 1 238 256 M664 256 A52 52 0 0 1 768 256"
-                  fill="none"
-                  stroke="rgba(255,255,255,.08)"
-                  stroke-width="1.2"
-                ></path>
-                <path
-                  d="M672 66 L741 144"
-                  stroke="url(#v5gs)"
-                  stroke-width="5"
-                  stroke-linecap="round"
-                  opacity=".7"
-                ></path>
-                <path
-                  d="M660 62 H668 Q676 62 682 70 L730 134 Q733 140 726 140 H660 Q656 140 656 136 V66 Q656 62 660 62 Z"
-                  fill="url(#v5g)"
-                ></path>
-                <path
-                  d="M666 70 L676 70 L706 112 L696 112 Z"
-                  fill="rgba(191,227,244,.22)"
-                ></path>
-                <path
-                  d="M822 160 Q838 164 844 176 L846 188 Q834 190 826 184 Q820 172 822 160 Z"
-                  fill="#EAF3F8"
-                ></path>
-                <path
-                  d="M826 164 Q836 167 840 175"
-                  stroke="rgba(18,7,9,.25)"
-                  stroke-width="1.2"
-                  fill="none"
-                ></path>
-                <rect
-                  x="36"
-                  y="150"
-                  width="7"
-                  height="38"
-                  rx="2"
-                  fill="#6E0710"
-                ></rect>
-                <rect
-                  x="37.5"
-                  y="153"
-                  width="2"
-                  height="32"
-                  rx="1"
-                  fill="rgba(255,255,255,.25)"
-                ></rect>
-                <g
-                  font-family="'Inter Tight',ui-sans-serif,system-ui,sans-serif"
-                >
-                  <text
-                    transform="translate(90 208) rotate(-90)"
-                    font-weight="900"
-                    font-size="21"
-                    letter-spacing="1.6"
-                    fill="#120709"
-                  >
-                    PICKUP
-                  </text>
-                  <text
-                    transform="translate(124 208) rotate(-90)"
-                    font-weight="900"
-                    font-size="21"
-                    letter-spacing="1.6"
-                    fill="#120709"
-                  >
-                    DROP-OFF
-                  </text>
-                  <text
-                    x="176"
-                    y="146"
-                    font-weight="900"
-                    font-size="120"
-                    letter-spacing="-4.6"
-                    fill="#FFFFFF"
-                  >
-                    APEX
-                  </text>
-                  <text
-                    x="181"
-                    y="172"
-                    font-family="'JetBrains Mono',ui-monospace,monospace"
-                    font-weight="600"
-                    font-size="17"
-                    letter-spacing="10.2"
-                    fill="#BFE3F4"
-                  >
-                    KENNELS
-                  </text>
-                </g>
-                <path
-                  d="M162.95 188.9 C230 187.4 262 189.6 290 201.2 C318 211.6 340 212.2 372 207 C412 199.5 438 185.5 470 185.9 C510 186.5 525 199.8 552 200 C584 200.2 604 183.6 626 163.6"
-                  fill="none"
-                  stroke="#FF4D55"
-                  stroke-width="5.4"
-                  stroke-linecap="round"
-                ></path>
-                <path
-                  d="M626.18 176.85 L628.23 161.99 L613.24 162.5"
-                  stroke="#FF4D55"
-                  stroke-width="7"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  fill="none"
-                ></path>
-                <image
-                  href="/site/v106/open-shepherd.svg"
-                  x="540"
-                  y="62"
-                  width="68"
-                  height="57"
-                  filter="url(#v5pw)"
-                ></image>
-                <g>
-                  <circle cx="186" cy="262" r="44" fill="url(#v5at)"></circle>
-                  <circle cx="186" cy="262" r="28" fill="url(#v5ar)"></circle>
-                  <g fill="#1B1417">
-                    <path
-                      transform="rotate(0 186 262)"
-                      d="M189.31 250.46 L190.89 239.01 A23.5 23.5 0 0 1 206.35 250.25 L195.95 255.29 A12 12 0 0 0 189.31 250.46 Z"
-                    ></path>
-                    <path
-                      transform="rotate(72 186 262)"
-                      d="M189.31 250.46 L190.89 239.01 A23.5 23.5 0 0 1 206.35 250.25 L195.95 255.29 A12 12 0 0 0 189.31 250.46 Z"
-                    ></path>
-                    <path
-                      transform="rotate(144 186 262)"
-                      d="M189.31 250.46 L190.89 239.01 A23.5 23.5 0 0 1 206.35 250.25 L195.95 255.29 A12 12 0 0 0 189.31 250.46 Z"
-                    ></path>
-                    <path
-                      transform="rotate(216 186 262)"
-                      d="M189.31 250.46 L190.89 239.01 A23.5 23.5 0 0 1 206.35 250.25 L195.95 255.29 A12 12 0 0 0 189.31 250.46 Z"
-                    ></path>
-                    <path
-                      transform="rotate(288 186 262)"
-                      d="M189.31 250.46 L190.89 239.01 A23.5 23.5 0 0 1 206.35 250.25 L195.95 255.29 A12 12 0 0 0 189.31 250.46 Z"
-                    ></path>
-                  </g>
-                  <circle
-                    cx="186"
-                    cy="262"
-                    r="28"
-                    fill="none"
-                    stroke="#5E666C"
-                    stroke-width="1.4"
-                  ></circle>
-                  <circle cx="186" cy="262" r="8.5" fill="#3A3135"></circle>
-                  <circle
-                    cx="186"
-                    cy="262"
-                    r="8.5"
-                    fill="none"
-                    stroke="#9AA6AE"
-                    stroke-width="1.2"
-                  ></circle>
-                </g>
-                <g>
-                  <circle cx="716" cy="262" r="44" fill="url(#v5at)"></circle>
-                  <circle cx="716" cy="262" r="28" fill="url(#v5ar)"></circle>
-                  <g fill="#1B1417">
-                    <path
-                      transform="rotate(0 716 262)"
-                      d="M719.31 250.46 L720.89 239.01 A23.5 23.5 0 0 1 736.35 250.25 L725.95 255.29 A12 12 0 0 0 719.31 250.46 Z"
-                    ></path>
-                    <path
-                      transform="rotate(72 716 262)"
-                      d="M719.31 250.46 L720.89 239.01 A23.5 23.5 0 0 1 736.35 250.25 L725.95 255.29 A12 12 0 0 0 719.31 250.46 Z"
-                    ></path>
-                    <path
-                      transform="rotate(144 716 262)"
-                      d="M719.31 250.46 L720.89 239.01 A23.5 23.5 0 0 1 736.35 250.25 L725.95 255.29 A12 12 0 0 0 719.31 250.46 Z"
-                    ></path>
-                    <path
-                      transform="rotate(216 716 262)"
-                      d="M719.31 250.46 L720.89 239.01 A23.5 23.5 0 0 1 736.35 250.25 L725.95 255.29 A12 12 0 0 0 719.31 250.46 Z"
-                    ></path>
-                    <path
-                      transform="rotate(288 716 262)"
-                      d="M719.31 250.46 L720.89 239.01 A23.5 23.5 0 0 1 736.35 250.25 L725.95 255.29 A12 12 0 0 0 719.31 250.46 Z"
-                    ></path>
-                  </g>
-                  <circle
-                    cx="716"
-                    cy="262"
-                    r="28"
-                    fill="none"
-                    stroke="#5E666C"
-                    stroke-width="1.4"
-                  ></circle>
-                  <circle cx="716" cy="262" r="8.5" fill="#3A3135"></circle>
-                  <circle
-                    cx="716"
-                    cy="262"
-                    r="8.5"
-                    fill="none"
-                    stroke="#9AA6AE"
-                    stroke-width="1.2"
-                  ></circle>
-                </g>
-              </svg>
-            </figure>
+            <figure class="van-fig is-idle" data-van data-rv="">
+    <svg class="van" viewBox="0 0 880 330" role="img" aria-label="Apex Kennels transport van">
+     <defs>
+      <filter id="v5pw" x="0" y="0" width="1" height="1"><feFlood flood-color="#BFE3F4"></feFlood><feComposite in2="SourceAlpha" operator="in"></feComposite></filter>
+      <linearGradient id="v5b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3A2A30"></stop><stop offset=".07" stop-color="#22141A"></stop><stop offset=".2" stop-color="#120709"></stop><stop offset=".62" stop-color="#150A0D"></stop><stop offset=".86" stop-color="#0D0608"></stop><stop offset="1" stop-color="#060203"></stop></linearGradient>
+      <linearGradient id="v5s" x1="0" y1="0" x2="1" y2=".55"><stop offset="0" stop-color="#fff" stop-opacity="0"></stop><stop offset=".34" stop-color="#fff" stop-opacity="0"></stop><stop offset=".47" stop-color="#fff" stop-opacity=".055"></stop><stop offset=".53" stop-color="#fff" stop-opacity=".02"></stop><stop offset=".7" stop-color="#fff" stop-opacity="0"></stop></linearGradient>
+      <linearGradient id="v5g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4A5F6B"></stop><stop offset=".45" stop-color="#1A262D"></stop><stop offset="1" stop-color="#2C3D46"></stop></linearGradient>
+      <linearGradient id="v5gs" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5F7784"></stop><stop offset="1" stop-color="#1D2A31"></stop></linearGradient>
+      <radialGradient id="v5at" cx=".5" cy=".5" r=".5"><stop offset=".6" stop-color="#1C1317"></stop><stop offset=".64" stop-color="#0E0809"></stop><stop offset="1" stop-color="#090405"></stop></radialGradient>
+      <radialGradient id="v5ar" cx=".42" cy=".36" r=".7"><stop offset="0" stop-color="#E3EDF3"></stop><stop offset=".55" stop-color="#A7B2B9"></stop><stop offset="1" stop-color="#6B747A"></stop></radialGradient>
+      <linearGradient id="v5l" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#BFE3F4" stop-opacity="0"></stop><stop offset="1" stop-color="#BFE3F4" stop-opacity=".07"></stop></linearGradient>
+      <linearGradient id="v5ph" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"></stop><stop offset=".42" stop-color="#fff" stop-opacity="0"></stop><stop offset=".5" stop-color="#fff" stop-opacity=".1"></stop><stop offset=".6" stop-color="#fff" stop-opacity="0"></stop></linearGradient>
+      <linearGradient id="v5hz" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".045"></stop><stop offset=".2" stop-color="#fff" stop-opacity=".02"></stop><stop offset=".33" stop-color="#fff" stop-opacity=".05"></stop><stop offset=".355" stop-color="#000" stop-opacity=".16"></stop><stop offset=".5" stop-color="#000" stop-opacity=".05"></stop><stop offset="1" stop-color="#000" stop-opacity="0"></stop></linearGradient>
+      <linearGradient id="v6gl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6F8C9B"></stop><stop offset=".38" stop-color="#22323B"></stop><stop offset=".72" stop-color="#16222A"></stop><stop offset="1" stop-color="#2C3D46"></stop></linearGradient>
+      <radialGradient id="v6dl" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".95"></stop><stop offset=".35" stop-color="#BFE3F4" stop-opacity=".55"></stop><stop offset="1" stop-color="#BFE3F4" stop-opacity="0"></stop></radialGradient>
+      <radialGradient id="v7pf" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#FFFFFF" stop-opacity="1"></stop><stop offset=".4" stop-color="#F3F6F8" stop-opacity=".88"></stop><stop offset=".7" stop-color="#C5D0D6" stop-opacity=".46"></stop><stop offset="1" stop-color="#9FB0BA" stop-opacity="0"></stop></radialGradient>
+      <linearGradient id="v7rr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity=".55"></stop><stop offset=".55" stop-color="#000" stop-opacity=".2"></stop><stop offset="1" stop-color="#000" stop-opacity="0"></stop></linearGradient>
+      <filter id="v7sm" x="-60%" y="-120%" width="220%" height="340%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency=".02 .055" numOctaves="3" seed="7" result="n"></feTurbulence><feDisplacementMap in="SourceGraphic" in2="n" scale="28" xChannelSelector="R" yChannelSelector="G" result="d"></feDisplacementMap><feGaussianBlur in="d" stdDeviation="2"></feGaussianBlur></filter>
+      <clipPath id="v5c"><path d="M36 62 Q36 40 58 40 H598 C634 40 655 47 671 64 L742 144 C798 147 828 154 840 170 C846 179 848 192 848 208 V242 Q848 256 834 256 H768 A52 52 0 0 0 664 256 H238 A52 52 0 0 0 134 256 H50 Q36 256 36 242 Z"></path></clipPath>
+     </defs>
+     <ellipse cx="442" cy="304" rx="404" ry="9" fill="rgba(18,7,9,.2)"></ellipse>
+     <ellipse cx="186" cy="305" rx="50" ry="4.5" fill="rgba(18,7,9,.34)"></ellipse><ellipse cx="716" cy="305" rx="50" ry="4.5" fill="rgba(18,7,9,.34)"></ellipse>
+     <g class="van-smoke" aria-hidden="true" filter="url(#v7sm)"><ellipse class="haze" cx="96" cy="299" rx="84" ry="8" fill="url(#v7pf)"></ellipse><ellipse class="s1" cx="146" cy="296" rx="40" ry="16" fill="url(#v7pf)"></ellipse><ellipse class="s2" cx="142" cy="299" rx="36" ry="15" fill="url(#v7pf)"></ellipse><ellipse class="s3" cx="148" cy="294" rx="44" ry="18" fill="url(#v7pf)"></ellipse><ellipse class="s4" cx="144" cy="300" rx="34" ry="14" fill="url(#v7pf)"></ellipse><ellipse class="s5" cx="146" cy="297" rx="40" ry="16" fill="url(#v7pf)"></ellipse><ellipse class="s6" cx="141" cy="298" rx="38" ry="15" fill="url(#v7pf)"></ellipse><ellipse class="s7" cx="147" cy="295" rx="42" ry="17" fill="url(#v7pf)"></ellipse><ellipse class="s8" cx="143" cy="299" rx="36" ry="15" fill="url(#v7pf)"></ellipse></g>
+     <g class="van-veh"><g class="van-body">
+     <path d="M126 256 A60 60 0 0 1 246 256 Z M656 256 A60 60 0 0 1 776 256 Z" fill="#050203"></path>
+     <path d="M36 62 Q36 40 58 40 H598 C634 40 655 47 671 64 L742 144 C798 147 828 154 840 170 C846 179 848 192 848 208 V242 Q848 256 834 256 H768 A52 52 0 0 0 664 256 H238 A52 52 0 0 0 134 256 H50 Q36 256 36 242 Z" fill="url(#v5b)"></path>
+     <g clip-path="url(#v5c)">
+      <image href="/site/v106/van-rear.webp" x="30" y="34" width="128" height="230" preserveAspectRatio="none" class="van-rear"></image><rect x="30" y="34" width="128" height="230" fill="url(#v7rr)"></rect><rect x="30" y="34" width="128" height="200" fill="url(#v5ph)"></rect>
+      <image class="van-grain" href="/site/v106/van-trailing-grain.webp" x="30" y="34" width="830" height="230" preserveAspectRatio="xMidYMid slice" transform="matrix(-1 0 0 1 890 0)"></image><image class="van-fleck" href="/site/v106/raven-grain-corner.webp" x="470" y="34" width="390" height="230" preserveAspectRatio="xMaxYMax slice"></image>
+      <path d="M158 40 V256" stroke="#070304" stroke-width="2"></path><path d="M160.2 40 V256" stroke="rgba(255,255,255,.07)" stroke-width="1"></path>
+      <path d="M506 44 V244" stroke="#050203" stroke-width="1.6"></path><path d="M507.6 44 V244" stroke="rgba(255,255,255,.05)" stroke-width="1"></path>
+      <path d="M648 60 V246" stroke="#050203" stroke-width="1.6"></path><path d="M649.6 60 V246" stroke="rgba(255,255,255,.05)" stroke-width="1"></path>
+      <path d="M30 51 H684" stroke="rgba(255,255,255,.06)" stroke-width="1"></path><path d="M30 52.5 H684" stroke="rgba(0,0,0,.35)" stroke-width="1"></path>
+      <path d="M30 226 H848" stroke="rgba(0,0,0,.4)" stroke-width="1"></path><path d="M30 227.5 H848" stroke="rgba(255,255,255,.045)" stroke-width="1"></path>
+      <rect x="30" y="200" width="830" height="42" fill="url(#v5l)"></rect><rect x="30" y="242" width="830" height="20" fill="#080405"></rect>
+      <rect x="30" y="34" width="830" height="230" fill="url(#v5s)"></rect>
+      <rect x="158" y="34" width="702" height="230" fill="url(#v5hz)"></rect>
+      <rect x="518" y="140" width="22" height="5" rx="2.5" fill="#2E2227"></rect><rect x="662" y="150" width="20" height="5" rx="2.5" fill="#2E2227"></rect>
+      <path d="M30 236 H134 M768 236 H860" stroke="#030102" stroke-width="12"></path>
+      <path d="M36 62 Q36 40.7 58 40.7 H598 C634 40.7 655 47.7 670.5 64.6 L741.5 144.6" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="1"></path>
+      <rect x="256" y="252" width="56" height="4" fill="#FF4D55"></rect>
+     </g>
+     <path d="M134 256 A52 52 0 0 1 238 256 M664 256 A52 52 0 0 1 768 256" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="1.2"></path>
+     <path d="M672 66 L741 144" stroke="url(#v5gs)" stroke-width="5" stroke-linecap="round" opacity=".7"></path>
+     <path d="M660 62 H668 Q676 62 682 70 L730 134 Q733 140 726 140 H660 Q656 140 656 136 V66 Q656 62 660 62 Z" fill="url(#v6gl)" stroke="rgba(191,227,244,.42)" stroke-width="1"></path>
+     <path d="M666 70 L676 70 L706 112 L696 112 Z" fill="rgba(191,227,244,.22)"></path>
+     <path d="M822 160 Q838 164 844 176 L846 188 Q834 190 826 184 Q820 172 822 160 Z" fill="#EAF3F8"></path><path d="M826 164 Q836 167 840 175" stroke="rgba(18,7,9,.25)" stroke-width="1.2" fill="none"></path><ellipse class="van-drl" cx="842" cy="175" rx="30" ry="16" fill="url(#v6dl)"></ellipse>
+     <rect x="36" y="150" width="7" height="38" rx="2" fill="#6E0710"></rect><rect x="37.5" y="153" width="2" height="32" rx="1" fill="rgba(255,255,255,.25)"></rect>
+     <g font-family="'Inter Tight',ui-sans-serif,system-ui,sans-serif">
+      </g><g class="van-paws" aria-hidden="true"><image href="/site/v106/paw-painted-powder.webp" x="-14.0" y="-16.8" width="27.94419235894974" height="33.6" transform="translate(58.8 202.4) rotate(16.5) scale(-1 1)" preserveAspectRatio="none"></image><image href="/site/v106/paw-painted-powder.webp" x="-13.7" y="-16.5" width="27.412664136922864" height="33.0" transform="translate(89.2 177.5) rotate(34.0)" preserveAspectRatio="none"></image><image href="/site/v106/paw-painted-powder.webp" x="-14.3" y="-17.2" width="28.584232970442724" height="34.4" transform="translate(90.7 138.8) rotate(21.4) scale(-1 1)" preserveAspectRatio="none"></image><image href="/site/v106/paw-painted-powder.webp" x="-13.8" y="-16.6" width="27.619889083209642" height="33.2" transform="translate(119.4 112.1) rotate(26.6)" preserveAspectRatio="none"></image><image href="/site/v106/paw-painted-powder.webp" x="-13.6" y="-16.4" width="27.266060382718358" height="32.8" transform="translate(118.6 72.9) rotate(13.9) scale(-1 1)" preserveAspectRatio="none"></image></g><g font-family="'Inter Tight',ui-sans-serif,system-ui,sans-serif">
+      <text x="176" y="146" font-weight="900" font-size="120" letter-spacing="-4.6" fill="#FFFFFF">APEX</text>
+      <text x="181" y="172" font-family="'JetBrains Mono',ui-monospace,monospace" font-weight="600" font-size="17" letter-spacing="10.2" fill="#BFE3F4">KENNELS</text>
+     </g>
+     <path d="M162.95 188.9 C230 187.4 262 189.6 290 201.2 C318 211.6 340 212.2 372 207 C412 199.5 438 185.5 470 185.9 C510 186.5 525 199.8 552 200 C584 200.2 604 183.6 626 163.6" fill="none" stroke="#FF4D55" stroke-width="5.4" stroke-linecap="round"></path>
+     <path d="M626.18 176.85 L628.23 161.99 L613.24 162.5" stroke="#FF4D55" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+     <image href="/site/v106/open-shepherd.svg" x="540" y="62" width="68" height="57" filter="url(#v5pw)"></image>
+     </g>
+     <g><circle cx="186" cy="262" r="44" fill="url(#v5at)"></circle><circle cx="186" cy="262" r="28" fill="url(#v5ar)"></circle><g class="van-spin" style="transform-origin:186px 262px"><g fill="#1B1417"><path transform="rotate(0 186 262)" d="M189.31 250.46 L190.89 239.01 A23.5 23.5 0 0 1 206.35 250.25 L195.95 255.29 A12 12 0 0 0 189.31 250.46 Z"></path><path transform="rotate(72 186 262)" d="M189.31 250.46 L190.89 239.01 A23.5 23.5 0 0 1 206.35 250.25 L195.95 255.29 A12 12 0 0 0 189.31 250.46 Z"></path><path transform="rotate(144 186 262)" d="M189.31 250.46 L190.89 239.01 A23.5 23.5 0 0 1 206.35 250.25 L195.95 255.29 A12 12 0 0 0 189.31 250.46 Z"></path><path transform="rotate(216 186 262)" d="M189.31 250.46 L190.89 239.01 A23.5 23.5 0 0 1 206.35 250.25 L195.95 255.29 A12 12 0 0 0 189.31 250.46 Z"></path><path transform="rotate(288 186 262)" d="M189.31 250.46 L190.89 239.01 A23.5 23.5 0 0 1 206.35 250.25 L195.95 255.29 A12 12 0 0 0 189.31 250.46 Z"></path></g></g><circle cx="186" cy="262" r="28" fill="none" stroke="#5E666C" stroke-width="1.4"></circle><circle cx="186" cy="262" r="40.5" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1"></circle><circle cx="186" cy="262" r="8.5" fill="#3A3135"></circle><circle cx="186" cy="262" r="8.5" fill="none" stroke="#9AA6AE" stroke-width="1.2"></circle></g>
+     <g><circle cx="716" cy="262" r="44" fill="url(#v5at)"></circle><circle cx="716" cy="262" r="28" fill="url(#v5ar)"></circle><g class="van-spin" style="transform-origin:716px 262px"><g fill="#1B1417"><path transform="rotate(0 716 262)" d="M719.31 250.46 L720.89 239.01 A23.5 23.5 0 0 1 736.35 250.25 L725.95 255.29 A12 12 0 0 0 719.31 250.46 Z"></path><path transform="rotate(72 716 262)" d="M719.31 250.46 L720.89 239.01 A23.5 23.5 0 0 1 736.35 250.25 L725.95 255.29 A12 12 0 0 0 719.31 250.46 Z"></path><path transform="rotate(144 716 262)" d="M719.31 250.46 L720.89 239.01 A23.5 23.5 0 0 1 736.35 250.25 L725.95 255.29 A12 12 0 0 0 719.31 250.46 Z"></path><path transform="rotate(216 716 262)" d="M719.31 250.46 L720.89 239.01 A23.5 23.5 0 0 1 736.35 250.25 L725.95 255.29 A12 12 0 0 0 719.31 250.46 Z"></path><path transform="rotate(288 716 262)" d="M719.31 250.46 L720.89 239.01 A23.5 23.5 0 0 1 736.35 250.25 L725.95 255.29 A12 12 0 0 0 719.31 250.46 Z"></path></g></g><circle cx="716" cy="262" r="28" fill="none" stroke="#5E666C" stroke-width="1.4"></circle><circle cx="716" cy="262" r="40.5" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1"></circle><circle cx="716" cy="262" r="8.5" fill="#3A3135"></circle><circle cx="716" cy="262" r="8.5" fill="none" stroke="#9AA6AE" stroke-width="1.2"></circle></g></g>
+    </svg>
+   </figure>
             <div class="tr-grid">
               <ol class="steps3" data-rv="">
                 <li>
@@ -1535,7 +1149,7 @@
                     before a booking is agreed.</span
                   >
                 </li>
-              </ol>
+              </ol><span class="req-seal" aria-hidden="true"></span>
             </div>
             <div class="req-act" data-rv="">
               <a class="cta" href="/book"

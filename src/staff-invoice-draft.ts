@@ -1,3 +1,5 @@
+import type {SavedReview} from './staff-saved-review.ts';
+import type {RateTerms} from './rate-card.ts';
 import {APEX_STAFF_THEME_CSS,APEX_STAFF_BRAND} from './apex-brand.ts';
 import {Client} from '@neondatabase/serverless';
 import {isSyntheticBooking} from './synthetic-booking.ts';
@@ -31,7 +33,7 @@ export type StaffDraftReview={
   packageChoice:StaffPackageChoice;
   draft:ApexDraftQuote|null;
   /** Generated only after the staff-verified route and fresh fuel lookup. */
-  transport?:{route:RouteEstimate;fuelRate:VerifiedPetrolRate};
+  transport?:{route:RouteEstimate;fuelRate?:VerifiedPetrolRate};
   issues:string[];
   previewOnly:true;
   canSend:false;
@@ -127,7 +129,8 @@ export async function readStaffInvoiceSource(databaseUrl:string,bookingId:string
  */
 export function prepareStaffDraftReview(
   source:StaffInvoiceSource,
-  selection:StaffPackageSelection
+  selection:StaffPackageSelection,
+  card?:RateTerms
 ):StaffDraftReview{
   source={...source,synthetic:source.synthetic||isSyntheticBooking({customerName:source.customerName,petName:source.petNames})};
   const packageChoice:StaffPackageChoice=selection==='auto'?'daily':selection;
@@ -148,7 +151,7 @@ export function prepareStaffDraftReview(
   const monthly=packageChoice==='monthly';
   const billedDays=countBilledDays(source.startDate,source.endDate,'inclusive_days');
   if(monthly&&billedDays!==30){
-    issues.push('The Rs. 10,000 monthly discount applies to a 30 billed-day stay.');
+    issues.push('The monthly discount applies to a 30 billed-day stay.');
     return {booking:source,packageChoice,draft:null,issues,previewOnly:true,canSend:false,canApprove:false};
   }
   if(monthly)issues.push('30-day discount: confirm dates before approving the invoice.');
@@ -161,7 +164,7 @@ export function prepareStaffDraftReview(
     cage:source.cameraCageRequested?'camera':'normal',
     petCount:source.petCount,cameraPetCount:source.cameraPetCount,fullMonthPackageSelected:monthly,
     transport:{requested:source.transportRequested},
-  });
+  },card);
   return {booking:source,packageChoice,draft,issues,previewOnly:true,canSend:false,canApprove:false};
 }
 
@@ -193,15 +196,17 @@ function esc(v:string):string{
   }[c]??c));
 }
 const pkr=(n:number)=>'PKR '+n.toLocaleString('en-PK');
-export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'demo'='staff',options:{enableSaving?:boolean;savedRevision?:number}={}):string{
+export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'demo'='staff',options:{enableSaving?:boolean;savedRevision?:number;saved?:SavedReview|null;currentVersion?:number}={}):string{
   const source=review.booking;
+  const savedRevision=options.saved?.revision??options.savedRevision??0;
+  const savedVersion=options.saved?.snapshot.pricingSnapshot?.rateCardVersion;
   const formAction=site==='staff'?'/staff/draft':'/demo/draft';
   const select='<form method="get" action="'+formAction+'">'
     +'<input type="hidden" name="id" value="'+esc(source.bookingId)+'">'
     +'<label for="package">Boarding rate</label>'
     +'<select id="package" name="package">'
     +'<option value="daily"'+(review.packageChoice==='daily'?' selected':'')+'>Daily boarding</option>'
-    +'<option value="monthly"'+(review.packageChoice==='monthly'?' selected':'')+'>30-day package (Rs. 10,000 off per dog)</option>'
+    +'<option value="monthly"'+(review.packageChoice==='monthly'?' selected':'')+'>30-day package</option>'
     +'</select><button type="submit">Update estimate</button></form>';
   const rows=review.draft?.quote.lines.map(x=>'<tr><td>'+esc(x.label)+'</td>'
     +'<td class="number">'+x.quantity+'</td><td class="number">'+pkr(x.unitPricePkr)
@@ -229,6 +234,11 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
     +'<main class="wrap">'+APEX_STAFF_BRAND+'<a href="'+(site==='staff'?'/staff':'/demo/staff')+'">← Booking queue</a>'
     +'<div class="tag" style="margin-top:30px">Apex Kennels / Owner review</div>'
     +'<h1>Boarding price estimate</h1>'
+    +(options.saved&&options.currentVersion!==undefined
+      ?'<div class="panel"><p>Saved estimate · '+pkr(options.saved.snapshot.quote.totalPkr)+'</p><p>'
+        +(savedVersion===undefined?'Saved before versioned rate cards.':'Saved on rate card version '+savedVersion+'.')
+        +' Re-saving uses version '+options.currentVersion+' and creates a new revision.</p>'
+        +'<a href="/staff/draft/saved.pdf?id='+encodeURIComponent(source.bookingId)+'">Open saved estimate PDF</a></div>':'')
     +'<div class="banner">STAFF ESTIMATE · NOT PAYABLE'
     +(source.synthetic||site==='demo'?' · SYNTHETIC DATA':'')+'</div>'
     +'<div class="panel"><p><strong>'+esc(source.customerName)+'</strong> · '+esc(source.petNames)
@@ -252,10 +262,11 @@ export function renderStaffDraftReview(review:StaffDraftReview,site:'staff'|'dem
           ?'<form method="post" action="/staff/draft/save">'
             +'<input type="hidden" name="id" value="'+esc(source.bookingId)+'">'
             +'<input type="hidden" name="package" value="'+esc(review.packageChoice)+'">'
-            +'<input type="hidden" name="revision" value="'+String(options.savedRevision??0)+'">'
-            +'<button type="submit">'+(source.synthetic?(options.savedRevision?'Update synthetic test draft':'Save synthetic test draft')
-              :(options.savedRevision?'Update saved draft':'Save internal draft'))+'</button></form>'
-            +(options.savedRevision?'<p><a href="/staff/invoices/review?id='+encodeURIComponent(source.bookingId)+'">Owner approval</a></p><p><a href="/staff/draft/saved?id='
+            +'<input type="hidden" name="revision" value="'+String(savedRevision)+'">'
+            +(options.currentVersion===undefined?'':'<input type="hidden" name="rateCard" value="'+options.currentVersion+'">')
+            +'<button type="submit">'+(source.synthetic?(savedRevision?'Update synthetic test draft':'Save synthetic test draft')
+              :(savedRevision?'Update saved draft':'Save internal draft'))+'</button></form>'
+            +(savedRevision?'<p><a href="/staff/invoices/review?id='+encodeURIComponent(source.bookingId)+'">Owner approval</a></p><p><a href="/staff/draft/saved?id='
               +encodeURIComponent(source.bookingId)+'">View saved Canva invoice</a> · <a href="/staff/draft/saved.pdf?id='+encodeURIComponent(source.bookingId)+'&amp;download=1">Download Canva PDF</a></p>':'')
           :'')
         +'</div>'

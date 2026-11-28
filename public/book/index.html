@@ -6,7 +6,13 @@
     <meta name="robots" content="noindex,nofollow" />
     <meta name="theme-color" content="#EEF6FA" />
     <title>Request a stay | Apex Kennels</title>
-    <link rel="icon" href="/site/v106/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/site/v106/favicon-raven-square-16.png" media="(prefers-color-scheme: light)" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/site/v106/favicon-raven-square-32.png" media="(prefers-color-scheme: light)" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/site/v106/favicon-raven-square-64.png" media="(prefers-color-scheme: light)" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/site/v106/favicon-powder-square-16.png" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/site/v106/favicon-powder-square-32.png" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/site/v106/favicon-powder-square-64.png" media="(prefers-color-scheme: dark)" />
+    <link rel="apple-touch-icon" href="/site/v106/favicon-powder-square-64.png" />
     <link rel="stylesheet" href="/site/v106/common.css" />
     <link rel="stylesheet" href="/book/styles.css" />
     <script
@@ -159,7 +165,7 @@
                           required
                         /><span class="ck" aria-hidden="true"></span
                         ><b>Standard boarding</b
-                        ><span class="pr">Rs 2,500 a day</span
+                        ><span class="pr" data-booking-rate="no">Rate to be confirmed</span
                         ><small
                           >Two meals daily, morning and evening playtime, weekly
                           vet check-ups and grooming.</small
@@ -174,7 +180,7 @@
                           name="cameraCageRequested"
                           value="yes"
                         /><span class="ck" aria-hidden="true"></span
-                        ><b>Camera cage</b><span class="pr">Rs 3,000 a day</span
+                        ><b>Camera cage</b><span class="pr" data-booking-rate="yes">Rate to be confirmed</span
                         ><small
                           >The same everyday care, with 24/7 CCTV.</small
                         ></label
@@ -198,6 +204,7 @@
                     ><span data-package-copy></span>
                   </p>
                   <p class="full hint">Grooming is free with every stay.</p>
+                  <p class="full hint" data-rate-note role="status">Current rates are unavailable. You can still request a stay; we’ll confirm the price with you.</p>
                 </div>
                 <div class="nav-row">
                   <span></span
@@ -1501,6 +1508,7 @@
 
           <aside class="side" data-side aria-label="Stay summary">
             <div class="ticket" id="stay-ticket">
+              <span class="tk-deboss" aria-hidden="true"></span>
               <p class="lbl">Stay summary</p>
               <p class="tk-name empty" data-tk-name>
                 Your dog<span class="pt">.</span>
@@ -1532,7 +1540,7 @@
               <div class="tk-tot">
                 <span>Boarding<br />subtotal</span
                 ><span class="tk-v"
-                  ><b data-tk-tot>Rs 0</b></span
+                  ><b data-tk-tot>To be confirmed</b></span
                 >
               </div>
               <p class="tk-pkg" data-tk-pkg hidden>
@@ -1577,7 +1585,7 @@
         <div class="mbar">
           <span
             ><small data-mb-t>Boarding subtotal</small
-            ><b data-mb-v>Rs 0</b></span
+            ><b data-mb-v>To be confirmed</b></span
           ><button
             type="button"
             data-sum-open
@@ -1596,7 +1604,8 @@
         aria-label="Stay summary"
       >
         <button type="button" class="sum-close" data-sum-close>
-          Close summary
+          <span class="vh">Close summary</span>
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="m4 4 10 10M14 4 4 14"></path></svg>
         </button>
         <div data-mobile-ticket></div>
       </dialog>
@@ -1609,7 +1618,7 @@
       >
         <div class="done-grid">
           <div>
-            <h2 id="bk-done-h">Request received<span class="pt">.</span></h2>
+            <div class="seal-h"><h2 id="bk-done-h">Request received<span class="pt">.</span></h2><span class="bk-seal" aria-hidden="true"></span></div>
             <p class="sub">
               We’ve received your dog’s details. We’ll contact you to review
               availability and confirm the next steps.

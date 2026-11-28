@@ -1,3 +1,4 @@
+import type {RateTerms} from './rate-card.ts';
 import {buildApexInvoiceDraft,type ApexDraftInput,type ApexDraftQuote}
   from './apex-invoice-draft.ts';
 import {buildApexDraftWithFreshFuel,type FuelDraftResult}
@@ -24,11 +25,12 @@ export async function preparePinnedTransportDraft(
     geoapifyKey?:string;
     route?:()=>Promise<RouteResult>;
     fetchFuel?:()=>Promise<PetrolRateResult>;
+    card?:RateTerms;
   }={}
 ):Promise<CoordinatedDraft>{
   if(!input.transport?.requested) {
     return {
-      draft:buildApexInvoiceDraft(input),
+      draft:buildApexInvoiceDraft(input,options.card),
       route:{ok:false,reason:'INVALID_VISITS',detail:'No transport requested'},
       fuelLookup:'NOT_REQUIRED'
     };
@@ -39,7 +41,7 @@ export async function preparePinnedTransportDraft(
     // caller-supplied invented distance or stale fuel price as a fallback.
     const draft=buildApexInvoiceDraft({...input,transport:{
       requested:true,profitBasis:input.transport.profitBasis,
-    }});
+    }},options.card);
     draft.unresolved.push('Transport unpriced: '+route.detail);
     return {draft,route,fuelLookup:'ROUTE_MISSING'};
   }
@@ -48,7 +50,7 @@ export async function preparePinnedTransportDraft(
     requested:true,
     totalDrivenKm:route.estimate.totalDrivenKm,
     profitBasis:input.transport.profitBasis,
-  }},options.fetchFuel);
+  }},options.fetchFuel,options.card);
   price.draft.unresolved.push('Route '+route.estimate.loopDistanceKm+' km round trip; '+
     route.estimate.plannedRoundTrips+' planned trips, review entrance/access and actual vehicle journey'+
     (route.estimate.dropoffLoopDistanceKm!==undefined

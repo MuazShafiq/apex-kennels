@@ -1,9 +1,10 @@
+import {fuelFor, type RateTerms} from './rate-card.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {prepareStaffDraftReview,type StaffInvoiceSource} from './staff-invoice-draft.ts';
 import {makeReviewSnapshot,type SavedReview} from './staff-saved-review.ts';
-import {prepareApproval,validateApprovalSnapshot,requireInvoiceOwner,type ApprovalInput,type ApprovalConfig} from './invoice-approval.ts';
+import {prepareApproval,validateApprovalSnapshot,requireFreshTransportEvidence,requireInvoiceOwner,type ApprovalInput,type ApprovalConfig} from './invoice-approval.ts';
 import {approveInvoice,issueInvoice,type InvoiceDb} from './invoice-approval-store.ts';
 import {renderCanvaStaffPdf} from './canva-invoice-pdf.ts';
 import {buildApexInvoiceDraft} from './apex-invoice-draft.ts';
@@ -154,8 +155,8 @@ test('transport approval binds exact service, independent gates, and fresh disti
   const confirmed={...input,transportVerified:true,fuelVerified:true};
   const first=prepareApproval(transportedSaved(),confirmed,owner,config,now);
   const second=prepareApproval(transportedSaved(now,350),confirmed,owner,config,now);
-  assert.equal(first.review.transport?.fuelRate.pricePkrPerLitre,300);
-  assert.equal(second.review.transport?.fuelRate.pricePkrPerLitre,350);
+  assert.equal(first.review.transport?.fuelRate?.pricePkrPerLitre,300);
+  assert.equal(second.review.transport?.fuelRate?.pricePkrPerLitre,350);
   assert.notEqual(first.review.quote.totalPkr,second.review.quote.totalPkr);
   for(const mutate of [
     (s:SavedReview)=>{delete s.snapshot.transportService;},
@@ -163,9 +164,9 @@ test('transport approval binds exact service, independent gates, and fresh disti
     (s:SavedReview)=>{s.snapshot.transportService='pickup';},
     (s:SavedReview)=>{s.snapshot.transport!.route.dropoffLoopDistanceKm=80;},
     (s:SavedReview)=>{s.snapshot.transport!.route.kennelAccessWaypoint={lat:33.7,lon:73.08};},
-    (s:SavedReview)=>{s.snapshot.transport!.fuelRate.effectiveDate='2026-10-01';},
-    (s:SavedReview)=>{s.snapshot.transport!.fuelRate.sourceUrl='https://unverified.example.test';},
-    (s:SavedReview)=>{s.snapshot.transport!.fuelRate.retrievedAt='2026-11-13T00:00:00Z';}
+    (s:SavedReview)=>{s.snapshot.transport!.fuelRate!.effectiveDate='2026-10-01';},
+    (s:SavedReview)=>{s.snapshot.transport!.fuelRate!.sourceUrl='https://unverified.example.test';},
+    (s:SavedReview)=>{s.snapshot.transport!.fuelRate!.retrievedAt='2026-11-13T00:00:00Z';}
   ]){const s=transportedSaved();mutate(s);assert.throws(()=>prepareApproval(s,confirmed,owner,config,now));}
   assert.throws(()=>prepareApproval(transportedSaved(),{...confirmed,fuelVerified:false},owner,config,now),/fuel/);
 });
@@ -250,4 +251,29 @@ test('mixed cages produce one group per rate and one explicit package discount',
   assert.deepEqual(approved.review.quote,snapshot.quote);
   const pdf=await renderCanvaStaffPdf(snapshot,'2026-11-15',readFileSync('public/invoice/canva-blank.pdf'));
   assert.equal(Buffer.from(pdf.subarray(0,5)).toString(),'%PDF-');
+});
+
+
+test('versioned fixed transport evidence preserves its figures and expires before issuance',()=>{
+  const card:RateTerms={
+    version:4,effectiveFrom:'2026-11-14T00:00:00+05:00',stdDaily:2700,cameraDaily:3200,
+    packageDays:30,packageDiscount:10000,kmPerLitre:15,markupPct:25,freshnessHours:2,
+    fuelMode:'fixed',fixedFuelPkr:330.5,fixedUntil:'2026-11-15',fixedReason:'Synthetic verified pump rate',
+  };
+  const review=transportedSaved();
+  const transport=review.snapshot.transport!;
+  delete transport.fuelRate;
+  const draft=buildApexInvoiceDraft({
+    startDate:booking.startDate,endDate:booking.endDate,cage:'normal',petCount:1,fullMonthPackageSelected:false,
+    transport:{requested:true,totalDrivenKm:transport.route.totalDrivenKm,fixedFuel:fuelFor(card,now,null)},
+  },card);
+  Object.assign(review.snapshot,{quote:draft.quote,rateVersion:draft.rateVersion,pricingSnapshot:draft.pricingSnapshot});
+  const approved=prepareApproval(review,{...input,transportVerified:true,fuelVerified:true},owner,config,now);
+  assert.equal(approved.review.quote.totalPkr,13_058);
+  assert.equal(approved.review.pricingSnapshot?.transport?.fuel.source,'fixed');
+  assert.deepEqual(validateApprovalSnapshot(JSON.parse(JSON.stringify(approved))).review.pricingSnapshot,draft.pricingSnapshot);
+  assert.throws(()=>requireFreshTransportEvidence(approved.review,new Date('2026-11-15T08:00:00Z')),/must be refreshed/);
+  assert.throws(()=>requireFreshTransportEvidence(approved.review,new Date('2026-11-15T19:00:00Z')),/expired/);
+  approved.review.pricingSnapshot!.transport!.fuel.pkrPerLitre=100;
+  assert.throws(()=>validateApprovalSnapshot(approved),/Saved pricing/);
 });

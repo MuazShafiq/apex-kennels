@@ -1,22 +1,23 @@
+import {LEGACY_RATE_VERSION, legacyRateTerms as legacyTerms} from './rate-card-legacy.ts';
+import {fuelFor, rateTerms, transportFigures, type FuelPrice, type RateTerms} from './rate-card.ts';
 import type { VerifiedPetrolRate } from './islamabad-petrol-rate.ts';
 import { countBilledDays, type Quote, type QuoteLine } from './pricing.ts';
 
-/**
- * Apex Kennels rates confirmed directly by Fatima on 2026-11-05.
- * Only owner/staff-selected draft quotes are built here: no production writes,
- * approvals, payment demands, email or auto-sending.
- */
-export const APEX_CONFIRMED_PRICING = Object.freeze({
-  normalPerDayPkr: 2500,
-  cameraPerDayPkr: 3000,
-  normalFullMonthPerDogPkr: 65000,
-  cameraFullMonthPerDogPkr: 80000,
-  fullMonthDiscountPerDogPkr: 10000,
-  fullMonthBilledDays: 30,
-  groomingPkr: 0,
-  transportKmPerLitre: 12,
-  transportDesiredProfitPercent: 20,
-});
+export type PricingSnapshot = {
+  rateCardVersion: number;
+  card: RateTerms;
+  boarding: {dogs:number; dailyRate:number; billedDays:number; subtotal:number}[];
+  packageDiscount: number;
+  transport: (ReturnType<typeof transportFigures> & {km:number; fuel:FuelPrice; kmPerLitre:number; markupPct:number}) | null;
+  total: number;
+};
+
+export function publishedFuelPrice(rate: VerifiedPetrolRate): FuelPrice {
+  return {
+    pkrPerLitre:rate.pricePkrPerLitre, source:'published', effective:rate.effectiveDate,
+    checkedAt:rate.retrievedAt, note:'Pakistan national notified petrol rate, excluding Islamabad pump freight.',
+  };
+}
 
 export type TransportProfitBasis = 'markup_on_fuel_cost' | 'gross_margin_on_sale';
 export type TransportDraftInput = {
@@ -27,6 +28,7 @@ export type TransportDraftInput = {
   profitBasis?: TransportProfitBasis;
   /** Server-fetched, timestamped national notified petrol baseline, not Form input. */
   fuelRate?: VerifiedPetrolRate;
+  fixedFuel?: FuelPrice;
 };
 export type ApexDraftInput = {
   startDate: string;
@@ -48,7 +50,8 @@ export type ApexDraftQuote = {
   unresolved: string[];
   requiresStaffReview: true;
   sendAutomatically: false;
-  rateVersion: 'fatima-confirmed-2026-11-06';
+  rateVersion: string;
+  pricingSnapshot?: PricingSnapshot;
   /** Frozen with the draft; never recalculate an issued invoice from a new rate. */
   fuelRateSnapshot?: VerifiedPetrolRate;
 };
@@ -76,14 +79,11 @@ export function transportFuelDraftPkr(totalDrivenKm: number, basis: TransportPro
   if (basis !== 'markup_on_fuel_cost') {
     throw new Error('Apex transport uses 20% markup on fuel cost');
   }
-  const fuelCost = totalDrivenKm / APEX_CONFIRMED_PRICING.transportKmPerLitre *
-    petrolPkrPerLitre;
-  const price = fuelCost * (1 + APEX_CONFIRMED_PRICING.transportDesiredProfitPercent / 100);
-  // Never undercharge the selected fuel-profit target due to fractional rupees.
-  return safeMoney(Math.ceil(price - 1e-9));
+  return safeMoney(transportFigures(legacyTerms,totalDrivenKm,petrolPkrPerLitre).charge);
 }
 
-export function buildApexInvoiceDraft(input: ApexDraftInput): ApexDraftQuote {
+export function buildApexInvoiceDraft(input: ApexDraftInput, card?: RateTerms): ApexDraftQuote {
+  const terms=card??legacyTerms;
   if (!Number.isSafeInteger(input.petCount) || input.petCount < 1 || input.petCount > 100) {
     throw new Error('Pet count must be a supported positive integer');
   }
@@ -92,21 +92,27 @@ export function buildApexInvoiceDraft(input: ApexDraftInput): ApexDraftQuote {
   }
   const billedDays = countBilledDays(input.startDate, input.endDate, 'inclusive_days');
   const monthly = input.fullMonthPackageSelected;
-  if(monthly && billedDays !== APEX_CONFIRMED_PRICING.fullMonthBilledDays)
+  if(monthly && billedDays !== terms.packageDays)
     throw new Error('Full-month discount requires exactly 30 billed days');
+  if(monthly&&terms.packageDiscount>=terms.packageDays*Math.min(terms.stdDaily,terms.cameraDaily))
+    throw new Error('Package prices must remain above zero');
   const cameraCount=input.cameraPetCount??(input.cage==='camera'?input.petCount:0);
   if(!Number.isSafeInteger(cameraCount)||cameraCount<0||cameraCount>input.petCount)
     throw new Error('Invalid camera cage quantity');
   const lines:QuoteLine[]=[];
+  const boarding:PricingSnapshot['boarding']=[];
+  let transport:PricingSnapshot['transport']=null;
   const groups=[
-    ['Standard boarding',input.petCount-cameraCount,APEX_CONFIRMED_PRICING.normalPerDayPkr],
-    ['Camera cage boarding',cameraCount,APEX_CONFIRMED_PRICING.cameraPerDayPkr],
+    ['Standard boarding',input.petCount-cameraCount,terms.stdDaily],
+    ['Camera cage boarding',cameraCount,terms.cameraDaily],
   ] as const;
   for(const [label,count,unitPricePkr] of groups){
     if(!count)continue;
     const quantity=count*billedDays;
     if(!Number.isSafeInteger(quantity))throw new Error('Boarding quantity overflow');
-    lines.push({label,quantity,unitPricePkr,totalPkr:safeMoney(quantity*unitPricePkr)});
+    const subtotal=safeMoney(quantity*unitPricePkr);
+    lines.push({label,quantity,unitPricePkr,totalPkr:subtotal});
+    boarding.push({dogs:count,dailyRate:unitPricePkr,billedDays,subtotal});
   }
   if (input.groomingRequested === true) {
     lines.push({label:'Grooming (complimentary)',quantity:input.petCount,unitPricePkr:0,totalPkr:0});
@@ -126,8 +132,23 @@ export function buildApexInvoiceDraft(input: ApexDraftInput): ApexDraftQuote {
         rate.geographicBasis !== 'Pakistan national notified price; Islamabad pump freight excluded')) {
       throw new Error('Invalid fuel rate provenance');
     }
-    if (km !== undefined && rate) {
-      const unitPrice = transportFuelDraftPkr(km,basis,rate.pricePkrPerLitre);
+    const fixed = input.transport.fixedFuel;
+    if (fixed) {
+      if (!card || card.fuelMode!=='fixed' || rate || !Number.isFinite(Date.parse(fixed.checkedAt))
+        || Date.parse(fixed.checkedAt)<Date.parse(card.effectiveFrom)) throw new Error('Invalid owner-fixed fuel evidence');
+      const expected=fuelFor(card,new Date(fixed.checkedAt),null);
+      if (fixed.source!==expected.source || fixed.pkrPerLitre!==expected.pkrPerLitre
+        || fixed.note!==expected.note || fixed.effective!==expected.effective) throw new Error('Invalid owner-fixed fuel evidence');
+    }
+    if (rate && card?.fuelMode==='fixed') throw new Error('Owner-fixed fuel evidence required');
+    const fuel = fixed ?? (rate ? publishedFuelPrice(rate) : undefined);
+    if (fuel && (!Number.isFinite(fuel.pkrPerLitre) || fuel.pkrPerLitre < (fixed ? 100 : 150) || fuel.pkrPerLitre > 1000))
+      throw new Error('A validated current petrol price is required');
+    if (km !== undefined && fuel) {
+      const chargeKm = card ? Math.round(km*10)/10 : km;
+      const figures=transportFigures(terms,chargeKm,fuel.pkrPerLitre);
+      const unitPrice=safeMoney(figures.charge);
+      transport={km:chargeKm,fuel,kmPerLitre:terms.kmPerLitre,markupPct:terms.markupPct,...figures};
       lines.push({
         label:'Pet transport',
         quantity:1,unitPricePkr:unitPrice,totalPkr:unitPrice
@@ -135,18 +156,21 @@ export function buildApexInvoiceDraft(input: ApexDraftInput): ApexDraftQuote {
     } else {
       unresolved.push('Transport needs total driven distance and a fresh source-backed fuel rate');
     }
-    unresolved.push('National notified price excludes Islamabad pump freight; staff must verify local fuel price');
-    unresolved.push('Transport uses provisional fuel cost + 20% markup; Fatima reviews the final charge');
+    if (card && fuel) unresolved.push(fuel.note);
+    if (!card || card.fuelMode==='published') unresolved.push('National notified price excludes Islamabad pump freight; staff must verify local fuel price');
+    unresolved.push('Transport uses provisional fuel cost + '+terms.markupPct+'% markup; Fatima reviews the final charge');
   }
   const subtotalPkr = safeMoney(lines.reduce((acc,line)=>acc+line.totalPkr,0));
-  const discountPkr=monthly?safeMoney(APEX_CONFIRMED_PRICING.fullMonthDiscountPerDogPkr*input.petCount):0;
+  const discountPkr=monthly?safeMoney(terms.packageDiscount*input.petCount):0;
   const quote:Quote={
     startDate:input.startDate,endDate:input.endDate,billedDays,lines,subtotalPkr,
     discounts:monthly?[{source:'package',label:'30-day boarding discount',amountPkr:discountPkr}]:[],
     totalPkr:safeMoney(subtotalPkr-discountPkr),currency:'PKR'
   };
   return {
-    rateVersion:'fatima-confirmed-2026-11-06',
+    rateVersion:card ? 'rate-card-v'+card.version : LEGACY_RATE_VERSION,
+    ...(card ? {pricingSnapshot:{rateCardVersion:card.version,card:rateTerms(card),boarding,
+      packageDiscount:discountPkr,transport,total:quote.totalPkr}} : {}),
     status:'DRAFT_REVIEW_ONLY',quote,unresolved,
     requiresStaffReview:true,sendAutomatically:false,
     ...(input.transport?.requested && lines.some(x=>x.label==='Pet transport') && input.transport.fuelRate

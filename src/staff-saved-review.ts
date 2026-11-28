@@ -1,3 +1,4 @@
+import type {PricingSnapshot} from './apex-invoice-draft.ts';
 import type {InvoiceDb} from './invoice-approval-store.ts';
 import {validateOwnerQuote,type OwnerOverride} from './owner-invoice-pricing.ts';
 import {Client} from '@neondatabase/serverless';
@@ -15,6 +16,7 @@ export type ReviewSnapshot={
   booking:{id:string;customerName:string;petNames:string;petBreeds?:string;startDate:string;endDate:string;synthetic:boolean};
   packageChoice:'daily'|'monthly';
   rateVersion:string;
+  pricingSnapshot?:PricingSnapshot;
   quote:Quote;
   ownerOverride?:OwnerOverride;
   /** Immutable transport route + petrol evidence for priced transport drafts. */
@@ -58,6 +60,7 @@ export function makeReviewSnapshot(review:StaffDraftReview):ReviewSnapshot {
     packageChoice:review.packageChoice,
     rateVersion:review.draft.rateVersion,
     quote:structuredClone(quote),
+    ...(review.draft.pricingSnapshot?{pricingSnapshot:structuredClone(review.draft.pricingSnapshot)}:{}),
     ...(review.transport?{transport:structuredClone(review.transport)}:{})
   };
 }
@@ -87,7 +90,7 @@ export function validateSnapshot(snapshot:unknown):ReviewSnapshot {
     if(!t||!t.route||t.route.status!=='ROUTE_REVIEW_REQUIRED'||
        !Number.isFinite(t.route.totalDrivenKm)||t.route.totalDrivenKm<=0||
        ![1,2].includes(t.route.plannedRoundTrips)||
-       !t.fuelRate||!Number.isFinite(t.fuelRate.pricePkrPerLitre))
+       (t.fuelRate ? !Number.isFinite(t.fuelRate.pricePkrPerLitre) : value.pricingSnapshot?.transport?.fuel.source!=='fixed'))
       throw new DraftSaveError('Saved transport estimate lacks route or fuel evidence',422);
   }else if(value.transport)throw new DraftSaveError('Transport evidence without a priced line',422);
   // Preserve saved amounts and the original object; older false flags cannot
@@ -126,10 +129,20 @@ export async function saveReviewDraft(databaseUrl:string,snapshot:ReviewSnapshot
   await db.connect();
   try{
     await db.query('BEGIN');
+    if(snapshot.pricingSnapshot){
+      await db.query("SELECT pg_advisory_xact_lock(hashtext('rate_cards'))");
+      const current=await db.query(`SELECT version FROM public.rate_cards
+        WHERE withdrawn_at IS NULL AND effective_from <= statement_timestamp()
+        ORDER BY effective_from DESC, version DESC LIMIT 1`);
+      if(Number(current.rows[0]?.version)!==snapshot.pricingSnapshot.rateCardVersion)
+        throw new DraftSaveError('The effective rate card changed. Reload and review the new estimate.',409);
+    }
     await db.query('SELECT pg_advisory_xact_lock(617340024)');
     await db.query('SELECT id FROM public.booking_requests WHERE id=$1 FOR UPDATE',[snapshot.booking.id]);
     if((await db.query('SELECT id FROM public.approved_invoices WHERE booking_id=$1',[snapshot.booking.id])).rows.length)throw new DraftSaveError('Approved invoices are frozen; use the correction procedure',409);
     const existing=await db.query('SELECT snapshot FROM public.invoice_draft_reviews WHERE booking_id=$1 FOR UPDATE',[snapshot.booking.id]);
+    if(!snapshot.pricingSnapshot&&(existing.rows[0]?.snapshot as ReviewSnapshot|undefined)?.pricingSnapshot)
+      throw new DraftSaveError('Rate cards must be available to replace this estimate.',503);
     if((existing.rows[0]?.snapshot as ReviewSnapshot|undefined)?.ownerOverride&&(existing.rows[0].snapshot as ReviewSnapshot).ownerOverride!.history?.at(-1)?.action!=='reset')throw new DraftSaveError('This invoice has owner edits. Reset it in owner review before replacing the calculation.',409);
     const priorOverride=(existing.rows[0]?.snapshot as ReviewSnapshot|undefined)?.ownerOverride as OwnerOverride|undefined;
     const refreshedSnapshot=priorOverride?{...snapshot,ownerOverride:{version:1 as const,sourceQuote:structuredClone(snapshot.quote),history:structuredClone(priorOverride.history)}}:snapshot;

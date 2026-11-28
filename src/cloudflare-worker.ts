@@ -1,3 +1,9 @@
+import {legacyPublicRates} from './rate-card-legacy.ts';
+import {handleBusinessSettings,type BusinessSettingsDeps} from './staff-business-settings.ts';
+import {handleStaffStudio,type StudioDependencies} from './staff-studio.ts';
+import {approvalConfig} from './invoice-workflow-routes.ts';
+import {readEffectiveRateCard} from './rate-card-store.ts';
+import {isIsoDate, type RateTerms} from './rate-card.ts';
 import {staffDetailHref,staffDetailNavigation} from './staff-console.ts';
 import {parseStayDecision,recordStayDecision,StayError} from './staff-stay.ts';
 export {LocationSearchBudget} from './location-search-budget.ts';
@@ -45,6 +51,7 @@ export type WorkerEnv = {
   STAFF_ACCESS_ISSUER?: string;
   STAFF_ALLOWED_EMAILS?: string;
   APEX_PUBLIC_BOOKING_ENABLED?: string;
+  APEX_RATE_CARDS_ENABLED?: string;
   APEX_STAFF_DRAFTS_ENABLED?: string;
   GEOAPIFY_API_KEY?:string;
   APEX_FIXED_ROUTE_VERIFICATION?:string;
@@ -74,6 +81,9 @@ export type StaffDetailReader=(databaseUrl:string,bookingId:string)=>Promise<Sta
 export type StaffOptions = {context?: StaffContext; list?: StaffList; draft?:StaffDraftReader; detail?:StaffDetailReader; stayDecision?:typeof recordStayDecision; resolvePin?:(url:string)=>Promise<SharedPinResolution>; verifyChallenge?:(token:string,secret:string,hostname:string)=>Promise<boolean>; ownerAlerts?:OwnerAlertDeps; saveReview?:(url:string,snapshot:ReviewSnapshot,revision:number,email:string)=>Promise<SaveReviewResult>; loadReview?:(url:string,bookingId:string)=>Promise<SavedReview|null>;
   transportRoute?:()=>Promise<RouteResult>; transportFuel?:()=>Promise<PetrolRateResult>;
   invoiceWorkflow?:InvoiceWorkflowDeps;
+  readRateCard?:typeof readEffectiveRateCard;
+  businessSettings?:BusinessSettingsDeps;
+  studio?:StudioDependencies;
 };
 
 async function authorizedStaff(env: WorkerEnv, context: StaffContext|undefined, request:Request): Promise<string|null> {
@@ -115,7 +125,7 @@ function html(body: string):Response {
     'Cache-Control':'private, no-store',
     'X-Content-Type-Options':'nosniff',
     'X-Robots-Tag':'noindex, nofollow',
-    'Content-Security-Policy':"default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+    'Content-Security-Policy':"default-src 'none'; img-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
   }});
 }
 
@@ -213,6 +223,15 @@ async function limitedJson(request: Request, limit = 16_384): Promise<unknown> {
   return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
 }
 
+async function currentStaffRates(env: WorkerEnv, staff: StaffOptions):Promise<RateTerms|undefined>{
+  if(env.APEX_RATE_CARDS_ENABLED!=='true')return undefined;
+  try{
+    const card=env.DATABASE_URL&&await (staff.readRateCard??readEffectiveRateCard)(env.DATABASE_URL);
+    if(card)return card;
+  }catch{/* Never fall back to historical rates while rate cards are enabled. */}
+  throw new DraftSaveError('Current rate card unavailable',503);
+}
+
 /** Exported for request-level unit testing with injected fake persistence. */
 export async function handleWorkerRequest(
   request: Request,
@@ -221,6 +240,18 @@ export async function handleWorkerRequest(
   staff: StaffOptions = {},
 ): Promise<Response> {
   const path = new URL(request.url).pathname;
+  if(path==='/staff/studio'||path.startsWith('/staff/studio/')||path==='/staff/settings'||path.startsWith('/staff/settings/')){
+    const email=await authorizedStaff(env,staff.context,request);
+    if(!email)return json({error:'Forbidden'},403);
+    if(env.APEX_RATE_CARDS_ENABLED!=='true'||!env.DATABASE_URL)return json({error:'Staff tools unavailable'},503);
+    if(path==='/staff/studio'||path.startsWith('/staff/studio/')){
+      return (await handleStaffStudio(request,env,{email},staff.studio))??json({error:'Not found'},404);
+    }
+    const owner=!!env.APEX_INVOICE_OWNER_EMAIL&&email===env.APEX_INVOICE_OWNER_EMAIL.trim().toLowerCase();
+    const recent=owner&&request.method==='POST'&&email===await verifiedAccessEmail(
+      request.headers.get('Cf-Access-Jwt-Assertion'),env.STAFF_ACCESS_ISSUER,env.STAFF_ACCESS_AUD??'',fetch,300);
+    return handleBusinessSettings(request,env.DATABASE_URL,email,owner,recent,approvalConfig(env),limitedJson,staff.businessSettings);
+  }
   if(path==='/api/whatsapp/webhook')return whatsappWebhookRoute(request,env,{
     applyInvoiceWebhook:staff.invoiceWorkflow?.applyInvoiceWebhook,
     applyOwnerAlertWebhook:staff.ownerAlerts?.applyOwnerAlertWebhook,
@@ -260,7 +291,7 @@ export async function handleWorkerRequest(
     headers.set('X-Content-Type-Options','nosniff');
     headers.set('Content-Security-Policy',
       "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; "+
-      "font-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'");
+      "font-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'");
     return new Response(response.body,{status:response.status,headers});
   }
   if(path==='/book'||path==='/book/'||path.startsWith('/book/')){
@@ -311,6 +342,31 @@ export async function handleWorkerRequest(
     return json({latitude:resolved.pin.lat,longitude:resolved.pin.lon,
       mapsUrl:'https://www.google.com/maps/search/?api=1&query='+
         encodeURIComponent(resolved.pin.lat+','+resolved.pin.lon)});
+  }
+  if(path==='/api/rate-card/current'){
+    if(request.method!=='GET')return json({error:'Method not allowed'},405,{Allow:'GET'});
+    if(env.APEX_RATE_CARDS_ENABLED!=='true')return json({error:'Rates unavailable',code:'RATES_DISABLED',legacy:legacyPublicRates},503);
+    if(!env.DATABASE_URL)return json({error:'Rates unavailable'},503);
+    const params=new URL(request.url).searchParams;
+    const at=params.get('at');
+    if([...params.keys()].some(key=>key!=='at')||params.getAll('at').length>1
+       ||(at!==null&&(!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(at)
+         ||!isIsoDate(at.slice(0,10))||!Number.isFinite(Date.parse(at))))) {
+      return json({error:'Supply an ISO date and time with a time zone.'},400);
+    }
+    try{
+      const card=await (staff.readRateCard??readEffectiveRateCard)(env.DATABASE_URL,at===null?null:new Date(at).toISOString());
+      if(!card)return json({error:'No rate card in effect'},404);
+      // Store a client copy but revalidate with Neon on every reuse, including
+      // after a publish, withdrawal or scheduled start in another Worker isolate.
+      const etag='"rate-card-'+card.version+'"';
+      const headers={'Cache-Control':'private, no-cache',ETag:etag};
+      if(request.headers.get('If-None-Match')===etag)return new Response(null,{status:304,headers});
+      return json({
+        version:card.version,effectiveFrom:new Date(card.effectiveFrom).toISOString(),stdDaily:card.stdDaily,
+        cameraDaily:card.cameraDaily,packageDays:card.packageDays,packageDiscount:card.packageDiscount,
+      },200,headers);
+    }catch{return json({error:'Rates unavailable'},503);}
   }
   if(path==='/api/book/config'){
     if(request.method!=='GET')return json({error:'Method not allowed'},405,{Allow:'GET'});
@@ -455,7 +511,17 @@ export async function handleWorkerRequest(
         const rows=await (staff.list??listStaffBookings)(env.DATABASE_URL,filter);
         navigation=staffDetailNavigation(rows,id,filter);
       }
-      return html(renderStaffBookingDetail(detail,navigation));
+      const showTools=env.APEX_RATE_CARDS_ENABLED==='true';
+      let savedEstimate:SavedReview|null|undefined,currentRateVersion:number|undefined;
+      if(showTools&&env.APEX_STAFF_DRAFTS_ENABLED==='true'){
+        const [estimate,rates]=await Promise.allSettled([
+          (staff.loadReview??loadSavedReview)(env.DATABASE_URL,id),
+          currentStaffRates(env,staff),
+        ]);
+        if(estimate.status==='fulfilled')savedEstimate=estimate.value;
+        if(rates.status==='fulfilled')currentRateVersion=rates.value?.version;
+      }
+      return html(renderStaffBookingDetail(detail,navigation,{email,showTools,savedEstimate,currentRateVersion}));
     }catch{return json({error:'Internal server error'},500);}
   }
   if(path==='/staff/transport'){
@@ -484,7 +550,7 @@ export async function handleWorkerRequest(
         if(!source)return json({error:'Booking not found'},404);
         if(source.transportRequested!==true)
           return json({error:'This booking did not request transport'},409);
-        const review=prepareStaffDraftReview(source,'auto');
+        const review=prepareStaffDraftReview(source,'auto',await currentStaffRates(env,staff));
         const saved=await (staff.loadReview??loadSavedReview)(env.DATABASE_URL,id);
         return html(renderStaffTransportForm(source,review.packageChoice,saved?.revision??0,fixedRoute));
       }
@@ -504,7 +570,8 @@ export async function handleWorkerRequest(
       if(!source)return json({error:'Booking not found'},404);
       if(source.transportRequested!==true)
         return json({error:'This booking did not request transport'},409);
-      const review=prepareStaffDraftReview(source,selected.packageChoice);
+      const card=await currentStaffRates(env,staff);
+      const review=prepareStaffDraftReview(source,selected.packageChoice,card);
       if(!review.draft)return json({error:'Incomplete boarding estimate'},409);
       const result=await preparePinnedTransportDraft({
         startDate:source.startDate,endDate:source.endDate,
@@ -522,15 +589,15 @@ export async function handleWorkerRequest(
         visit:selected.visit==='both'?'pickup_and_dropoff':selected.visit
       },{
         geoapifyKey:env.GEOAPIFY_API_KEY,
-        route:staff.transportRoute,fetchFuel:staff.transportFuel
+        route:staff.transportRoute,fetchFuel:staff.transportFuel,card
       });
-      const priced=result.route.ok&&result.fuelLookup==='CURRENT_NOTIFIED_RATE'&&
-        !!result.draft.fuelRateSnapshot&&
+      const priced=result.route.ok&&
+        !!(result.draft.fuelRateSnapshot||result.draft.pricingSnapshot?.transport?.fuel.source==='fixed')&&
         result.draft.quote.lines.some(l=>l.label==='Pet transport'&&l.totalPkr>0)&&
         selected.customerConfirmed&&(!!fixedRoute||selected.kennelConfirmed&&selected.accessConfirmed)&&
         (!selected.dropoffPin||selected.dropoffConfirmed);
       if(selected.action==='save'){
-        if(!priced||!result.route.ok||!result.draft.fuelRateSnapshot)
+        if(!priced||!result.route.ok)
           return json({error:'Verified route and current petrol rate required before saving'},409);
         const snapshot=makeReviewSnapshot({
           ...review,draft:result.draft,
@@ -573,8 +640,9 @@ export async function handleWorkerRequest(
       try{
         const form=await boundedForm(request);
         const allowed=['id','package','revision'];
-        if([...form.keys()].some(k=>!allowed.includes(k))||
-           allowed.some(k=>form.getAll(k).length!==1))
+        const rateCard=form.get('rateCard');
+        if([...form.keys()].some(k=>!allowed.includes(k)&&k!=='rateCard')||
+           allowed.some(k=>form.getAll(k).length!==1)||form.getAll('rateCard').length>1)
           throw new DraftSaveError('Invalid form fields',400);
         const id=form.get('id')??'';
         const packageChoice=form.get('package')??'';
@@ -588,7 +656,9 @@ export async function handleWorkerRequest(
         catch{throw new DraftSaveError('Invalid booking or package',400);}
         const source=await (staff.draft??readStaffInvoiceSource)(env.DATABASE_URL,parsed.bookingId);
         if(!source)return json({error:'Booking not found'},404);
-        const snapshot=makeReviewSnapshot(prepareStaffDraftReview(source,parsed.packageChoice));
+        const card=await currentStaffRates(env,staff);
+        if(card&&rateCard!==String(card.version))throw new DraftSaveError('The effective rate card changed. Reload and review the new estimate.',409);
+        const snapshot=makeReviewSnapshot(prepareStaffDraftReview(source,parsed.packageChoice,card));
         await (staff.saveReview??saveReviewDraft)(env.DATABASE_URL,snapshot,Number(revisionRaw),email);
         return new Response(null,{status:303,headers:{
           Location:'/staff/draft/saved?id='+encodeURIComponent(id),
@@ -645,7 +715,8 @@ export async function handleWorkerRequest(
     try{
       const source=await (staff.draft??readStaffInvoiceSource)(env.DATABASE_URL,parsed.bookingId);
       if(!source)return json({error:'Booking not found'},404);
-      const review=prepareStaffDraftReview(source,parsed.packageChoice);
+      const card=await currentStaffRates(env,staff);
+      const review=prepareStaffDraftReview(source,parsed.packageChoice,card);
       if(format[0]==='print'){
         if(!review.draft||source.transportRequested!==false)
           return json({error:'Complete boarding estimate required for printing'},409);
@@ -656,7 +727,7 @@ export async function handleWorkerRequest(
       if(env.APEX_STAFF_DRAFTS_ENABLED==='true'){
         const saved=await (staff.loadReview??loadSavedReview)(env.DATABASE_URL,parsed.bookingId);
         return html(renderStaffDraftReview(review,'staff',{
-          enableSaving:true,savedRevision:saved?.revision??0
+          enableSaving:true,saved,currentVersion:card?.version
         }));
       }
       return html(renderStaffDraftReview(review));
@@ -678,7 +749,7 @@ export async function handleWorkerRequest(
     catch { return json({error:'Invalid filter'},400); }
     try {
       const rows=await (staff.list??listStaffBookings)(env.DATABASE_URL,filter);
-      return path==='/staff' ? html(renderStaffConsoleHtml(rows,{demo:false,filter,email,selectedId:new URL(request.url).searchParams.get('stay')??undefined}))
+      return path==='/staff' ? html(renderStaffConsoleHtml(rows,{demo:false,filter,email,showToolLinks:env.APEX_RATE_CARDS_ENABLED==='true',selectedId:new URL(request.url).searchParams.get('stay')??undefined}))
         : json({items:rows,limit:50,readOnly:true});
     } catch { return json({error:'Internal server error'},500); }
   }

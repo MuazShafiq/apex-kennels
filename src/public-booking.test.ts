@@ -58,7 +58,7 @@ test('public homepage and shared assets have a self-only policy and leave other 
     forwarded.push(new URL(request.url).pathname);
     return new Response(null,{status:200});
   }}};
-  for(const path of ['/','/site/site.js','/site/inter-tight.woff2']){
+  for(const path of ['/','/site/v106/home.js','/site/inter-tight.woff2']){
     const response=await handleWorkerRequest(new Request(base+path),assets);
     assert.equal(response.status,200);
     assert.equal(response.headers.get('x-content-type-options'),'nosniff');
@@ -67,7 +67,7 @@ test('public homepage and shared assets have a self-only policy and leave other 
   assert.equal((await handleWorkerRequest(new Request(base+'/',{method:'POST'}),assets)).status,405);
   const staffEnv={...assets,DATABASE_URL:env.DATABASE_URL,STAFF_ACCESS_AUD:'test-audience',STAFF_ALLOWED_EMAILS:'staff@example.invalid'};
   assert.equal((await handleWorkerRequest(new Request(base+'/staff'),staffEnv)).status,403);
-  assert.deepEqual(forwarded,['/','/site/site.js','/site/inter-tight.woff2']);
+  assert.deepEqual(forwarded,['/','/site/v106/home.js','/site/inter-tight.woff2']);
 });
 
 test('public form page is only a preview without write configuration and does not leak secrets',async()=>{

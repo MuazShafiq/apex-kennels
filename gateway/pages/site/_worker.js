@@ -5,6 +5,7 @@
  */
 const ALLOWED = new Map([
   ['/api/book/config', 'GET'],
+  ['/api/rate-card/current', 'GET'],
   ['/api/book/location', 'POST'],
   ['/api/book', 'POST'],
 ]);

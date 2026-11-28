@@ -1,3 +1,4 @@
+import type {RateTerms} from './rate-card.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {buildApexDraftWithFreshFuel} from './transport-invoice-draft-service.ts';
@@ -37,7 +38,7 @@ test('upstream outage leaves transport UNPRICED, no silent fixed 400/L fallback'
   assert.equal(x.draft.quote.totalPkr,7500);
   assert.equal(x.draft.fuelRateSnapshot,undefined);
   assert.equal(x.draft.quote.lines.filter(l=>l.label.startsWith('Pet transport')).length,0);
-  assert.ok(x.draft.unresolved.some(s=>s.includes('Fuel lookup unavailable')));
+  assert.ok(x.draft.unresolved.some(s=>s.includes('Published petrol rate unavailable')));
 });
 
 test('unexpected thrown fetch failure also leaves transport unpriced',async()=>{
@@ -65,4 +66,26 @@ test('caller-supplied stale fuelRate is overwritten by a newly fetched one',asyn
   }},async()=>({ok:true,rate}));
   assert.equal(x.draft.quote.lines.find(l=>l.label.startsWith('Pet transport'))?.totalPkr,435);
   assert.equal(x.draft.fuelRateSnapshot?.pricePkrPerLitre,362);
+});
+
+
+test('owner-fixed fuel skips the publisher and expires at Karachi midnight without reverting',async()=>{
+  const card:RateTerms={
+    version:4,effectiveFrom:'2026-11-01T00:00:00+05:00',stdDaily:2675,cameraDaily:3000,
+    packageDays:30,packageDiscount:10000,kmPerLitre:15,markupPct:25,freshnessHours:6,
+    fuelMode:'fixed',fixedFuelPkr:330.5,fixedUntil:'2026-11-28',fixedReason:'Fixture owner pump verification',
+  };
+  const input={...standard,transport:{requested:true,totalDrivenKm:26.25}};
+  let calls=0;
+  const get=async():Promise<PetrolRateResult>=>{calls++;return {ok:true,rate};};
+  const fixed=await buildApexDraftWithFreshFuel(input,get,card,new Date('2026-11-28T23:59:59.999+05:00'));
+  assert.equal(fixed.fuelLookup,'OWNER_FIXED_RATE');
+  assert.equal(fixed.draft.pricingSnapshot?.transport?.km,26.3);
+  assert.equal(fixed.draft.pricingSnapshot?.transport?.charge,725);
+  assert.match(fixed.draft.pricingSnapshot?.transport?.fuel.note??'',/Fixed by owner until 2026-11-28/);
+  const expired=await buildApexDraftWithFreshFuel(input,get,card,new Date('2026-11-29T00:00:00+05:00'));
+  assert.equal(expired.fuelLookup,'MANUAL_REVIEW_REQUIRED');
+  assert.equal(expired.draft.pricingSnapshot?.transport,null);
+  assert.match(expired.draft.unresolved.join(' '),/expired/);
+  assert.equal(calls,0);
 });

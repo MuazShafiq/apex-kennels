@@ -25,7 +25,13 @@ export function renderInvoiceApprovalPage(data:{saved?:SavedReview;invoice?:Appr
   content+='<p>Payment recipient: '+esc(payment?payment.bank+' · '+payment.accountTitle+' · account ending '+payment.accountNumber.slice(-4):data.paymentSummary??'Secure HBL configuration must be checked before approval.')+'</p>';
   if(review.transport){
     const {route,fuelRate}=review.transport;
-    content+='<section><h2>Transport evidence</h2><p>Service: '+esc(review.transportService??'missing; refresh estimate')+' · total driven '+route.totalDrivenKm+' km. Pickup loop '+route.loopDistanceKm+' km'+(route.dropoffLoopDistanceKm!==undefined?' · drop-off loop '+route.dropoffLoopDistanceKm+' km':'')+'.</p><p>Customer gate: '+route.customerPin.lat+', '+route.customerPin.lon+(route.dropoffPin?' · drop-off gate: '+route.dropoffPin.lat+', '+route.dropoffPin.lon:'')+'</p><p>Gate evidence: '+esc(review.transportLocationSource==='staff_confirmed'?'Staff-confirmed customer gate for a legacy Form booking.':review.transportLocationSource==='customer_record'?'Customer-confirmed booking location.':'Missing; refresh estimate.')+'</p><p>Fuel: PKR '+fuelRate.pricePkrPerLitre+' per litre · effective '+esc(fuelRate.effectiveDate)+' · checked '+esc(fuelRate.retrievedAt)+'. '+esc(fuelRate.geographicBasis)+'</p><p>Source: '+esc(fuelRate.sourceUrl)+'. Formula: driven km ÷ 12 × petrol rate × 1.20.</p></section>';
+    const fuel=review.pricingSnapshot?.transport?.fuel;
+    const price=fuel?.pkrPerLitre??fuelRate?.pricePkrPerLitre;
+    const source=fuel?.note??fuelRate?.geographicBasis;
+    const fuelDetails=price===undefined?'':'<p>Fuel: PKR '+price+' per litre · effective '+esc(fuel?.effective??fuelRate?.effectiveDate??'')
+      +' · checked '+esc(fuel?.checkedAt??fuelRate?.retrievedAt??'')+'. '+esc(source??'')+'</p>'
+      +(fuelRate?'<p>Source: '+esc(fuelRate.sourceUrl)+'</p>':'');
+    content+='<section><h2>Transport evidence</h2><p>Service: '+esc(review.transportService??'missing; refresh estimate')+' · total driven '+route.totalDrivenKm+' km. Pickup loop '+route.loopDistanceKm+' km'+(route.dropoffLoopDistanceKm!==undefined?' · drop-off loop '+route.dropoffLoopDistanceKm+' km':'')+'.</p><p>Customer gate: '+route.customerPin.lat+', '+route.customerPin.lon+(route.dropoffPin?' · drop-off gate: '+route.dropoffPin.lat+', '+route.dropoffPin.lon:'')+'</p><p>Gate evidence: '+esc(review.transportLocationSource==='staff_confirmed'?'Staff-confirmed customer gate for a legacy Form booking.':review.transportLocationSource==='customer_record'?'Customer-confirmed booking location.':'Missing; refresh estimate.')+'</p>'+fuelDetails+'</section>';
   }
   if(!invoice&&saved&&data.approvalEnabled){
     const source=review.ownerOverride?.sourceQuote??review.quote;

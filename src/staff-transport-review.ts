@@ -145,14 +145,15 @@ export function renderStaffTransportResult(
   source:StaffInvoiceSource,input:StaffTransportSelection,result:CoordinatedDraft,fixedRouteVerified=false
 ):string {
   const line=result.draft.quote.lines.find(l=>l.label==='Pet transport');
-  const ready=result.route.ok&&result.fuelLookup==='CURRENT_NOTIFIED_RATE'&&!!line&&
-    !!result.draft.fuelRateSnapshot&&
+  const pricing=result.draft.pricingSnapshot?.transport;
+  const ready=result.route.ok&&!!line&&
+    !!(result.draft.fuelRateSnapshot||pricing?.fuel.source==='fixed')&&
     input.customerConfirmed&&(fixedRouteVerified||input.kennelConfirmed&&input.accessConfirmed)&&
     (!input.dropoffPin||input.dropoffConfirmed);
   const route=result.route.ok?result.route.estimate:null;
   const warnings=[...result.draft.unresolved];
   if(!result.route.ok)warnings.push(result.route.detail);
-  if(result.fuelLookup==='MANUAL_REVIEW_REQUIRED')warnings.push('Current petrol rate unavailable.');
+
   const issues=warnings.map(x=>'<li>'+esc(x)+'</li>').join('');
   const keys:Record<string,string|number|boolean>={
     id:input.bookingId,package:input.packageChoice,visit:input.visit,
@@ -180,11 +181,17 @@ export function renderStaffTransportResult(
       : 'One complete loop: '+esc(String(route.loopDistanceKm))+' km · '+
         route.plannedRoundTrips+' round trip(s)')+
       ' · Total '+esc(String(route.totalDrivenKm))+' km</p>':'')+
-    '<p class="muted">Fuel-only charge at 12 km/L + 20% markup. Staff approval still required. '+
+    '<p class="muted">'+(pricing
+      ?'Fuel-only charge at '+pricing.kmPerLitre+' km/L + '+pricing.markupPct+'% markup. PKR '+pricing.fuel.pkrPerLitre
+        +' per litre, effective '+esc(pricing.fuel.effective)+', checked '+esc(pricing.fuel.checkedAt)+'. '
+      :result.draft.fuelRateSnapshot
+        ?'Fuel-only charge at PKR '+result.draft.fuelRateSnapshot.pricePkrPerLitre+' per litre (national notified rate), effective '
+          +esc(result.draft.fuelRateSnapshot.effectiveDate)+', checked '+esc(result.draft.fuelRateSnapshot.retrievedAt)+'. '
+        :'Fuel-only charge. ')+'Staff approval still required. '+
     'No customer invoice has been issued.</p></section>'+
     (issues?'<section class="panel"><h2>Review before final approval</h2><ul>'+issues+'</ul></section>':'')+
     (ready?'<form method="post" action="/staff/transport" class="panel">'+replay+
-      '<p class="warn">Saving recalculates the route and fetches a fresh fuel rate. '+
+      '<p class="warn">Saving recalculates the route with the effective rate card and checks the fuel price. '+
       'The saved result is an internal estimate, not an issued invoice.</p>'+
       '<button type="submit">Save review-only estimate</button></form>':
       '<p class="warn">No estimate can be saved until the route and current fuel rate are verified.</p>')

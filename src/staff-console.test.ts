@@ -356,11 +356,11 @@ test('run sheet shows distinct lanes and uses recorded arrival for the selected 
     context:valid,list:async()=>rows
   });
   const html=await response.text();
-  assert.match(html,/<h2>To review<\/h2><span class="lane-count">1 stay/);
-  assert.match(html,/<h2>Approved stays<\/h2><span class="lane-count">2 stays/);
-  assert.match(html,/<h2>Closed<\/h2><span class="lane-count">1 stay/);
-  assert.match(html,/aria-current="true"><span class="chip in">Checked in<\/span>.*Arrived Dog/);
-  assert.match(html,/<span class="chip ">Approved<\/span>.*Expected Dog/);
+  assert.match(html,/<h2>.* To review<\/h2><span class="lane-count">1 stay/);
+  assert.match(html,/<h2>.* Approved stays<\/h2><span class="lane-count">2 stays/);
+  assert.match(html,/<h2>.* Closed<\/h2><span class="lane-count">1 stay/);
+  assert.match(html,/aria-current="true">.*<span class="chip in">Checked in<\/span>.*Arrived Dog/);
+  assert.match(html,/<span class="chip approved">Approved<\/span>.*Expected Dog/);
   assert.match(html,/href="\/staff\/booking\?id=arrived&amp;from=run&amp;status=all&amp;q=">View details/);
   assert.doesNotMatch(html,/\/staff\/location|sample@example\.test/);
 });

@@ -1,4 +1,6 @@
 import {validateOwnerQuote} from './owner-invoice-pricing.ts';
+import {fuelFor, karachiDay, parseCardDraft, rateTerms} from './rate-card.ts';
+import {LEGACY_RATE_VERSION} from './rate-card-legacy.ts';
 import {buildApexInvoiceDraft} from './apex-invoice-draft.ts';
 import {validateSnapshot,type SavedReview,type ReviewSnapshot} from './staff-saved-review.ts';
 import {normalizePakistanWhatsappPhone} from './whatsapp-cloud.ts';
@@ -34,6 +36,11 @@ function bank(config:ApprovalConfig):ApprovalSnapshot['payment'] {
   return {bank:'HBL',accountTitle:p.accountTitle,accountNumber:p.accountNumber,iban:p.iban};
 }
 
+export function maskedConfiguredPayment(config:ApprovalConfig):string|null {
+  try { return 'HBL · •••• ' + bank(config).accountNumber.slice(-4); }
+  catch { return null; }
+}
+
 /** Reconstruct confirmed pricing for validation only; never replace the saved monetary snapshot. */
 export function validateApprovalPricing(input:unknown):ReviewSnapshot {
   const review=validateSnapshot(input);
@@ -42,11 +49,34 @@ export function validateApprovalPricing(input:unknown):ReviewSnapshot {
   if(!boarding.length||!Number.isSafeInteger(q.billedDays)||q.billedDays<1)fail('Unsupported boarding snapshot');
   const counts=boarding.map(line=>line.quantity/q.billedDays);
   const pets=counts.reduce((sum,count)=>sum+count,0);
-  if(counts.some(count=>!Number.isSafeInteger(count)||count<1)||pets>100||q.startDate!==review.booking.startDate||q.endDate!==review.booking.endDate||review.rateVersion!=='fatima-confirmed-2026-11-06')fail('Draft pricing needs fresh review');
+  if(counts.some(count=>!Number.isSafeInteger(count)||count<1)||pets>100||q.startDate!==review.booking.startDate||q.endDate!==review.booking.endDate)fail('Draft pricing needs fresh review');
   const cameraPetCount=(boarding.find(line=>line.label==='Camera cage boarding')?.quantity??0)/q.billedDays;
-  const expected=buildApexInvoiceDraft({startDate:q.startDate,endDate:q.endDate,cage:'normal',petCount:pets,cameraPetCount,fullMonthPackageSelected:review.packageChoice==='monthly',groomingRequested:q.lines.some(l=>l.label==='Grooming (complimentary)'),transport:review.transport?{requested:true,totalDrivenKm:review.transport.route.totalDrivenKm,fuelRate:review.transport.fuelRate}:undefined}).quote;
+  const pricing = review.pricingSnapshot;
+  let card = pricing?.card;
+  if(pricing){
+    if(!card || !Number.isSafeInteger(card.version) || card.version<1 || pricing.rateCardVersion!==card.version
+      || review.rateVersion!=='rate-card-v'+card.version || card.packageDays!==30
+      || !Number.isFinite(Date.parse(card.effectiveFrom))) fail('Draft rate card needs fresh review');
+    const {version,effectiveFrom,packageDays,...draft}=rateTerms(card);
+    const validated=parseCardDraft(draft,karachiDay(new Date(effectiveFrom)));
+    if(!validated.ok)fail('Draft rate card needs fresh review');
+    card={...validated.card,version,effectiveFrom,packageDays};
+  }else if(review.rateVersion!==LEGACY_RATE_VERSION)fail('Draft pricing needs fresh review');
+  let expected;
+  try {
+    expected=buildApexInvoiceDraft({
+      startDate:q.startDate,endDate:q.endDate,cage:'normal',petCount:pets,cameraPetCount,
+      fullMonthPackageSelected:review.packageChoice==='monthly',
+      groomingRequested:q.lines.some(l=>l.label==='Grooming (complimentary)'),
+      transport:review.transport?{
+        requested:true,totalDrivenKm:review.transport.route.totalDrivenKm,fuelRate:review.transport.fuelRate,
+        fixedFuel:!review.transport.fuelRate?pricing?.transport?.fuel:undefined,
+      }:undefined,
+    },card);
+  } catch { fail('Saved pricing is incomplete or differs from its rate card'); }
+  if(canonical(pricing)!==canonical(expected.pricingSnapshot))fail('Saved rate card calculation differs from the reviewed figures');
   if(review.ownerOverride)validateOwnerQuote(review.quote,q);
-  if(canonical(q)!==canonical(expected))fail('Saved pricing is incomplete or differs from confirmed rules');
+  if(canonical(q)!==canonical(expected.quote))fail('Saved pricing is incomplete or differs from confirmed rules');
   if(review.transport){
     const r=review.transport.route;
     if(!review.transportService||!['pickup','dropoff','both'].includes(review.transportService)||
@@ -63,26 +93,39 @@ export function validateApprovalPricing(input:unknown):ReviewSnapshot {
     if(!Number.isFinite(km)||Math.abs(km-r.totalDrivenKm)>0.001)fail('Transport loops require independent verification');
   }
   // Explicit projection: arbitrary persisted fields must never reach a customer PDF.
-  return {version:1,booking:{id:review.booking.id,customerName:review.booking.customerName,petNames:review.booking.petNames,...(review.booking.petBreeds?{petBreeds:review.booking.petBreeds}:{}),startDate:review.booking.startDate,endDate:review.booking.endDate,synthetic:review.booking.synthetic},packageChoice:review.packageChoice,rateVersion:review.rateVersion,quote:review.ownerOverride?validateOwnerQuote(review.quote,q):structuredClone(q),...(review.ownerOverride?{ownerOverride:{version:1 as const,sourceQuote:structuredClone(q),...(review.ownerOverride.previousQuote?{previousQuote:validateOwnerQuote(review.ownerOverride.previousQuote,q)}:{}),history:review.ownerOverride.history.map(h=>({revision:h.revision,actor:h.actor,at:h.at,action:h.action,totalPkr:h.totalPkr}))}}:{}),...(review.transport?{transport:structuredClone(review.transport),transportService:review.transportService,transportLocationSource:review.transportLocationSource}:{})};
+  return {version:1,booking:{id:review.booking.id,customerName:review.booking.customerName,petNames:review.booking.petNames,...(review.booking.petBreeds?{petBreeds:review.booking.petBreeds}:{}),startDate:review.booking.startDate,endDate:review.booking.endDate,synthetic:review.booking.synthetic},packageChoice:review.packageChoice,rateVersion:review.rateVersion,...(expected.pricingSnapshot?{pricingSnapshot:expected.pricingSnapshot}:{}),quote:review.ownerOverride?validateOwnerQuote(review.quote,q):structuredClone(q),...(review.ownerOverride?{ownerOverride:{version:1 as const,sourceQuote:structuredClone(q),...(review.ownerOverride.previousQuote?{previousQuote:validateOwnerQuote(review.ownerOverride.previousQuote,q)}:{}),history:review.ownerOverride.history.map(h=>({revision:h.revision,actor:h.actor,at:h.at,action:h.action,totalPkr:h.totalPkr}))}}:{}),...(review.transport?{transport:structuredClone(review.transport),transportService:review.transportService,transportLocationSource:review.transportLocationSource}:{})};
 }
+export function requireFreshTransportEvidence(review:ReviewSnapshot,now:Date):void {
+  if(!review.transport)return;
+  const published=review.transport.fuelRate;
+  const fixed=review.pricingSnapshot?.transport?.fuel;
+  const card=review.pricingSnapshot?.card;
+  if(published){
+    if(published.publisher!=='OilPrices.pk'||published.notificationAuthority!=='OGRA'
+      || ![FUEL_SOURCE.primary,FUEL_SOURCE.mirror].some(url=>url===published.sourceUrl))fail('Fuel source provenance requires fresh review');
+    try{parseNotifiedPetrolRate({products:[{product:published.product,unit:published.unit,
+      pricePkr:published.pricePkrPerLitre,effectiveDate:published.effectiveDate}]},{now,sourceUrl:published.sourceUrl});}
+    catch{fail('Fuel notification must be current and verified');}
+  }else{
+    if(!card||!fixed||fixed.source!=='fixed')fail('Fuel source provenance requires fresh review');
+    try{fuelFor(card,now,null);}catch(error){fail(error instanceof Error?error.message:'Fixed fuel rate is unavailable');}
+  }
+  const maxAge=(card?.freshnessHours??24)*60*60*1000;
+  for(const timestamp of [review.transport.route.retrievedAt,published?.retrievedAt??fixed?.checkedAt??'']){
+    const elapsed=now.getTime()-Date.parse(timestamp);
+    if(!Number.isFinite(elapsed)||elapsed<0||elapsed>maxAge)fail('Transport and fuel evidence must be refreshed');
+  }
+}
+
 export function prepareApproval(saved:SavedReview,input:ApprovalInput,actor:string,config:ApprovalConfig,now=new Date()):ApprovalSnapshot {
   requireInvoiceOwner(actor,config);
   if(input.confirmed!==true||!INVOICE_UUID.test(input.bookingId)||!Number.isSafeInteger(input.revision)||input.revision!==saved.revision||input.revision<1||saved.snapshot.booking.id!==input.bookingId)fail('Draft revision changed; refresh and review',409);
   const age=now.getTime()-Date.parse(saved.updatedAt);
-  if(!Number.isFinite(age)||age<0||age>24*60*60*1000)fail('Saved review expired; save a fresh reviewed estimate',409);
+  if(!Number.isFinite(age)||age<0||(!saved.snapshot.pricingSnapshot&&age>24*60*60*1000))fail('Saved review expired; save a fresh reviewed estimate',409);
   if(!/^\d{4}$/.test(input.invoiceNumber)||!/^\d{4}$/.test(config.manualNumberFloor??'')||Number(input.invoiceNumber)<=Number(config.manualNumberFloor))fail('Invoice number must follow the verified manual Canva sequence');
   const review=validateApprovalPricing(saved.snapshot);
   if(review.transport&&(!input.transportVerified||!input.fuelVerified))fail('Verify actual kennel/Bawli/customer driving access and local fuel rate');
-  if(review.transport){
-    const fuel=review.transport.fuelRate;
-    if(fuel.publisher!=='OilPrices.pk'||fuel.notificationAuthority!=='OGRA'||![FUEL_SOURCE.primary,FUEL_SOURCE.mirror].some(url=>url===fuel.sourceUrl))fail('Fuel source provenance requires fresh review');
-    try{parseNotifiedPetrolRate({products:[{product:fuel.product,unit:fuel.unit,pricePkr:fuel.pricePkrPerLitre,effectiveDate:fuel.effectiveDate}]},{now,sourceUrl:fuel.sourceUrl});}
-    catch{fail('Fuel notification must be current and verified');}
-    for(const timestamp of [review.transport.route.retrievedAt,review.transport.fuelRate.retrievedAt]){
-      const elapsed=now.getTime()-Date.parse(timestamp);
-      if(!Number.isFinite(elapsed)||elapsed<0||elapsed>24*60*60*1000)fail('Transport and fuel evidence must be refreshed');
-    }
-  }
+  requireFreshTransportEvidence(review,now);
   let consent:InvoiceConsent|undefined;
   if(input.consent){
     const c=input.consent,at=Date.parse(c.consentedAt);

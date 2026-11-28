@@ -36,6 +36,15 @@ Use [merged PR #123](https://github.com/MuazShafiq/apex-kennels/pull/123) for in
 
    An exit code of zero means the catalog query ran. Check the returned definitions against migrations 008, 009 and 010. Missing objects are reported as null. Confirm the runtime can read and write the care field, update booking status, and select and insert history with RLS enabled and zero policies. Ordinary grants alone can leave the runtime blocked by RLS. Where the reader and runtime roles differ, use the runtime role's results. Preserve existing installations and investigate unexpected or partial state before any DDL. A successful catalog check does not establish the Neon branch identity, current Form recovery or authorization to apply a migration.
 
+   After scoped authorization, use the direct TLS-verified connection described above. The serving release's reviewed files are `009_additional_dog_care.sql` (Git blob `13b9110bad2f0ec9cf9b3bdb7fa0440b0ccfe290`) and `010_booking_stay_history.sql` (`7efbc8ba106e47c484767c167ec48f279a2e87c0`). Verify the working file matches the reviewed blob. Apply only missing migrations, in order, once per file. Each file supplies its own transaction.
+
+   ```powershell
+   # Set $apexReviewedMigration to the verified file path for this step.
+   psql -X --no-password -v ON_ERROR_STOP=1 -c "SET lock_timeout = '5s'; SET statement_timeout = '30s';" -f $apexReviewedMigration
+   ```
+
+   Repeat catalog readback on a fresh connection after each application. For 010 also verify the expected state-transition checks and the enabled append-only guard. If application fails or the COMMIT result is uncertain, check readback before retrying. A complete installation stands and an unexpected partial state requires investigation. Rerun closed smoke and verify Form continuity before the canary.
+
 3. Deploy the reviewed release with public booking closed. Confirm the serving Worker version and check both origins with config disabled and an empty booking POST returning 503. Verify anonymous staff denial, authorized staff and authorized-but-unallowlisted identity behavior, and successful recent Form ingest and recovery through private evidence.
 4. Verify Pages and Worker Turnstile host/action, physical iPhone/Safari and affected network behavior, the exact gate flow, and owner/backup queue coverage. Run one bounded synthetic Pages submission on the intended release after preparing and verifying independent reclosure. Privately match the booking reference to one Neon booking with all dogs, care/cage choices, distinct transport pins, and no new WhatsApp consent row. Inspect the staff queue and care display. Restore the closed baseline and confirm closure before the persistent cutover decision.
 5. When the release requirements pass, enable the authorized public booking gate and verify both origins. Run the live cutover smoke, switch the scheduled monitor to live, then update the customer entry link. Keep the Form reachable as fallback. On failure, close the gate, restore the previous link and closed monitor mode, verify both origins reject booking, and preserve bookings and audit history.

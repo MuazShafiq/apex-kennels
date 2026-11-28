@@ -1,4 +1,6 @@
-# Shadow intake: bounded recovery (source-ready, not activated)
+# Shadow intake: bounded recovery
+
+**Production source checkpoint, 2026-11-29 PKT.** A read-only Apps Script API check confirmed the Form-bound `ApexIntake` source matches `integrations/google-form/Code.gs` and includes the recovery handler. The existing credential received HTTP 403 when listing executions. Hourly trigger installation and successful recovery runs still need trigger-owner verification.
 
 **Scope:** Recover missed Google Form -> Cloudflare -> Neon deliveries **after** the owner-approved activation cutoff, without importing historical responses. This is a second-chance delivery path, not a new booking system or invoice process.
 

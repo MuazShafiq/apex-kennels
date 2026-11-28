@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import {APEX_STAFF_THEME_CSS,APEX_STAFF_BRAND} from './apex-brand.ts';
 import {isTransportServiceLocation} from './transport-service-area.ts';
 import type {StaffInvoiceSource,StaffPackageChoice} from './staff-invoice-draft.ts';
@@ -9,13 +10,13 @@ export type StaffTransportSelection={
   customerPin:{lat:number;lon:number};
   dropoffPin?:{lat:number;lon:number};dropoffConfirmed:boolean;
   customerConfirmed:boolean;kennelConfirmed:boolean;accessConfirmed:boolean;
-  action:'quote'|'save';revision:number;
+  action:'quote'|'save';revision:number;reviewedQuote?:string;
 };
 
 export function parseStaffTransportSelection(form:URLSearchParams):StaffTransportSelection{
   const allowed=new Set(['id','package','visit','latitude','longitude',
     'dropoffLatitude','dropoffLongitude','dropoffConfirmed',
-    'customerConfirmed','kennelConfirmed','accessConfirmed','action','revision']);
+    'customerConfirmed','kennelConfirmed','accessConfirmed','action','revision','reviewedQuote']);
   if([...form.keys()].some(k=>!allowed.has(k))||
      [...allowed].some(k=>form.getAll(k).length>1))
     throw new Error('Invalid transport form fields');
@@ -64,13 +65,16 @@ export function parseStaffTransportSelection(form:URLSearchParams):StaffTranspor
   const rawRevision=required('revision');
   if(!/^(0|[1-9]\d{0,6})$/.test(rawRevision) || Number(rawRevision)>1000000)
     throw new Error('Invalid estimate revision');
+  const reviewedQuote=form.get('reviewedQuote');
+  if(reviewedQuote!==null&&(action!=='save'||!/^[1-9]\d{0,9}\.[a-f0-9]{64}$/.test(reviewedQuote)))
+    throw new Error('Invalid reviewed quote');
   return {
     bookingId,packageChoice,visit,customerPin:{lat,lon},
     ...(dropoffPin?{dropoffPin}:{}),dropoffConfirmed,
     customerConfirmed:confirmed('customerConfirmed'),
     kennelConfirmed:confirmed('kennelConfirmed'),
     accessConfirmed:confirmed('accessConfirmed'),
-    action,revision:Number(rawRevision)
+    action,revision:Number(rawRevision),...(reviewedQuote!==null?{reviewedQuote}:{})
   };
 }
 const esc=(s:string):string=>s.replace(/[&<>"']/g,c=>({
@@ -141,8 +145,23 @@ export function renderStaffTransportForm(source:StaffInvoiceSource,
   );
 }
 
+/** Compare a versioned screen with fresh server prices. Check timestamps may advance. */
+export function transportQuoteFingerprint(result:CoordinatedDraft):string|undefined {
+  const {pricingSnapshot,fuelRateSnapshot,quote}=result.draft;
+  const fuel=pricingSnapshot?.transport?.fuel;
+  if(!pricingSnapshot||!fuel||!result.route.ok)return;
+  const route=result.route.estimate;
+  const material=[
+    quote,route.loopDistanceKm,route.dropoffLoopDistanceKm,route.plannedRoundTrips,route.totalDrivenKm,
+    [route.kennelPin,route.kennelAccessWaypoint,route.customerPin,route.dropoffPin]
+      .map(pin=>pin?[pin.lat,pin.lon]:null),
+    fuel.source,fuel.effective,fuel.pkrPerLitre,fuel.note,fuelRateSnapshot?.sourceUrl,
+  ];
+  return pricingSnapshot.rateCardVersion+'.'+createHash('sha256').update(JSON.stringify(material)).digest('hex');
+}
+
 export function renderStaffTransportResult(
-  source:StaffInvoiceSource,input:StaffTransportSelection,result:CoordinatedDraft,fixedRouteVerified=false
+  source:StaffInvoiceSource,input:StaffTransportSelection,result:CoordinatedDraft,fixedRouteVerified=false,changed=false
 ):string {
   const line=result.draft.quote.lines.find(l=>l.label==='Pet transport');
   const pricing=result.draft.pricingSnapshot?.transport;
@@ -159,6 +178,8 @@ export function renderStaffTransportResult(
     id:input.bookingId,package:input.packageChoice,visit:input.visit,
     latitude:input.customerPin.lat,longitude:input.customerPin.lon,revision:input.revision
   };
+  const reviewedQuote=transportQuoteFingerprint(result);
+  if(reviewedQuote)keys.reviewedQuote=reviewedQuote;
   if(input.dropoffPin){
     keys.dropoffLatitude=input.dropoffPin.lat;
     keys.dropoffLongitude=input.dropoffPin.lon;
@@ -168,7 +189,9 @@ export function renderStaffTransportResult(
     flags.filter(k=>input[k]).map(k=>hidden(k,'yes')).join('')+hidden('action','save');
   return layout('Transport estimate',
     '<a href="/staff/transport?id='+encodeURIComponent(source.bookingId)+'">← Change transport details</a>'+
-    '<h1>Transport estimate</h1><p>'+esc(source.customerName)+' · '+esc(source.petNames)+'</p>'+
+    '<h1>Transport estimate</h1>'+
+    (changed?'<p class="warn" role="alert">The estimate changed. Review these figures before saving.</p>':'')+
+    '<p>'+esc(source.customerName)+' · '+esc(source.petNames)+'</p>'+
     '<section class="panel"><div class="stat"><span>Boarding + requested extras</span><strong>'+
     money(result.draft.quote.lines.filter(l=>l.label!=='Pet transport')
       .reduce((total,l)=>total+l.totalPkr,0)-result.draft.quote.discounts.reduce((total,d)=>total+d.amountPkr,0))+
@@ -191,7 +214,7 @@ export function renderStaffTransportResult(
     'No customer invoice has been issued.</p></section>'+
     (issues?'<section class="panel"><h2>Review before final approval</h2><ul>'+issues+'</ul></section>':'')+
     (ready?'<form method="post" action="/staff/transport" class="panel">'+replay+
-      '<p class="warn">Saving recalculates the route with the effective rate card and checks the fuel price. '+
+      '<p class="warn">Saving checks the route, rate card and fuel price again. '+
       'The saved result is an internal estimate, not an issued invoice.</p>'+
       '<button type="submit">Save review-only estimate</button></form>':
       '<p class="warn">No estimate can be saved until the route and current fuel rate are verified.</p>')

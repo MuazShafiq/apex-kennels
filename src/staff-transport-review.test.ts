@@ -163,6 +163,50 @@ test('save recomputes route and fuel then freezes reviewed transport metadata',a
   assert.equal(response.headers.get('location'),'/staff/draft/saved?id='+id);
   assert.equal(saves,1);
 });
+test('versioned transport saves require review after a rate activation or a changed fuel price',async()=>{
+  const config={...env,APEX_RATE_CARDS_ENABLED:'true'};
+  let version=3, pricePkrPerLitre=fuel.pricePkrPerLitre, lookups=0, saves=0;
+  const opts={
+    ...deps,
+    readRateCard:async()=>({
+      version,effectiveFrom:'2026-11-01T00:00:00+05:00',stdDaily:2500,cameraDaily:3000,
+      packageDays:30 as const,packageDiscount:10000,kmPerLitre:12,markupPct:20,freshnessHours:24,
+      fuelMode:'published' as const,fixedFuelPkr:null,fixedUntil:null,fixedReason:null,
+      summary:'Synthetic',createdBy:'fixture',createdAt:'2026-11-01T00:00:00+05:00',
+    }),
+    transportFuel:async()=>({
+      ok:true as const,rate:{...fuel,pricePkrPerLitre,retrievedAt:new Date(1793880000000+1000*++lookups).toISOString()},
+    }),
+    saveReview:async()=>{saves++;return {revision:1};},
+  };
+  const preview=async(response:Response)=>{
+    const result=await response.text();
+    const reviewed=result.match(/name="reviewedQuote" value="([^"]+)"/)?.[1];
+    assert.ok(reviewed);
+    return {result,reviewed};
+  };
+  const initial=await preview(await handleWorkerRequest(post(fields),config,undefined,opts));
+  assert.match(initial.reviewed,/^3\./);
+  version=4;
+  for(const reviewedQuote of [initial.reviewed,undefined]){
+    const save={...fields,action:'save',...(reviewedQuote?{reviewedQuote}:{})};
+    assert.equal((await handleWorkerRequest(post(save),config,undefined,opts)).status,409);
+  }
+  assert.equal(lookups,1,'A stale or missing review should not call the providers');
+  assert.equal(saves,0);
+
+  const current=await preview(await handleWorkerRequest(post(fields),config,undefined,opts));
+  pricePkrPerLitre=400;
+  const drift=await handleWorkerRequest(post({...fields,action:'save',reviewedQuote:current.reviewed}),config,undefined,opts);
+  assert.equal(drift.status,409);
+  assert.equal(saves,0);
+  const next=await preview(drift);
+  assert.match(next.result,/The estimate changed/);
+  assert.notEqual(next.reviewed,current.reviewed);
+  assert.equal((await handleWorkerRequest(post({...fields,action:'save',reviewedQuote:next.reviewed}),config,undefined,opts)).status,303);
+  assert.equal(saves,1,'The fresh check timestamp alone does not invalidate reviewed prices');
+});
+
 test('unverified route cannot save, and unavailable fuel never gets a fallback charge',async()=>{
   let saves=0,fetches=0;
   const opts={...deps,

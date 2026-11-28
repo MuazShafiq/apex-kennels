@@ -11,7 +11,7 @@ import {renderBrandedStaffPdf} from './branded-invoice-pdf.ts';
 import {invoiceStaffRoute,invoiceWebhookRoute,type InvoiceWorkflowDeps} from './invoice-workflow-routes.ts';
 import {whatsappWebhookRoute} from './whatsapp-webhook.ts';
 import {renderStaffTransportForm,renderStaffTransportResult,
-  parseStaffTransportSelection} from './staff-transport-review.ts';
+  parseStaffTransportSelection,transportQuoteFingerprint} from './staff-transport-review.ts';
 import {preparePinnedTransportDraft} from './transport-quote-from-pins.ts';
 import {APEX_KENNEL_LOCATION,APEX_KENNEL_ACCESS,readFixedRouteVerification} from './apex-location-config.ts';
 import type {RouteResult} from './transport-route.ts';
@@ -119,8 +119,8 @@ async function notifyOwnerOfNewBooking(env:WorkerEnv,input:IntakeRequest,saved:S
   if(staff.context?.waitUntil)staff.context.waitUntil(task);else await task;
 }
 
-function html(body: string):Response {
-  return new Response(body, {status:200,headers:{
+function html(body: string,status=200):Response {
+  return new Response(body, {status,headers:{
     'Content-Type':'text/html; charset=utf-8',
     'Cache-Control':'private, no-store',
     'X-Content-Type-Options':'nosniff',
@@ -571,6 +571,8 @@ export async function handleWorkerRequest(
       if(source.transportRequested!==true)
         return json({error:'This booking did not request transport'},409);
       const card=await currentStaffRates(env,staff);
+      if(selected.action==='save'&&String(card?.version??'')!==(selected.reviewedQuote?.split('.')[0]??''))
+        return json({error:'The effective rate card changed or the review is missing. Recalculate the transport estimate before saving.'},409);
       const review=prepareStaffDraftReview(source,selected.packageChoice,card);
       if(!review.draft)return json({error:'Incomplete boarding estimate'},409);
       const result=await preparePinnedTransportDraft({
@@ -599,6 +601,8 @@ export async function handleWorkerRequest(
       if(selected.action==='save'){
         if(!priced||!result.route.ok)
           return json({error:'Verified route and current petrol rate required before saving'},409);
+        if(card&&selected.reviewedQuote!==transportQuoteFingerprint(result))
+          return html(renderStaffTransportResult(source,selected,result,!!fixedRoute,true),409);
         const snapshot=makeReviewSnapshot({
           ...review,draft:result.draft,
           transport:{route:result.route.estimate,fuelRate:result.draft.fuelRateSnapshot}

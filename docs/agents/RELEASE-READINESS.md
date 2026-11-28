@@ -1,6 +1,14 @@
 # Technical release-readiness handoff
 
-## Current assignment — 2026-11-22 booking release
+## Current assignment — 2026-11-29 continuation
+
+**cdx-18 is the primary Apex engineering and release owner.** Use the [release acceptance checklist](../release-acceptance.md), the [founder launch decision](https://github.com/MuazShafiq/apex-kennels/issues/84#issuecomment-7084213754), [booking cutover #28](https://github.com/MuazShafiq/apex-kennels/issues/28), and [financial acceptance #39](https://github.com/MuazShafiq/apex-kennels/issues/39).
+
+- Continue design, Business Settings and Stay Log Studio on the local `feat/apex-business-settings` worktree. cdx-74's design and schema checkpoints are `6c5470f` and `27d3c2b`. cdx-18 completed and verified the pending transport review guard in `207ee2d`. The branch is undeployed. Validate migration 011 and Studio audit persistence on an authorized development Neon branch before considering feature activation. The existing `local-development` branch lacks the prerequisite invoice drafts table. Use a current schema-only branch for the rehearsal.
+- Booking release proceeds independently on the serving release. Fresh authenticated production catalog evidence confirms 008 and shows 009/010 are still absent. Follow the reviewed migration procedure with scoped authorization and verified Worker database role. Keep the Google Form as customer entry until staff and Form recovery, queue coverage, physical device/network and the bounded Pages/Neon canary pass. The founder's existing conditional cutover authority stands.
+- Keep invoice, WhatsApp and owner alert activation behind their own identity, payment, consent, Meta and recovery acceptance. The existing Worker staff URL is the protected staff entry. Draft PR #120 remains a separate Access-dependent change.
+
+## Historical assignment — 2026-11-22 booking release
 
 **cdx-18 is the primary engineering owner, taking over from cdx-74.** V10.6 + CTA Motion is approved, merged and deployed. The [current booking release decision](../release-acceptance.md#current-booking-release-decision--2026-11-22-pkt) supersedes the dated assignments below and the prior owner banner on [#84](https://github.com/MuazShafiq/apex-kennels/issues/84). Use it with [#28 cutover](https://github.com/MuazShafiq/apex-kennels/issues/28) and [#37 device acceptance](https://github.com/MuazShafiq/apex-kennels/issues/37). Preserve the existing Form as the customer path. Keep website booking, financial and messaging gates closed pending their respective approvals.
 
